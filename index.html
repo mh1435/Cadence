@@ -102,10 +102,16 @@
     display: inline-block; width: 9px; height: 9px; background: #c0a0ff;
     transform: rotate(45deg); margin-right: 8px;
   }
-  .shopGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 18px; text-align: left; }
-  .shopItem { border: 1px solid #2a2a3a; padding: 8px; font-size: 11px; }
+  .shopGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 12px; text-align: left; }
+  .shopItem { border: 1px solid #2a2a3a; padding: 6px 8px; font-size: 11px; }
   .shopItem strong { color: #e8e8e8; font-size: 12px; }
-  .shopItem button { width: 100%; margin: 6px 0 0 0; font-size: 12px; padding: 6px; }
+  .shopItem button { width: 100%; margin: 5px 0 0 0; font-size: 12px; padding: 4px; }
+  .equippedItem { border-color: #d9a72b; }
+  .sectionLabel {
+    color: #8878a8; font-size: 11px; letter-spacing: 3px;
+    text-align: left; margin-bottom: 6px;
+    border-bottom: 1px solid #2a2a3a; padding-bottom: 3px;
+  }
   .beginNightBtn { border-color: #8b0000; color: #ff8888; font-size: 17px; margin-top: 4px; }
 
   #gameoverScreen .title, #victoryScreen .title { font-size: 42px; letter-spacing: 3px; }
@@ -395,20 +401,355 @@ let currentEnvoy;
 let dodgeCtx, soul, bullets, dodgeState;
 let finalBossData;
 let defender, attackFlashes, deathBursts;
+let nightEvent, meteors, meteorTimer, chests, corpses, projectiles, chainArcs, fxParticles;
+let whisper, shakeMag, tileMap, nightProps;
 
-const ambientProps = (() => {
-  const rng = mulberry32(42);
-  const props = [];
-  for (let i = 0; i < 6; i++) {
-    let gx, gy;
-    do {
-      gx = Math.floor(rng() * GRID_COLS);
-      gy = Math.floor(rng() * (GRID_ROWS - 3));
-    } while (gx === BASE_GX && gy === BASE_GY);
-    props.push({ gx, gy, size: 6 + rng() * 6 });
+// ===================== PIXEL ART & PRE-RENDERED ASSETS =====================
+function makeCanvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
+
+const PAL = {
+  '.': null, K: '#0e0a14',
+  S: '#e6c39a', s: '#c49d72',
+  G: '#40603c', g: '#2b452a',
+  L: '#7a5a38', l: '#54401f',
+  Z: '#96b47e', z: '#6a8557', E: '#ff5544',
+  T: '#4c4c58', t: '#35353f',
+  R: '#c74444', r: '#8c2b2b',
+  B: '#565e6c', b: '#3a4049',
+  O: '#ddd6c2', o: '#ab9f85',
+  P: '#8a55c8', p: '#5c3488', e: '#d9b3ff',
+};
+
+function spriteFromArt(rows, scale) {
+  scale = scale || 2;
+  const h = rows.length, w = rows[0].length;
+  const c = makeCanvas(w * scale, h * scale);
+  const g = c.getContext('2d');
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const col = PAL[rows[y][x]];
+      if (!col) continue;
+      g.fillStyle = col;
+      g.fillRect(x * scale, y * scale, scale, scale);
+    }
   }
-  return props;
-})();
+  return c;
+}
+
+const DEFENDER_ART = [
+  '....KKKK....',
+  '...KggggK...',
+  '..KgGGGGgK..',
+  '..KgSSSSgK..',
+  '..KgSKKSgK..',
+  '...KsSSsK...',
+  '..KGGGGGGK..',
+  '.KGgGGGGgGK.',
+  '.KsGgggGgsK.',
+  '.KGgLLLLgGK.',
+  '..KGGGGGGK..',
+  '..KggKKggK..',
+];
+const WALKER_ART = [
+  '....KKKK....',
+  '...KZZZZK...',
+  '..KZEZZEZK..',
+  '..KZZzzZZK..',
+  '...KzZZzK...',
+  '..KTTTTTTK..',
+  '.KTtTTTTtTK.',
+  '.KZtTTTTtZK.',
+  '.KzTTttTTzK.',
+  '..KTttttTK..',
+  '..KttKKttK..',
+];
+const RUNNER_ART = [
+  '...KKK......',
+  '..KRRRK.....',
+  '..KREEK.....',
+  '...KRRK.....',
+  '...KrRRK....',
+  '...KRRRRKK..',
+  '..KRrRRRRRK.',
+  '..KrRRRRrRK.',
+  '...KRRKKRRK.',
+  '...KKK..KKK.',
+];
+const BRUTE_ART = [
+  '..KK......KK..',
+  '..KbK....KbK..',
+  '...KBBBBBBK...',
+  '..KBBEBBEBBK..',
+  '..KBBBBBBBBK..',
+  '...KbBBBBbK...',
+  '.KKBBBBBBBBKK.',
+  'KBbBBBBBBBBbBK',
+  'KbBBbBBBBbBBbK',
+  '.KKBBbbbbBBKK.',
+  '..KBBBBBBBBK..',
+  '..KbBBBBBBbK..',
+  '...KbbKKbbK...',
+];
+const WRAITH_ART = [
+  '....KKKK....',
+  '...KppppK...',
+  '..KpPPPPpK..',
+  '..KpKKKKpK..',
+  '..KpeKKepK..',
+  '...KpPPpK...',
+  '..KpPPPPpK..',
+  '..KPpPPpPK..',
+  '...KpPPpK...',
+  '....KpPK....',
+  '.....KpK....',
+  '......K.....',
+];
+const CHAMPION_ART = [
+  '....KKKKKK....',
+  '...KppppppK...',
+  '..KpPPPPPPpK..',
+  '..KpOOOOOOpK..',
+  '..KpOKOOKOpK..',
+  '..KpOOooOOpK..',
+  '...KPPPPPPK...',
+  '..KPpPPPPpPK..',
+  '.KPpPPPPPPpPK.',
+  '.KOPpPPPPpPOK.',
+  '..KPpPPPPpPK..',
+  '..KPPpppPPPK..',
+  '...KppKKppK...',
+];
+
+function makeTileSprite(topCol, edgeCol, specks, seed) {
+  const c = makeCanvas(68, 36);
+  const g = c.getContext('2d');
+  const cx = 34, cy = 2;
+  function tilePath() {
+    g.beginPath();
+    g.moveTo(cx, cy);
+    g.lineTo(cx + 32, cy + 16);
+    g.lineTo(cx, cy + 32);
+    g.lineTo(cx - 32, cy + 16);
+    g.closePath();
+  }
+  tilePath();
+  g.fillStyle = topCol;
+  g.fill();
+  g.save();
+  tilePath();
+  g.clip();
+  const rng = mulberry32(seed);
+  for (let i = 0; i < 30; i++) {
+    const px = cx + (rng() * 2 - 1) * 29;
+    const py = cy + 16 + (rng() * 2 - 1) * 13;
+    g.fillStyle = specks[Math.floor(rng() * specks.length)];
+    g.fillRect(px, py, 2, rng() < 0.3 ? 2 : 1);
+  }
+  g.restore();
+  tilePath();
+  g.strokeStyle = edgeCol;
+  g.lineWidth = 1;
+  g.stroke();
+  return c;
+}
+
+function makePineSprite() {
+  const c = makeCanvas(40, 58), g = c.getContext('2d');
+  g.fillStyle = '#382818';
+  g.fillRect(17, 46, 6, 10);
+  const layers = [[46, 17, '#1a2c1d'], [36, 14, '#20351f'], [26, 10, '#26402a']];
+  layers.forEach(([y0, halfW, col]) => {
+    g.beginPath();
+    g.moveTo(20, y0 - 18);
+    g.lineTo(20 + halfW, y0);
+    g.lineTo(20 - halfW, y0);
+    g.closePath();
+    g.fillStyle = col;
+    g.fill();
+    g.strokeStyle = '#101a10';
+    g.stroke();
+  });
+  return c;
+}
+
+function makeDeadTreeSprite() {
+  const c = makeCanvas(36, 50), g = c.getContext('2d');
+  g.strokeStyle = '#2e2318';
+  g.lineWidth = 4;
+  g.beginPath(); g.moveTo(18, 48); g.lineTo(17, 20); g.stroke();
+  g.lineWidth = 2;
+  g.beginPath(); g.moveTo(17, 26); g.lineTo(7, 14); g.stroke();
+  g.beginPath(); g.moveTo(17, 21); g.lineTo(28, 8); g.stroke();
+  g.beginPath(); g.moveTo(28, 8); g.lineTo(33, 10); g.stroke();
+  g.beginPath(); g.moveTo(7, 14); g.lineTo(4, 7); g.stroke();
+  return c;
+}
+
+function makeRockSprite() {
+  const c = makeCanvas(26, 18), g = c.getContext('2d');
+  g.fillStyle = '#3d3d48';
+  g.beginPath();
+  g.moveTo(3, 15); g.lineTo(6, 6); g.lineTo(14, 2); g.lineTo(22, 7); g.lineTo(23, 15);
+  g.closePath(); g.fill();
+  g.fillStyle = '#4c4c58';
+  g.beginPath();
+  g.moveTo(6, 6); g.lineTo(14, 2); g.lineTo(18, 5); g.lineTo(9, 9);
+  g.closePath(); g.fill();
+  g.strokeStyle = '#22222a';
+  g.stroke();
+  return c;
+}
+
+function makeGraveSprite() {
+  const c = makeCanvas(18, 24), g = c.getContext('2d');
+  g.fillStyle = '#3f3f4a';
+  g.beginPath();
+  g.moveTo(4, 22); g.lineTo(4, 8);
+  g.quadraticCurveTo(4, 2, 9, 2);
+  g.quadraticCurveTo(14, 2, 14, 8);
+  g.lineTo(14, 22);
+  g.closePath(); g.fill();
+  g.strokeStyle = '#26262e'; g.stroke();
+  g.strokeStyle = '#2c2c34';
+  g.beginPath(); g.moveTo(9, 7); g.lineTo(9, 14); g.stroke();
+  g.beginPath(); g.moveTo(6, 10); g.lineTo(12, 10); g.stroke();
+  return c;
+}
+
+function makeRuinSprite() {
+  const c = makeCanvas(38, 30), g = c.getContext('2d');
+  g.fillStyle = '#39322e';
+  g.beginPath();
+  g.moveTo(2, 28); g.lineTo(2, 12); g.lineTo(10, 10); g.lineTo(12, 4); g.lineTo(20, 6);
+  g.lineTo(22, 14); g.lineTo(34, 12); g.lineTo(36, 28);
+  g.closePath(); g.fill();
+  g.strokeStyle = '#221d1a'; g.stroke();
+  g.strokeStyle = 'rgba(0,0,0,0.3)';
+  for (let y = 14; y < 28; y += 5) { g.beginPath(); g.moveTo(3, y); g.lineTo(35, y); g.stroke(); }
+  return c;
+}
+
+function makeChestSprite(open) {
+  const c = makeCanvas(26, 20), g = c.getContext('2d');
+  g.fillStyle = '#5a3a1e';
+  g.fillRect(3, open ? 8 : 7, 20, 10);
+  g.strokeStyle = '#2c1c0e';
+  g.strokeRect(3.5, open ? 8.5 : 7.5, 19, 9);
+  if (open) {
+    g.fillStyle = '#6b4726';
+    g.fillRect(3, 1, 20, 5);
+    g.strokeRect(3.5, 1.5, 19, 4);
+    g.fillStyle = '#ffd27f';
+    g.fillRect(5, 8, 16, 3);
+  } else {
+    g.fillStyle = '#6b4726';
+    g.fillRect(3, 3, 20, 5);
+    g.strokeRect(3.5, 3.5, 19, 4);
+  }
+  g.fillStyle = '#d9a72b';
+  g.fillRect(11, open ? 9 : 5, 4, 6);
+  return c;
+}
+
+function makeBaseSprite() {
+  const c = makeCanvas(96, 92), g = c.getContext('2d');
+  g.fillStyle = '#2e2734';
+  g.fillRect(20, 40, 56, 42);
+  const rng = mulberry32(99);
+  for (let i = 0; i < 26; i++) {
+    g.fillStyle = rng() < 0.5 ? 'rgba(0,0,0,0.18)' : 'rgba(255,255,255,0.04)';
+    g.fillRect(22 + rng() * 50, 42 + rng() * 36, 4 + rng() * 5, 2);
+  }
+  g.strokeStyle = '#191521';
+  g.strokeRect(20.5, 40.5, 55, 41);
+  g.fillStyle = '#5a2626';
+  g.beginPath();
+  g.moveTo(12, 44); g.lineTo(48, 10); g.lineTo(84, 44);
+  g.closePath(); g.fill();
+  g.strokeStyle = '#33161a';
+  g.stroke();
+  g.strokeStyle = 'rgba(0,0,0,0.3)';
+  for (let i = 1; i < 4; i++) {
+    g.beginPath();
+    g.moveTo(12 + i * 9, 44 - i * 8.5);
+    g.lineTo(84 - i * 9, 44 - i * 8.5);
+    g.stroke();
+  }
+  g.fillStyle = '#1a120c';
+  g.fillRect(42, 60, 14, 22);
+  g.strokeStyle = '#54401f';
+  g.strokeRect(42.5, 60.5, 13, 21);
+  g.fillStyle = '#120d07';
+  g.fillRect(60, 50, 10, 10);
+  g.strokeRect(60.5, 50.5, 9, 9);
+  g.fillStyle = '#7a1f1f';
+  g.beginPath();
+  g.moveTo(26, 46); g.lineTo(34, 46); g.lineTo(34, 62); g.lineTo(30, 58); g.lineTo(26, 62);
+  g.closePath(); g.fill();
+  return c;
+}
+
+const ASSETS = {
+  chars: {
+    defender: spriteFromArt(DEFENDER_ART),
+    walker: spriteFromArt(WALKER_ART),
+    runner: spriteFromArt(RUNNER_ART),
+    brute: spriteFromArt(BRUTE_ART),
+    wraith: spriteFromArt(WRAITH_ART),
+    champion: spriteFromArt(CHAMPION_ART),
+  },
+  tiles: {
+    grass1: makeTileSprite('#1d2b1c', '#141d13', ['#2a3d26', '#162214', '#354c2e'], 11),
+    grass2: makeTileSprite('#202f1f', '#141d13', ['#2d4128', '#182415', '#3a5233'], 22),
+    dirt: makeTileSprite('#2c2117', '#1c150e', ['#3a2c1d', '#211811', '#443423'], 33),
+    sand: makeTileSprite('#3d3626', '#2a2418', ['#4c4430', '#2f2a1c', '#575039'], 44),
+  },
+  props: {
+    pine: makePineSprite(),
+    deadTree: makeDeadTreeSprite(),
+    rock: makeRockSprite(),
+    grave: makeGraveSprite(),
+    ruin: makeRuinSprite(),
+    chest: makeChestSprite(false),
+    chestOpen: makeChestSprite(true),
+  },
+  base: makeBaseSprite(),
+  baseWindow: { x: 65, y: 55 },
+};
+
+// ===================== ENEMIES / WEAPONS / EVENTS DATA =====================
+const ENEMY_TYPES = {
+  walker: { sprite: 'walker', hp: 1, speed: 0.02, dmgMult: 1, essence: 2 },
+  runner: { sprite: 'runner', hp: 1, speed: 0.045, dmgMult: 1, essence: 3 },
+  brute:  { sprite: 'brute', hp: 3, speed: 0.011, dmgMult: 3, essence: 6 },
+  wraith: { sprite: 'wraith', hp: 1, speed: 0.03, dmgMult: 2, essence: 4, floating: true, zigzag: true },
+};
+
+const WEAPONS = {
+  sword:   { name: 'Rusted Sword', kind: 'melee', range: 1.7, dmg: 1, cd: 14, desc: 'Trusty. Barely.' },
+  cleaver: { name: 'Bone Cleaver', kind: 'melee', range: 2.2, dmg: 2, cd: 24, aoe: true, cost: 40, desc: 'Hits everything in reach.' },
+  bow:     { name: "Gravekeeper's Bow", kind: 'ranged', dmg: 1, cd: 20, cost: 60, desc: 'Auto-aims the nearest horror.' },
+  storm:   { name: 'Storm Brand', kind: 'melee', range: 1.9, dmg: 2, cd: 16, chain: 2, cost: 100, desc: 'Lightning arcs to nearby foes.' },
+};
+
+const NIGHT_EVENTS = {
+  bloodMoon: { name: 'BLOOD MOON', tagline: 'The moon bleeds. They hunger. Kills pay double.' },
+  fog:       { name: 'DROWNING FOG', tagline: 'A mist crawls up from the sea.' },
+  meteors:   { name: 'FALLING SKY', tagline: 'The stars are coming down. Stay clear.' },
+  treasure:  { name: 'GIFTS OF THE TIDE', tagline: 'The sea left chests behind. Go touch them.' },
+  restless:  { name: 'RESTLESS DEAD', tagline: 'They do not stay down.' },
+};
+const EVENT_COLORS = { bloodMoon: '#ff6655', fog: '#9db8c9', meteors: '#ffaa55', treasure: '#ffd700', restless: '#b28fdc' };
+
+const WHISPERS = [
+  'You hear laughter beneath the waves.',
+  'Something counts the nights with you.',
+  'The lighthouse has been dark for years.',
+  'Your shadow moved before you did.',
+  'The gulls left this island long ago.',
+  'Salt. Rot. Patience.',
+  'It knows your name now.',
+];
 
 const stars = (() => {
   const rng = mulberry32(777);
@@ -485,9 +826,19 @@ function resetState() {
 
   finalBossData = null;
 
-  defender = { gridX: 5, gridY: 8, attackCooldown: 0 };
+  defender = { gridX: 5, gridY: 8, attackCooldown: 0, facing: 1, moving: false, walkPhase: 0 };
   attackFlashes = [];
   deathBursts = [];
+
+  player.weapon = 'sword';
+  player.ownedWeapons = ['sword'];
+  nightEvent = null;
+  meteors = []; meteorTimer = 0;
+  chests = []; corpses = [];
+  projectiles = []; chainArcs = []; fxParticles = [];
+  whisper = { text: null, t: 0 };
+  shakeMag = 0;
+  tileMap = []; nightProps = [];
 }
 resetState();
 
@@ -589,24 +940,83 @@ function setupNight(n) {
   nightPhaseTimer = 0;
   introTimer = 0;
 
-  const rng = mulberry32(currentNight * 7919 + 13);
-  nightTileTexture = [];
-  for (let i = 0; i < GRID_COLS * GRID_ROWS; i++) nightTileTexture.push(rng() < (1 / 3));
+  const trng = mulberry32(currentNight * 7919 + 13);
+
+  // island tile map: sand ring, dirt path to the base, textured grass inside
+  tileMap = [];
+  for (let gy = 0; gy < GRID_ROWS; gy++) {
+    const row = [];
+    for (let gx = 0; gx < GRID_COLS; gx++) {
+      let t;
+      if (gx === 0 || gx === GRID_COLS - 1 || gy === 0 || gy === GRID_ROWS - 1) t = 'sand';
+      else if (gx === 5) t = 'dirt';
+      else if (gy >= 10 && gx >= 4 && gx <= 6) t = 'dirt';
+      else t = trng() < 0.5 ? 'grass1' : 'grass2';
+      row.push(t);
+    }
+    tileMap.push(row);
+  }
+
+  // scenery props scattered off the path, away from the base courtyard
+  nightProps = [];
+  const propKinds = ['pine', 'pine', 'deadTree', 'rock', 'grave', 'ruin', 'pine', 'rock', 'deadTree'];
+  const usedCells = new Set();
+  for (let i = 0; i < propKinds.length; i++) {
+    let gx, gy, tries = 0;
+    do {
+      gx = 1 + Math.floor(trng() * (GRID_COLS - 2));
+      gy = 1 + Math.floor(trng() * (GRID_ROWS - 3));
+      tries++;
+    } while (tries < 30 && (gx === 5 || (gy >= 9 && gx >= 3 && gx <= 7) || usedCells.has(gx + ',' + gy)));
+    if (tries >= 30) continue;
+    usedCells.add(gx + ',' + gy);
+    nightProps.push({ gx, gy, kind: propKinds[i] });
+  }
+  nightProps.push({ gx: 4.55, gy: 10.4, kind: 'torch' });
+  nightProps.push({ gx: 5.45, gy: 10.4, kind: 'torch' });
 
   isQuietNight = player.nightsWithQuiet.includes(currentNight);
+
+  // random night event
+  nightEvent = null;
+  if (!isQuietNight && currentNight >= 3 && currentNight !== 99 && Math.random() < 0.45) {
+    const pool = ['bloodMoon', 'fog', 'meteors', 'treasure', 'restless'];
+    nightEvent = pool[Math.floor(Math.random() * pool.length)];
+  }
+
+  chests = [];
+  if (nightEvent === 'treasure') {
+    for (let i = 0; i < 3; i++) chests.push({ gx: 1 + Math.random() * 7, gy: 2 + Math.random() * 7, opened: false });
+  }
+  meteors = []; meteorTimer = 60;
+  corpses = []; projectiles = []; chainArcs = []; fxParticles = [];
+  whisper = { text: null, t: 0 };
+  shakeMag = 0;
+
   if (isQuietNight) {
     nightEnemies = [];
   } else {
-    const count = 3 + Math.floor(currentNight / 5);
+    let count = 3 + Math.floor(currentNight / 5);
+    if (nightEvent === 'bloodMoon') count = Math.ceil(count * 1.5);
     nightEnemies = [];
     for (let i = 0; i < count; i++) {
+      let type = 'walker';
+      const roll = Math.random();
+      if (currentNight >= 12 && roll < 0.15) type = 'wraith';
+      else if (currentNight >= 8 && roll < 0.3) type = 'brute';
+      else if (currentNight >= 4 && roll < 0.55) type = 'runner';
+      const def = ENEMY_TYPES[type];
+      const gx = Math.floor(Math.random() * GRID_COLS);
       nightEnemies.push({
-        gridX: Math.floor(Math.random() * GRID_COLS),
-        gridY: 0,
-        speed: 0.02,
-        hp: 1,
-        reached: false,
-        drawColor: '#cc3333'
+        type,
+        gridX: gx,
+        baseGX: gx,
+        gridY: -0.4,
+        phase: Math.random() * Math.PI * 2,
+        hp: def.hp,
+        maxHp: def.hp,
+        speed: def.speed * (0.9 + Math.random() * 0.2),
+        spawnT: 0,
       });
     }
   }
@@ -616,6 +1026,9 @@ function setupNight(n) {
   defender.gridX = 5;
   defender.gridY = 8;
   defender.attackCooldown = 0;
+  defender.facing = 1;
+  defender.moving = false;
+  defender.walkPhase = 0;
   attackFlashes = [];
   deathBursts = [];
 
@@ -644,6 +1057,11 @@ function updateNight(ndt) {
 
   if (nightPhase === 'marching') {
     updateDefender(ndt);
+    updateProjectiles(ndt);
+    updateMeteors(ndt);
+    updateChests();
+    updateCorpses(ndt);
+    updateWhisper(ndt);
 
     for (let i = nightEnemies.length - 1; i >= 0; i--) {
       const e = nightEnemies[i];
@@ -651,16 +1069,20 @@ function updateNight(ndt) {
         nightEnemies.splice(i, 1);
         continue;
       }
+      const def = ENEMY_TYPES[e.type] || ENEMY_TYPES.walker;
+      e.spawnT = Math.min(1, (e.spawnT || 0) + 0.03 * ndt);
       e.gridY += e.speed * ndt;
+      if (def.zigzag) e.gridX = clamp(e.baseGX + Math.sin(e.gridY * 0.9 + e.phase) * 1.3, 0, GRID_COLS - 1);
       if (e.gridY >= GRID_ROWS - 1) {
-        const dmg = Math.max(1, 5 - player.effAutoResolvePower);
+        const dmg = Math.max(1, 5 - player.effAutoResolvePower) * def.dmgMult;
         player.hp = Math.max(0, player.hp - dmg);
         spawnFloatingDamage(dmg);
+        shakeMag = Math.max(shakeMag, 4);
         nightEnemies.splice(i, 1);
         if (player.hp <= 0) { triggerGameOver('The last pact is broken.'); return; }
       }
     }
-    if (nightEnemies.length === 0) afterBasics();
+    if (nightEnemies.length === 0 && corpses.length === 0) afterBasics();
     return;
   }
 
@@ -691,9 +1113,13 @@ function resolveNightEnd() {
   }
 }
 
+function spawnFloat(x, y, text, color) {
+  floatingNumbers.push({ x, y, text, color, alpha: 1, vy: -1 });
+}
+
 function spawnFloatingDamage(value) {
   const iso = toIso(BASE_GX, BASE_GY);
-  floatingNumbers.push({ x: iso.x, y: iso.y, value, alpha: 1, vy: -1 });
+  spawnFloat(iso.x, iso.y, '-' + Math.round(value), '#ff3333');
 }
 
 function updateFloatingNumbers(ndt) {
@@ -705,7 +1131,12 @@ function updateFloatingNumbers(ndt) {
   }
 }
 
-// ===================== DEFENDER (player-controlled, night marching) =====================
+// ===================== DEFENDER, WEAPONS & NIGHT SYSTEMS =====================
+function gridDist(a, b) {
+  const dx = a.gridX - b.gridX, dy = a.gridY - b.gridY;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
 function updateDefender(ndt) {
   const spd = 0.14 * ndt;
   let dx = 0, dy = 0;
@@ -715,27 +1146,192 @@ function updateDefender(ndt) {
   if (keys['ArrowRight'] || keys['d'] || keys['D']) { dx += spd; dy -= spd; }
   defender.gridX = clamp(defender.gridX + dx, 0, GRID_COLS - 1);
   defender.gridY = clamp(defender.gridY + dy, 0, GRID_ROWS - 2);
+  defender.moving = (dx !== 0 || dy !== 0);
+  if (defender.moving) {
+    defender.walkPhase += 0.35 * ndt;
+    const screenDx = dx - dy;
+    if (screenDx > 0.001) defender.facing = 1;
+    else if (screenDx < -0.001) defender.facing = -1;
+  }
 
   if (defender.attackCooldown > 0) defender.attackCooldown -= ndt;
-  if (keys[' '] && defender.attackCooldown <= 0) {
-    attackNearestEnemy();
-    defender.attackCooldown = 14;
+  if (keys[' '] && defender.attackCooldown <= 0) performAttack();
+}
+
+function nearestEnemyTo(gx, gy, maxDist) {
+  let best = null, bestD = maxDist;
+  for (const e of nightEnemies) {
+    const d = Math.sqrt((e.gridX - gx) * (e.gridX - gx) + (e.gridY - gy) * (e.gridY - gy));
+    if (d < bestD) { bestD = d; best = e; }
+  }
+  return best;
+}
+
+function performAttack() {
+  const w = WEAPONS[player.weapon] || WEAPONS.sword;
+  defender.attackCooldown = w.cd;
+  const dIso = toIso(defender.gridX, defender.gridY);
+
+  if (w.kind === 'ranged') {
+    attackFlashes.push({ x: dIso.x + defender.facing * 8, y: dIso.y + 4, life: 8, big: false, col: '#d9c9a0', dir: defender.facing });
+    const target = nearestEnemyTo(defender.gridX, defender.gridY, Infinity);
+    if (target) {
+      const tIso = toIso(target.gridX, target.gridY);
+      projectiles.push({ x: dIso.x, y: dIso.y - 6, tx: tIso.x, ty: tIso.y - 10, target, speed: 10, dmg: w.dmg });
+    }
+    return;
+  }
+
+  attackFlashes.push({ x: dIso.x + defender.facing * 10, y: dIso.y + 6, life: 12, big: !!w.aoe, col: w.chain ? '#9fd4ff' : '#ffe9a8', dir: defender.facing });
+  const inRange = nightEnemies.filter(e => gridDist(e, defender) <= w.range);
+  if (!inRange.length) return;
+
+  let targets;
+  if (w.aoe) targets = inRange.slice();
+  else targets = [inRange.reduce((a, b) => gridDist(a, defender) < gridDist(b, defender) ? a : b)];
+
+  const primary = targets[0];
+  let chainTargets = [];
+  let pIso = null;
+  if (w.chain && primary) {
+    pIso = toIso(primary.gridX, primary.gridY);
+    chainTargets = nightEnemies.filter(e => e !== primary && !targets.includes(e) && gridDist(e, primary) <= 2.5).slice(0, w.chain);
+  }
+  targets.forEach(t => damageEnemy(t, w.dmg));
+  chainTargets.forEach(e => {
+    const eIso = toIso(e.gridX, e.gridY);
+    chainArcs.push({ x1: pIso.x, y1: pIso.y - 10, x2: eIso.x, y2: eIso.y - 10, life: 10 });
+    damageEnemy(e, 1);
+  });
+}
+
+function damageEnemy(e, dmg) {
+  const idx = nightEnemies.indexOf(e);
+  if (idx < 0) return;
+  e.hp -= dmg;
+  const iso = toIso(e.gridX, e.gridY);
+  spawnSparks(iso.x, iso.y - 8, '#ffcc88', 4);
+  if (e.hp > 0) {
+    e.gridY = Math.max(0, e.gridY - 0.18);
+    return;
+  }
+  const def = ENEMY_TYPES[e.type] || ENEMY_TYPES.walker;
+  let gain = def.essence;
+  if (nightEvent === 'bloodMoon') gain *= 2;
+  player.essence += gain;
+  spawnFloat(iso.x, iso.y - 20, '+' + gain, '#ffd700');
+  deathBursts.push({ x: iso.x, y: iso.y + TILE_H / 2, life: 16 });
+  if (nightEvent === 'restless' && !e.revived && Math.random() < 0.4) {
+    corpses.push({ gx: e.gridX, gy: e.gridY, type: e.type, timer: 140 });
+  }
+  nightEnemies.splice(idx, 1);
+}
+
+function updateProjectiles(ndt) {
+  for (let i = projectiles.length - 1; i >= 0; i--) {
+    const p = projectiles[i];
+    if (p.target && nightEnemies.includes(p.target)) {
+      const iso = toIso(p.target.gridX, p.target.gridY);
+      p.tx = iso.x;
+      p.ty = iso.y - 10;
+    }
+    const dx = p.tx - p.x, dy = p.ty - p.y;
+    const d = Math.sqrt(dx * dx + dy * dy);
+    if (d < 12) {
+      if (p.target && nightEnemies.includes(p.target)) damageEnemy(p.target, p.dmg);
+      else spawnSparks(p.tx, p.ty, '#998866', 3);
+      projectiles.splice(i, 1);
+      continue;
+    }
+    p.vx = dx / d * p.speed;
+    p.vy = dy / d * p.speed;
+    p.x += p.vx * ndt;
+    p.y += p.vy * ndt;
   }
 }
 
-function attackNearestEnemy() {
-  let nearest = null, nearestDist = Infinity;
-  for (const e of nightEnemies) {
-    const dx = e.gridX - defender.gridX, dy = e.gridY - defender.gridY;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist < nearestDist) { nearestDist = dist; nearest = e; }
+function updateMeteors(ndt) {
+  if (nightEvent !== 'meteors') return;
+  meteorTimer -= ndt;
+  if (meteorTimer <= 0) {
+    meteorTimer = 90 + Math.random() * 70;
+    meteors.push({ gx: Math.random() * (GRID_COLS - 1), gy: 0.5 + Math.random() * 9.5, t: 0 });
   }
-  const iso = toIso(defender.gridX, defender.gridY);
-  attackFlashes.push({ x: iso.x, y: iso.y + TILE_H / 2, life: 10 });
-  if (nearest && nearestDist <= 1.7) {
-    const eIso = toIso(nearest.gridX, nearest.gridY);
-    deathBursts.push({ x: eIso.x, y: eIso.y + TILE_H / 2, life: 16 });
-    nightEnemies.splice(nightEnemies.indexOf(nearest), 1);
+  for (let i = meteors.length - 1; i >= 0; i--) {
+    const m = meteors[i];
+    m.t += ndt;
+    if (m.t >= 74) {
+      const iso = toIso(m.gx, m.gy);
+      spawnSparks(iso.x, iso.y + TILE_H / 2, '#ff8844', 14);
+      shakeMag = Math.max(shakeMag, 7);
+      for (let j = nightEnemies.length - 1; j >= 0; j--) {
+        const e = nightEnemies[j];
+        const d = Math.sqrt((e.gridX - m.gx) ** 2 + (e.gridY - m.gy) ** 2);
+        if (d <= 1.2) damageEnemy(e, 99);
+      }
+      const dd = Math.sqrt((defender.gridX - m.gx) ** 2 + (defender.gridY - m.gy) ** 2);
+      if (dd <= 1.1) {
+        player.hp = Math.max(0, player.hp - 8);
+        const dIso = toIso(defender.gridX, defender.gridY);
+        spawnFloat(dIso.x, dIso.y - 24, '-8', '#ff3333');
+        if (player.hp <= 0) { triggerGameOver('The sky claimed you.'); return; }
+      }
+      meteors.splice(i, 1);
+    }
+  }
+}
+
+function updateChests() {
+  chests.forEach(c => {
+    if (c.opened) return;
+    const d = Math.sqrt((defender.gridX - c.gx) ** 2 + (defender.gridY - c.gy) ** 2);
+    if (d < 0.85) {
+      c.opened = true;
+      const gain = 12 + Math.floor(currentNight / 3);
+      player.essence += gain;
+      const iso = toIso(c.gx, c.gy);
+      spawnFloat(iso.x, iso.y - 14, '+' + gain, '#ffd700');
+      spawnSparks(iso.x, iso.y, '#ffd700', 10);
+    }
+  });
+}
+
+function updateCorpses(ndt) {
+  for (let i = corpses.length - 1; i >= 0; i--) {
+    const c = corpses[i];
+    c.timer -= ndt;
+    if (c.timer <= 0) {
+      const def = ENEMY_TYPES[c.type] || ENEMY_TYPES.walker;
+      nightEnemies.push({
+        type: c.type, gridX: c.gx, baseGX: c.gx, gridY: c.gy,
+        phase: Math.random() * Math.PI * 2,
+        hp: 1, maxHp: 1, speed: def.speed, spawnT: 0, revived: true,
+      });
+      corpses.splice(i, 1);
+    }
+  }
+}
+
+function updateWhisper(ndt) {
+  if (!whisper.text && Math.random() < 0.002 * ndt) {
+    whisper.text = WHISPERS[Math.floor(Math.random() * WHISPERS.length)];
+    whisper.t = 260;
+  }
+  if (whisper.text) {
+    whisper.t -= ndt;
+    if (whisper.t <= 0) whisper.text = null;
+  }
+}
+
+function spawnSparks(x, y, col, n) {
+  for (let i = 0; i < n; i++) {
+    fxParticles.push({
+      x, y,
+      vx: (Math.random() - 0.5) * 3.2,
+      vy: -Math.random() * 2.6 - 0.4,
+      life: 1, col,
+      size: 1.5 + Math.random() * 1.5,
+    });
   }
 }
 
@@ -747,6 +1343,18 @@ function updateAttackFX(ndt) {
   for (let i = deathBursts.length - 1; i >= 0; i--) {
     deathBursts[i].life -= ndt;
     if (deathBursts[i].life <= 0) deathBursts.splice(i, 1);
+  }
+  for (let i = chainArcs.length - 1; i >= 0; i--) {
+    chainArcs[i].life -= ndt;
+    if (chainArcs[i].life <= 0) chainArcs.splice(i, 1);
+  }
+  for (let i = fxParticles.length - 1; i >= 0; i--) {
+    const p = fxParticles[i];
+    p.x += p.vx * ndt;
+    p.y += p.vy * ndt;
+    p.vy += 0.12 * ndt;
+    p.life -= 0.045 * ndt;
+    if (p.life <= 0) fxParticles.splice(i, 1);
   }
 }
 
@@ -935,6 +1543,21 @@ function populateDayScreen() {
     </div>`;
   }).join('');
 
+  const weaponsHtml = Object.keys(WEAPONS).map(k => {
+    const w = WEAPONS[k];
+    const owned = player.ownedWeapons.includes(k);
+    const equipped = player.weapon === k;
+    const cost = w.cost || 0;
+    let btn;
+    if (equipped) btn = `<button disabled>Equipped</button>`;
+    else if (owned) btn = `<button onclick="equipWeapon('${k}')">Equip</button>`;
+    else btn = `<button ${player.essence >= cost ? '' : 'disabled'} onclick="buyWeapon('${k}')">Buy · ${cost}</button>`;
+    return `<div class="shopItem ${equipped ? 'equippedItem' : ''}">
+      <strong>${w.name}</strong><br>${w.desc}
+      ${btn}
+    </div>`;
+  }).join('');
+
   el.innerHTML = `
     <div class="panel">
       <div class="dayHeader">Dawn — Night ${currentNight} survived</div>
@@ -942,7 +1565,10 @@ function populateDayScreen() {
       <div class="hpText">HP: ${Math.round(player.hp)} / ${player.maxHp}</div>
       <div class="essenceLine">Essence: ${player.essence}</div>
       <div class="alliesList">${alliesHtml}</div>
+      <div class="sectionLabel">UPGRADES</div>
       <div class="shopGrid">${shopHtml}</div>
+      <div class="sectionLabel">ARMORY</div>
+      <div class="shopGrid">${weaponsHtml}</div>
       <button class="beginNightBtn" onclick="setupNight(currentNight + 1)">[Begin Night ${currentNight + 1}]</button>
     </div>
   `;
@@ -955,6 +1581,21 @@ function buyUpgrade(key) {
   up.apply();
   recalcAllyBonuses();
   clampPlayer();
+  populateDayScreen();
+}
+
+function buyWeapon(k) {
+  const w = WEAPONS[k];
+  if (!w || player.ownedWeapons.includes(k) || player.essence < (w.cost || 0)) return;
+  player.essence -= w.cost || 0;
+  player.ownedWeapons.push(k);
+  player.weapon = k;
+  populateDayScreen();
+}
+
+function equipWeapon(k) {
+  if (!player.ownedWeapons.includes(k)) return;
+  player.weapon = k;
   populateDayScreen();
 }
 
@@ -1244,68 +1885,386 @@ function clampPlayer() {
 }
 
 // ===================== DRAWING: NIGHT SCENE =====================
-function drawEnemy(e, isSpecial) {
-  const iso = toIso(e.gridX, e.gridY);
-  const scale = isSpecial ? 1.7 : 1.25;
-  const bob = Math.sin(frameCount * 0.1 + e.gridX) * 2;
-  const baseY = iso.y + TILE_H / 2 - bob;
-  const color = isSpecial ? '#9933cc' : (e.drawColor || '#cc3333');
-  const headColor = isSpecial ? '#aa55dd' : '#dd4444';
+function drawSpriteEntity(spr, gx, gy, opts) {
+  opts = opts || {};
+  const iso = toIso(gx, gy);
+  const groundY = iso.y + TILE_H / 2;
+  ctx.save();
+  if (opts.alpha !== undefined) ctx.globalAlpha *= clamp(opts.alpha, 0, 1);
 
-  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.fillStyle = opts.floating ? 'rgba(0,0,0,0.25)' : 'rgba(0,0,0,0.45)';
   ctx.beginPath();
-  ctx.ellipse(iso.x, iso.y + TILE_H / 2 + 2, 7 * scale, 3, 0, 0, Math.PI * 2);
+  ctx.ellipse(iso.x, groundY + 2, spr.width * 0.3, 3.4, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.fillStyle = color;
-  ctx.fillRect(iso.x - 4 * scale, baseY - 16 * scale, 8 * scale, 16 * scale);
-  ctx.beginPath();
-  ctx.arc(iso.x, baseY - 16 * scale - 6 * scale, 6 * scale, 0, Math.PI * 2);
-  ctx.fillStyle = headColor;
-  ctx.fill();
+  const bob = opts.floating ? Math.sin(frameCount * 0.08 + (opts.phase || 0)) * 3 - 6 : 0;
+  let legH = 0;
+  if (!opts.floating) {
+    legH = 6;
+    const ph = opts.walkPhase === undefined ? frameCount * 0.18 + (opts.phase || 0) : opts.walkPhase;
+    const sw = opts.still ? 0 : Math.sin(ph) * 3;
+    ctx.fillStyle = opts.legColor || '#14101c';
+    ctx.fillRect(iso.x - 5 + sw, groundY - legH, 4, legH);
+    ctx.fillRect(iso.x + 1 - sw, groundY - legH, 4, legH);
+  }
+  const dy = groundY - legH - spr.height + bob;
+  if (opts.flip) {
+    ctx.translate(iso.x, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(spr, -spr.width / 2, dy);
+  } else {
+    ctx.drawImage(spr, iso.x - spr.width / 2, dy);
+  }
+  ctx.restore();
 }
 
-function drawDefender() {
-  const iso = toIso(defender.gridX, defender.gridY);
-  const bob = Math.sin(frameCount * 0.15) * 2;
-  const baseY = iso.y + TILE_H / 2 - bob;
+function drawEnemySprite(e) {
+  const def = ENEMY_TYPES[e.type] || ENEMY_TYPES.walker;
+  drawSpriteEntity(ASSETS.chars[def.sprite], e.gridX, e.gridY, {
+    alpha: e.spawnT === undefined ? 1 : e.spawnT,
+    floating: def.floating,
+    phase: e.phase,
+    walkPhase: frameCount * (0.1 + def.speed * 4) + (e.phase || 0),
+  });
+  if (e.maxHp > 1 && e.hp < e.maxHp) {
+    const iso = toIso(e.gridX, e.gridY);
+    const w = 8, total = e.maxHp * w + (e.maxHp - 1) * 2;
+    for (let i = 0; i < e.maxHp; i++) {
+      ctx.fillStyle = i < e.hp ? '#ff5544' : '#3a2626';
+      ctx.fillRect(iso.x - total / 2 + i * (w + 2), iso.y - 44, w, 3);
+    }
+  }
+}
 
+function drawDefenderSprite() {
+  drawSpriteEntity(ASSETS.chars.defender, defender.gridX, defender.gridY, {
+    flip: defender.facing < 0,
+    walkPhase: defender.walkPhase,
+    still: !defender.moving,
+    legColor: '#1a1410',
+  });
+}
+
+function drawCorpse(c) {
+  const iso = toIso(c.gx, c.gy);
+  const groundY = iso.y + TILE_H / 2;
+  const shiver = c.timer < 30 ? (Math.random() - 0.5) * 2 : 0;
+  ctx.fillStyle = '#191420';
+  ctx.beginPath();
+  ctx.ellipse(iso.x + shiver, groundY - 2, 9, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#ddd6c2';
+  ctx.fillRect(iso.x - 2 + shiver, groundY - 5, 4, 2);
+}
+
+function drawChest(c) {
+  const spr = c.opened ? ASSETS.props.chestOpen : ASSETS.props.chest;
+  const iso = toIso(c.gx, c.gy);
+  const groundY = iso.y + TILE_H / 2;
   ctx.fillStyle = 'rgba(0,0,0,0.4)';
   ctx.beginPath();
-  ctx.ellipse(iso.x, iso.y + TILE_H / 2 + 2, 8, 3, 0, 0, Math.PI * 2);
+  ctx.ellipse(iso.x, groundY + 2, 10, 3.4, 0, 0, Math.PI * 2);
   ctx.fill();
+  ctx.drawImage(spr, iso.x - spr.width / 2, groundY - spr.height + 2);
+  if (!c.opened && Math.sin(frameCount * 0.12 + c.gx * 5) > 0.7) {
+    ctx.fillStyle = '#ffd700';
+    ctx.fillRect(iso.x + 6, groundY - 24, 2, 2);
+  }
+}
 
-  ctx.fillStyle = '#fff2c0';
-  ctx.fillRect(iso.x - 5, baseY - 20, 10, 20);
+function drawProp(p) {
+  const iso = toIso(p.gx, p.gy);
+  const groundY = iso.y + TILE_H / 2;
+  if (p.kind === 'torch') {
+    ctx.fillStyle = '#4a3520';
+    ctx.fillRect(iso.x - 2, groundY - 22, 4, 22);
+    const flick = Math.sin(frameCount * 0.3 + p.gx * 7);
+    const r = 4 + flick * 1.5;
+    const glow = ctx.createRadialGradient(iso.x, groundY - 26, 2, iso.x, groundY - 26, 26);
+    glow.addColorStop(0, 'rgba(255,150,70,0.35)');
+    glow.addColorStop(1, 'rgba(255,150,70,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(iso.x, groundY - 26, 26, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ff9944';
+    ctx.beginPath();
+    ctx.arc(iso.x, groundY - 26, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ffd27f';
+    ctx.beginPath();
+    ctx.arc(iso.x, groundY - 27, r * 0.5, 0, Math.PI * 2);
+    ctx.fill();
+    return;
+  }
+  const spr = ASSETS.props[p.kind];
+  if (!spr) return;
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
   ctx.beginPath();
-  ctx.arc(iso.x, baseY - 27, 7, 0, Math.PI * 2);
-  ctx.fillStyle = '#ffe9a8';
+  ctx.ellipse(iso.x, groundY + 2, spr.width * 0.32, 3.5, 0, 0, Math.PI * 2);
   ctx.fill();
+  ctx.drawImage(spr, iso.x - spr.width / 2, groundY - spr.height + 4);
+}
 
-  ctx.strokeStyle = '#ffd76b';
+function drawSea() {
+  ctx.save();
+  const g = ctx.createRadialGradient(400, 400, 60, 400, 400, 440);
+  g.addColorStop(0, '#0d1626');
+  g.addColorStop(1, '#05070d');
+  ctx.beginPath();
+  ctx.ellipse(400, 400, 440, 215, 0, 0, Math.PI * 2);
+  ctx.fillStyle = g;
+  ctx.fill();
+  ctx.clip();
+  for (let i = 0; i < 4; i++) {
+    const yy = 300 + i * 55 + Math.sin(frameCount * 0.01 + i * 2) * 6;
+    ctx.globalAlpha = 0.05 + 0.03 * Math.sin(frameCount * 0.02 + i);
+    ctx.strokeStyle = '#7fa8d0';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for (let x = 0; x <= 800; x += 16) {
+      const y = yy + Math.sin(x * 0.02 + frameCount * 0.02 + i) * 3;
+      if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawCliffs() {
+  const H = 16;
+  ctx.fillStyle = '#241a10';
+  ctx.beginPath();
+  for (let gx = 0; gx < GRID_COLS; gx++) {
+    const p = toIso(gx, GRID_ROWS - 1);
+    ctx.moveTo(p.x - 32, p.y + 16);
+    ctx.lineTo(p.x, p.y + 32);
+    ctx.lineTo(p.x, p.y + 32 + H);
+    ctx.lineTo(p.x - 32, p.y + 16 + H);
+    ctx.closePath();
+  }
+  ctx.fill();
+  ctx.fillStyle = '#2b2015';
+  ctx.beginPath();
+  for (let gy = 0; gy < GRID_ROWS; gy++) {
+    const p = toIso(GRID_COLS - 1, gy);
+    ctx.moveTo(p.x + 32, p.y + 16);
+    ctx.lineTo(p.x, p.y + 32);
+    ctx.lineTo(p.x, p.y + 32 + H);
+    ctx.lineTo(p.x + 32, p.y + 16 + H);
+    ctx.closePath();
+  }
+  ctx.fill();
+  // foam line at the waterline
+  ctx.strokeStyle = `rgba(170,195,220,${0.1 + 0.06 * Math.sin(frameCount * 0.05)})`;
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.moveTo(iso.x + 5, baseY - 10);
-  ctx.lineTo(iso.x + 13, baseY - 18);
+  for (let gx = 0; gx < GRID_COLS; gx++) {
+    const p = toIso(gx, GRID_ROWS - 1);
+    ctx.moveTo(p.x - 32, p.y + 16 + H);
+    ctx.lineTo(p.x, p.y + 32 + H);
+  }
+  for (let gy = 0; gy < GRID_ROWS; gy++) {
+    const p = toIso(GRID_COLS - 1, gy);
+    ctx.moveTo(p.x, p.y + 32 + H);
+    ctx.lineTo(p.x + 32, p.y + 16 + H);
+  }
   ctx.stroke();
 }
 
-function drawAmbientProps() {
-  ambientProps.forEach(p => {
-    const iso = toIso(p.gx, p.gy);
-    const cx = iso.x, cy = iso.y + TILE_H / 2;
-    ctx.fillStyle = '#0d0d14';
+function drawTiles() {
+  for (let gy = 0; gy < GRID_ROWS; gy++) {
+    for (let gx = 0; gx < GRID_COLS; gx++) {
+      const t = (tileMap[gy] && tileMap[gy][gx]) || 'grass1';
+      const iso = toIso(gx, gy);
+      ctx.drawImage(ASSETS.tiles[t], iso.x - 34, iso.y - 2);
+    }
+  }
+}
+
+function drawBaseStructure() {
+  const iso = toIso(BASE_GX, BASE_GY);
+  const bottom = iso.y + TILE_H;
+  const spr = ASSETS.base;
+  ctx.drawImage(spr, iso.x - spr.width / 2, bottom - spr.height + 6);
+  const pulse = 0.5 + Math.sin(frameCount * 0.06) * 0.3;
+  const wx = iso.x - spr.width / 2 + ASSETS.baseWindow.x;
+  const wy = bottom - spr.height + 6 + ASSETS.baseWindow.y;
+  ctx.save();
+  ctx.globalAlpha *= pulse;
+  const glow = ctx.createRadialGradient(wx, wy, 1, wx, wy, 18);
+  glow.addColorStop(0, 'rgba(255,181,77,0.8)');
+  glow.addColorStop(1, 'rgba(255,181,77,0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(wx, wy, 18, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#ffb54d';
+  ctx.fillRect(wx - 4, wy - 4, 8, 8);
+  ctx.restore();
+}
+
+function drawProjectiles() {
+  projectiles.forEach(p => {
+    const ang = Math.atan2(p.vy || 0, p.vx || 1);
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(ang);
+    ctx.strokeStyle = '#d9c9a0';
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(cx - p.size, cy);
-    ctx.lineTo(cx - p.size * 0.3, cy - p.size * 0.9);
-    ctx.lineTo(cx + p.size * 0.6, cy - p.size * 0.4);
-    ctx.lineTo(cx + p.size, cy + p.size * 0.3);
-    ctx.lineTo(cx - p.size * 0.4, cy + p.size * 0.5);
+    ctx.moveTo(-8, 0);
+    ctx.lineTo(4, 0);
+    ctx.stroke();
+    ctx.fillStyle = '#ecece4';
+    ctx.beginPath();
+    ctx.moveTo(7, 0); ctx.lineTo(2, -2.5); ctx.lineTo(2, 2.5);
     ctx.closePath();
     ctx.fill();
-    ctx.strokeStyle = '#1e1e2e';
+    ctx.restore();
+  });
+}
+
+function drawMeteorWarnings() {
+  meteors.forEach(m => {
+    if (m.t >= 60) return;
+    const iso = toIso(m.gx, m.gy);
+    const pulse = 0.3 + 0.25 * Math.sin(frameCount * 0.25);
+    ctx.strokeStyle = `rgba(255,90,60,${pulse})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(iso.x, iso.y + TILE_H / 2, 26, 13, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.ellipse(iso.x, iso.y + TILE_H / 2, 10, 5, 0, 0, Math.PI * 2);
     ctx.stroke();
   });
+}
+
+function drawMeteorsFalling() {
+  meteors.forEach(m => {
+    if (m.t < 60) return;
+    const f = (m.t - 60) / 14;
+    const iso = toIso(m.gx, m.gy);
+    const y = iso.y + TILE_H / 2 - 160 * (1 - f);
+    const x = iso.x + 40 * (1 - f);
+    ctx.strokeStyle = 'rgba(255,150,80,0.5)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(x + 18, y - 34);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+    const glow = ctx.createRadialGradient(x, y, 1, x, y, 16);
+    glow.addColorStop(0, 'rgba(255,190,110,0.9)');
+    glow.addColorStop(1, 'rgba(255,120,50,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(x, y, 16, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#a56a3a';
+    ctx.beginPath();
+    ctx.arc(x, y, 6, 0, Math.PI * 2);
+    ctx.fill();
+  });
+}
+
+let fogCanvas = makeCanvas(800, 600);
+function drawFogOverlay() {
+  const g = fogCanvas.getContext('2d');
+  g.clearRect(0, 0, 800, 600);
+  g.fillStyle = 'rgba(8,12,18,0.86)';
+  g.fillRect(0, 0, 800, 600);
+  g.globalCompositeOperation = 'destination-out';
+  const holes = [
+    { p: toIso(defender.gridX, defender.gridY), r: 150 },
+    { p: toIso(BASE_GX, BASE_GY), r: 110 },
+  ];
+  holes.forEach(h => {
+    const grad = g.createRadialGradient(h.p.x, h.p.y, 10, h.p.x, h.p.y, h.r);
+    grad.addColorStop(0, 'rgba(0,0,0,1)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = grad;
+    g.beginPath();
+    g.arc(h.p.x, h.p.y, h.r, 0, Math.PI * 2);
+    g.fill();
+  });
+  g.globalCompositeOperation = 'source-over';
+  ctx.drawImage(fogCanvas, 0, 0);
+}
+
+function drawMoon() {
+  const blood = nightEvent === 'bloodMoon' && !isQuietNight;
+  const mx = 650, my = 86, r = 34;
+  const glow = ctx.createRadialGradient(mx, my, r * 0.5, mx, my, r * 3);
+  glow.addColorStop(0, blood ? 'rgba(220,70,55,0.28)' : 'rgba(200,205,235,0.16)');
+  glow.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(mx, my, r * 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = blood ? '#b03a34' : '#c9cbde';
+  ctx.beginPath();
+  ctx.arc(mx, my, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(0,0,0,0.18)';
+  [[12, -8, 7], [-10, 6, 5], [2, 14, 4]].forEach(([ox, oy, cr]) => {
+    ctx.beginPath();
+    ctx.arc(mx + ox, my + oy, cr, 0, Math.PI * 2);
+    ctx.fill();
+  });
+}
+
+function drawHUD() {
+  ctx.save();
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = 'rgba(8,6,14,0.62)';
+  ctx.fillRect(10, 10, 196, 66);
+  ctx.strokeStyle = '#2a2a3a';
+  ctx.strokeRect(10.5, 10.5, 195, 65);
+
+  ctx.fillStyle = '#ff2222';
+  ctx.font = '14px "Courier New", monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('♥', 18, 30);
+  ctx.fillStyle = '#3a1010';
+  ctx.fillRect(34, 19, 140, 10);
+  const pct = clamp(player.hp / player.maxHp, 0, 1);
+  const hpGrad = ctx.createLinearGradient(34, 0, 174, 0);
+  hpGrad.addColorStop(0, '#8b0000');
+  hpGrad.addColorStop(1, '#ff4444');
+  ctx.fillStyle = hpGrad;
+  ctx.fillRect(34, 19, 140 * pct, 10);
+  ctx.strokeStyle = '#4a1a1a';
+  ctx.strokeRect(34.5, 19.5, 139, 9);
+
+  ctx.save();
+  ctx.translate(22, 42);
+  ctx.rotate(Math.PI / 4);
+  ctx.fillStyle = '#ffd700';
+  ctx.fillRect(-3.5, -3.5, 7, 7);
+  ctx.restore();
+  ctx.fillStyle = '#ffd700';
+  ctx.font = '13px "Courier New", monospace';
+  ctx.fillText(String(player.essence), 34, 47);
+
+  ctx.fillStyle = '#b9a8d9';
+  ctx.font = '11px "Courier New", monospace';
+  ctx.fillText((WEAPONS[player.weapon] || WEAPONS.sword).name, 34, 64);
+
+  ctx.fillStyle = 'rgba(8,6,14,0.62)';
+  ctx.fillRect(620, 10, 170, nightEvent ? 52 : 34);
+  ctx.strokeStyle = '#2a2a3a';
+  ctx.strokeRect(620.5, 10.5, 169, nightEvent ? 51 : 33);
+  ctx.fillStyle = '#c0a0ff';
+  ctx.font = 'bold 16px "Courier New", monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('NIGHT ' + currentNight, 705, 32);
+  if (nightEvent) {
+    ctx.fillStyle = EVENT_COLORS[nightEvent] || '#e8e8e8';
+    ctx.font = 'bold 11px "Courier New", monospace';
+    ctx.fillText(NIGHT_EVENTS[nightEvent].name, 705, 52);
+  }
+  ctx.restore();
 }
 
 function drawStars() {
@@ -1357,11 +2316,19 @@ function drawBaseGlow() {
 function drawAttackFX() {
   ctx.save();
   attackFlashes.forEach(f => {
-    ctx.globalAlpha = clamp(f.life / 10, 0, 1);
-    ctx.strokeStyle = '#ffe9a8';
-    ctx.lineWidth = 3;
+    ctx.globalAlpha = clamp(f.life / 12, 0, 1);
+    ctx.strokeStyle = f.col || '#ffe9a8';
+    ctx.lineWidth = f.big ? 4 : 3;
+    const r = f.big ? 24 : 16;
     ctx.beginPath();
-    ctx.arc(f.x, f.y, 15, -0.7, 0.7);
+    if ((f.dir || 1) > 0) ctx.arc(f.x, f.y, r, -0.85, 0.85);
+    else ctx.arc(f.x, f.y, r, Math.PI - 0.85, Math.PI + 0.85);
+    ctx.stroke();
+    ctx.globalAlpha *= 0.5;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    if ((f.dir || 1) > 0) ctx.arc(f.x, f.y, r - 6, -0.7, 0.7);
+    else ctx.arc(f.x, f.y, r - 6, Math.PI - 0.7, Math.PI + 0.7);
     ctx.stroke();
   });
   deathBursts.forEach(b => {
@@ -1376,79 +2343,118 @@ function drawAttackFX() {
       ctx.fill();
     }
   });
+  chainArcs.forEach(a => {
+    ctx.globalAlpha = clamp(a.life / 10, 0, 1);
+    for (let pass = 0; pass < 2; pass++) {
+      ctx.strokeStyle = pass === 0 ? 'rgba(120,180,255,0.35)' : '#bfe4ff';
+      ctx.lineWidth = pass === 0 ? 5 : 2;
+      ctx.beginPath();
+      ctx.moveTo(a.x1, a.y1);
+      for (let s = 1; s < 4; s++) {
+        const f = s / 4;
+        const mx = a.x1 + (a.x2 - a.x1) * f + (Math.random() - 0.5) * 10;
+        const my = a.y1 + (a.y2 - a.y1) * f + (Math.random() - 0.5) * 10;
+        ctx.lineTo(mx, my);
+      }
+      ctx.lineTo(a.x2, a.y2);
+      ctx.stroke();
+    }
+  });
+  fxParticles.forEach(p => {
+    ctx.globalAlpha = clamp(p.life, 0, 1);
+    ctx.fillStyle = p.col;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    ctx.fill();
+  });
   ctx.restore();
-}
-
-function drawPlayerBase() {
-  const iso = toIso(BASE_GX, BASE_GY);
-  drawIsoPrism(ctx, iso.x, iso.y + TILE_H, TILE_W / 2, TILE_H / 2, 20, '#1a0808', '#0f0404', '#140606');
 }
 
 function drawAllyDiamond(gx, gy) {
   const iso = toIso(gx, gy);
   const cx = iso.x, cy = iso.y + TILE_H / 2;
+  const glow = ctx.createRadialGradient(cx, cy - 4, 1, cx, cy - 4, 14);
+  glow.addColorStop(0, 'rgba(192,160,255,0.4)');
+  glow.addColorStop(1, 'rgba(192,160,255,0)');
+  ctx.fillStyle = glow;
   ctx.beginPath();
-  ctx.moveTo(cx, cy - 8);
-  ctx.lineTo(cx + 6, cy);
-  ctx.lineTo(cx, cy + 8);
-  ctx.lineTo(cx - 6, cy);
+  ctx.arc(cx, cy - 4, 14, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - 10);
+  ctx.lineTo(cx + 6, cy - 3);
+  ctx.lineTo(cx, cy + 4);
+  ctx.lineTo(cx - 6, cy - 3);
   ctx.closePath();
   ctx.fillStyle = '#c0a0ff';
   ctx.fill();
+  ctx.strokeStyle = '#e5d5ff';
+  ctx.stroke();
 }
 
 function drawNightScene(alpha) {
   alpha = alpha === undefined ? 1 : alpha;
+  const live = gameState === 'NIGHT';
   ctx.save();
+  if (live && shakeMag > 0.3) ctx.translate((Math.random() - 0.5) * shakeMag, (Math.random() - 0.5) * shakeMag);
   ctx.globalAlpha = alpha;
 
-  for (let gy = 0; gy < GRID_ROWS; gy++) {
-    for (let gx = 0; gx < GRID_COLS; gx++) {
-      let fill = '#111118';
-      let stroke = '#1e1e2e';
-      if (gx === BASE_GX && gy === BASE_GY) {
-        fill = '#1a0a0a'; stroke = '#8b0000';
-      } else if (nightTileTexture[gy * GRID_COLS + gx]) {
-        fill = '#151520';
-      }
-      drawIsoTile(ctx, gx, gy, fill, stroke);
-    }
-  }
+  drawSea();
+  drawCliffs();
+  drawTiles();
 
-  drawAmbientProps();
-  drawBaseGlow();
+  if (nightEvent === 'meteors') drawMeteorWarnings();
 
-  const entities = [{ depth: BASE_GX + BASE_GY, draw: drawPlayerBase }];
+  const entities = [];
+  nightProps.forEach(p => entities.push({ depth: p.gx + p.gy, draw: () => drawProp(p) }));
+  entities.push({ depth: BASE_GX + BASE_GY + 0.3, draw: drawBaseStructure });
   const allyPositions = [{ gx: 4, gy: 11 }, { gx: 6, gy: 11 }, { gx: 5, gy: 10 }];
   player.allies.slice(0, 3).forEach((a, i) => {
     const pos = allyPositions[i];
-    entities.push({ depth: pos.gx + pos.gy, draw: () => drawAllyDiamond(pos.gx, pos.gy) });
+    entities.push({ depth: pos.gx + pos.gy + 0.1, draw: () => drawAllyDiamond(pos.gx, pos.gy) });
   });
-  nightEnemies.forEach(e => {
-    entities.push({ depth: e.gridX + e.gridY, draw: () => drawEnemy(e, false) });
-  });
-  if (gameState === 'NIGHT' && nightPhase === 'marching') {
-    entities.push({ depth: defender.gridX + defender.gridY + 0.01, draw: drawDefender });
+  chests.forEach(c => entities.push({ depth: c.gx + c.gy, draw: () => drawChest(c) }));
+  corpses.forEach(c => entities.push({ depth: c.gx + c.gy, draw: () => drawCorpse(c) }));
+  nightEnemies.forEach(e => entities.push({ depth: e.gridX + e.gridY, draw: () => drawEnemySprite(e) }));
+  if (live && nightPhase === 'marching') {
+    entities.push({ depth: defender.gridX + defender.gridY + 0.01, draw: drawDefenderSprite });
   }
-  if (gameState === 'NIGHT' && nightPhase === 'specialAnnounce' && specialEnemyThisNight) {
-    entities.push({ depth: 5 + 6, draw: () => drawEnemy({ gridX: 5, gridY: 6 }, true) });
+  if (live && nightPhase === 'specialAnnounce' && specialEnemyThisNight) {
+    entities.push({ depth: 11, draw: () => drawSpriteEntity(ASSETS.chars.champion, 5, 6, { still: true }) });
   }
   entities.sort((a, b) => a.depth - b.depth);
-  entities.forEach(e => e.draw());
+  entities.forEach(en => en.draw());
 
-  if (gameState === 'NIGHT' && nightPhase === 'quiet') {
+  drawBaseGlow();
+  drawProjectiles();
+  if (nightEvent === 'meteors') drawMeteorsFalling();
+
+  if (nightEvent === 'fog' && (live || gameState === 'DODGE')) drawFogOverlay();
+  if (nightEvent === 'bloodMoon') {
+    ctx.fillStyle = 'rgba(170,30,30,0.09)';
+    ctx.fillRect(0, 0, 800, 600);
+  }
+
+  if (live && nightPhase === 'quiet') {
     ctx.fillStyle = 'rgba(232,232,232,0.5)';
     ctx.font = '20px "Courier New", monospace';
     ctx.textAlign = 'center';
     ctx.fillText('The night is quiet...', 400, 300);
   }
-  if (gameState === 'NIGHT' && nightPhase === 'marching') {
+  if (live && nightPhase === 'marching') {
     ctx.fillStyle = 'rgba(210,210,220,0.4)';
     ctx.font = '12px "Courier New", monospace';
     ctx.textAlign = 'center';
     ctx.fillText(isTouchDevice ? 'D-PAD TO MOVE   ·   TAP ATTACK' : 'WASD / ARROWS MOVE   ·   SPACE ATTACK', 400, 578);
   }
-  if (gameState === 'NIGHT' && nightPhase === 'specialAnnounce') {
+  if (live && whisper && whisper.text) {
+    const wa = clamp(Math.min(whisper.t / 60, (260 - whisper.t) / 40), 0, 1);
+    ctx.fillStyle = `rgba(180,170,200,${0.75 * wa})`;
+    ctx.font = 'italic 13px "Courier New", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(whisper.text, 400, 552);
+  }
+  if (live && nightPhase === 'specialAnnounce') {
     const flash = Math.abs(Math.sin(nightPhaseTimer * 0.1));
     ctx.fillStyle = `rgba(153,51,204,${0.15 * flash})`;
     ctx.fillRect(0, 0, 800, 600);
@@ -1459,6 +2465,7 @@ function drawNightScene(alpha) {
   }
 
   ctx.restore();
+  if (live && nightPhase === 'marching') drawHUD();
   drawFloatingNumbers();
   drawAttackFX();
 }
@@ -1469,8 +2476,8 @@ function drawFloatingNumbers() {
   ctx.textAlign = 'center';
   floatingNumbers.forEach(f => {
     ctx.globalAlpha = Math.max(0, f.alpha);
-    ctx.fillStyle = '#ff3333';
-    ctx.fillText('-' + Math.round(f.value), f.x, f.y);
+    ctx.fillStyle = f.color || '#ff3333';
+    ctx.fillText(f.text, f.x, f.y);
   });
   ctx.restore();
 }
@@ -1489,6 +2496,14 @@ function drawNightIntro() {
   ctx.font = 'bold 48px "Courier New", monospace';
   ctx.textAlign = 'center';
   ctx.fillText(`Night ${currentNight}`, 400, 300);
+  if (nightEvent && NIGHT_EVENTS[nightEvent]) {
+    ctx.fillStyle = EVENT_COLORS[nightEvent] || '#e8e8e8';
+    ctx.font = 'bold 22px "Courier New", monospace';
+    ctx.fillText(NIGHT_EVENTS[nightEvent].name, 400, 348);
+    ctx.fillStyle = 'rgba(200,200,210,0.75)';
+    ctx.font = 'italic 13px "Courier New", monospace';
+    ctx.fillText(NIGHT_EVENTS[nightEvent].tagline, 400, 372);
+  }
   ctx.restore();
 }
 
@@ -1537,39 +2552,148 @@ function drawDodgeBox() {
   ctx.restore();
 }
 
+function drawEnvoyFigure(name, cx, cy, s) {
+  const t = frameCount;
+  ctx.save();
+  if (name === 'The Pale Voice') {
+    const hover = Math.sin(t * 0.03) * 6;
+    ctx.fillStyle = '#c6c6da';
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - 150 * s + hover);
+    ctx.quadraticCurveTo(cx + 55 * s, cy - 60 * s + hover, cx + 38 * s, cy);
+    ctx.quadraticCurveTo(cx, cy + 14 * s, cx - 38 * s, cy);
+    ctx.quadraticCurveTo(cx - 55 * s, cy - 60 * s + hover, cx, cy - 150 * s + hover);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(90,90,120,0.35)';
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - 150 * s + hover);
+    ctx.quadraticCurveTo(cx + 18 * s, cy - 60 * s + hover, cx + 8 * s, cy);
+    ctx.lineTo(cx - 6 * s, cy);
+    ctx.quadraticCurveTo(cx + 4 * s, cy - 70 * s + hover, cx, cy - 150 * s + hover);
+    ctx.fill();
+    ctx.fillStyle = '#f0f0f6';
+    ctx.beginPath();
+    ctx.ellipse(cx, cy - 106 * s + hover, 16 * s, 22 * s, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#0d0a14';
+    ctx.beginPath();
+    ctx.ellipse(cx - 6 * s, cy - 110 * s + hover, 2.4 * s, 6 * s, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(cx + 6 * s, cy - 110 * s + hover, 2.4 * s, 6 * s, 0, 0, Math.PI * 2);
+    ctx.fill();
+    for (let i = 0; i < 3; i++) {
+      const ang = t * 0.02 + i * (Math.PI * 2 / 3);
+      ctx.fillStyle = 'rgba(176,176,204,0.6)';
+      ctx.beginPath();
+      ctx.arc(cx + Math.cos(ang) * 70 * s, cy - 80 * s + Math.sin(ang) * 24 * s + hover, 3 * s, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else if (name === 'Render') {
+    const pulse = 0.6 + Math.sin(t * 0.05) * 0.25;
+    const stack = [[0, 46], [-62, 30], [-104, 20]];
+    stack.forEach(([oy, r]) => {
+      ctx.fillStyle = '#d99a2b';
+      ctx.beginPath();
+      ctx.moveTo(cx, cy + (oy - r * 1.4) * s);
+      ctx.lineTo(cx + r * s, cy + oy * s);
+      ctx.lineTo(cx, cy + (oy + r * 1.4) * s);
+      ctx.lineTo(cx - r * s, cy + oy * s);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = '#8a5e10';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(255,232,160,' + (0.25 * pulse) + ')';
+      ctx.beginPath();
+      ctx.moveTo(cx, cy + (oy - r * 0.8) * s);
+      ctx.lineTo(cx + r * 0.55 * s, cy + oy * s);
+      ctx.lineTo(cx, cy + (oy + r * 0.8) * s);
+      ctx.lineTo(cx - r * 0.55 * s, cy + oy * s);
+      ctx.closePath();
+      ctx.fill();
+    });
+    const glow = ctx.createRadialGradient(cx, cy - 62 * s, 2, cx, cy - 62 * s, 40 * s);
+    glow.addColorStop(0, `rgba(255,210,127,${0.55 * pulse})`);
+    glow.addColorStop(1, 'rgba(255,210,127,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(cx, cy - 62 * s, 40 * s, 0, Math.PI * 2);
+    ctx.fill();
+  } else {
+    // Threshold — a stone gate with a void inside
+    ctx.fillStyle = '#0b4d50';
+    ctx.fillRect(cx - 58 * s, cy - 124 * s, 22 * s, 124 * s);
+    ctx.fillRect(cx + 36 * s, cy - 124 * s, 22 * s, 124 * s);
+    ctx.fillRect(cx - 70 * s, cy - 140 * s, 140 * s, 22 * s);
+    ctx.strokeStyle = '#063336';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(cx - 58 * s, cy - 124 * s, 22 * s, 124 * s);
+    ctx.strokeRect(cx + 36 * s, cy - 124 * s, 22 * s, 124 * s);
+    ctx.strokeRect(cx - 70 * s, cy - 140 * s, 140 * s, 22 * s);
+    const voidGrad = ctx.createLinearGradient(0, cy - 118 * s, 0, cy);
+    voidGrad.addColorStop(0, '#02090a');
+    voidGrad.addColorStop(1, '#0e5e60');
+    ctx.fillStyle = voidGrad;
+    ctx.fillRect(cx - 36 * s, cy - 118 * s, 72 * s, 118 * s);
+    const runePulse = 0.4 + Math.sin(t * 0.06) * 0.3;
+    ctx.strokeStyle = `rgba(127,212,212,${runePulse})`;
+    ctx.lineWidth = 2;
+    [[-47, -100], [-47, -60], [-47, -20], [47, -100], [47, -60], [47, -20]].forEach(([ox, oy]) => {
+      ctx.beginPath();
+      ctx.moveTo(cx + (ox - 4) * s, cy + oy * s);
+      ctx.lineTo(cx + (ox + 4) * s, cy + (oy + 4) * s);
+      ctx.lineTo(cx + (ox - 2) * s, cy + (oy + 8) * s);
+      ctx.stroke();
+    });
+  }
+  ctx.restore();
+}
+
 function drawEnvoyScene() {
   drawNightScene(0.15);
   if (!currentEnvoy) return;
-  ctx.save();
-  const cx = 400, cy = 380;
-  if (currentEnvoy.name === 'The Pale Voice') {
-    drawIsoDiamondBig(cx, cy, 90, 120, '#b0b0cc');
-  } else if (currentEnvoy.name === 'Render') {
-    drawIsoPrism(ctx, cx, cy, 50, 25, 140, '#cc8800', '#996600', '#aa7700');
-  } else if (currentEnvoy.name === 'Threshold') {
-    drawIsoPrism(ctx, cx, cy, 110, 40, 30, '#008888', '#006666', '#007777');
-  }
-  ctx.restore();
+  drawEnvoyFigure(currentEnvoy.name, 400, 430, 1);
 }
 
 function drawFinalBossScene() {
   drawNightScene(0.15);
   if (!finalBossData) return;
   ctx.save();
-  const cx = 400, cy = 380;
   if (finalBossData.type === 'envoy') {
-    const n = finalBossData.name;
-    if (n === 'Render') drawIsoPrism(ctx, cx, cy, 65, 32, 180, '#cc8800', '#996600', '#aa7700');
-    else if (n === 'Threshold') drawIsoPrism(ctx, cx, cy, 140, 50, 38, '#008888', '#006666', '#007777');
-    else drawIsoDiamondBig(cx, cy, 115, 150, '#b0b0cc');
+    drawEnvoyFigure(finalBossData.name, 400, 460, 1.3);
   } else if (finalBossData.type === 'lonewolf') {
-    drawIsoDiamondBig(cx, cy, 110, 140, '#050505');
-    ctx.strokeStyle = '#333';
+    const cx = 400, cy = 400;
+    ctx.fillStyle = '#08060c';
+    ctx.beginPath();
+    for (let i = 0; i <= 24; i++) {
+      const ang = (i / 24) * Math.PI * 2;
+      const r = 110 + Math.sin(ang * 3 + frameCount * 0.04) * 12;
+      const px = cx + Math.cos(ang) * r;
+      const py = cy + Math.sin(ang) * r * 0.75;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#26202e';
     ctx.lineWidth = 2;
     ctx.stroke();
+    const blink = Math.sin(frameCount * 0.02) > -0.9 ? 1 : 0.1;
+    ctx.fillStyle = `rgba(255,60,60,${0.85 * blink})`;
+    ctx.beginPath();
+    ctx.ellipse(cx - 28, cy - 20, 6, 10, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(cx + 28, cy - 20, 6, 10, 0, 0, Math.PI * 2);
+    ctx.fill();
   } else if (finalBossData.type === 'betrayal') {
     ctx.fillStyle = 'rgba(139,0,0,0.15)';
     ctx.fillRect(0, 0, 800, 600);
+    const spr = ASSETS.chars.champion;
+    [-130, 0, 130].forEach((dx, i) => {
+      const bob = Math.sin(frameCount * 0.05 + i * 2) * 4;
+      ctx.drawImage(spr, 400 + dx - spr.width * 1.5, 330 + bob, spr.width * 3, spr.height * 3);
+    });
   }
   ctx.restore();
 }
@@ -1580,6 +2704,7 @@ function update(dtMs, ndt) {
   updateFloatingNumbers(ndt);
   updateAttackFX(ndt);
   updateAmbientParticles(ndt);
+  shakeMag = Math.max(0, shakeMag - 0.3 * ndt);
   clampPlayer();
 
   if (gameState === 'NIGHT_INTRO') updateNightIntro(dtMs);
@@ -1597,7 +2722,10 @@ function draw() {
   ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, 800, 600);
 
-  if (gameState !== 'NIGHT_INTRO') drawStars();
+  if (gameState !== 'NIGHT_INTRO') {
+    drawStars();
+    drawMoon();
+  }
   drawAmbientParticles();
 
   if (gameState === 'NIGHT_INTRO') drawNightIntro();
