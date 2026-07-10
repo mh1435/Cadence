@@ -121,6 +121,7 @@ function resizeViewport() {
 }
 window.addEventListener('resize', resizeViewport);
 resizeViewport();
+gameContainer.addEventListener('click', () => window.focus());
 
 // ===================== ISOMETRIC HELPERS =====================
 const TILE_W = 64;
@@ -260,6 +261,21 @@ let specialEnemyThisNight, specialEnemyMemory, currentSpecialEncounter, currentC
 let currentEnvoy;
 let dodgeCtx, soul, bullets, dodgeState;
 let finalBossData;
+let defender, attackFlashes, deathBursts;
+
+const ambientProps = (() => {
+  const rng = mulberry32(42);
+  const props = [];
+  for (let i = 0; i < 6; i++) {
+    let gx, gy;
+    do {
+      gx = Math.floor(rng() * GRID_COLS);
+      gy = Math.floor(rng() * (GRID_ROWS - 3));
+    } while (gx === BASE_GX && gy === BASE_GY);
+    props.push({ gx, gy, size: 6 + rng() * 6 });
+  }
+  return props;
+})();
 
 function resetState() {
   gameState = 'MENU';
@@ -269,8 +285,8 @@ function resetState() {
 
   player = {
     hp: 100, maxHp: 100,
-    dodgeSpeed: 3, autoResolvePower: 10,
-    effDodgeSpeed: 3, effAutoResolvePower: 10,
+    dodgeSpeed: 4, autoResolvePower: 10,
+    effDodgeSpeed: 4, effAutoResolvePower: 10,
     essence: 0,
     allies: [],
     dealsAccepted: 0, dealsRejected: 0,
@@ -304,6 +320,10 @@ function resetState() {
   dodgeState = {};
 
   finalBossData = null;
+
+  defender = { gridX: 5, gridY: 8, attackCooldown: 0 };
+  attackFlashes = [];
+  deathBursts = [];
 }
 resetState();
 
@@ -338,6 +358,7 @@ window.addEventListener('keyup', e => { keys[e.key] = false; });
 
 // ===================== FLOW: START / NIGHT SETUP =====================
 function startGame() {
+  window.focus();
   resetState();
   setupNight(1);
 }
@@ -375,6 +396,12 @@ function setupNight(n) {
 
   specialEnemyThisNight = (currentNight !== 99 && specialEnemySchedule[currentNight]) ? { ...specialEnemySchedule[currentNight] } : null;
 
+  defender.gridX = 5;
+  defender.gridY = 8;
+  defender.attackCooldown = 0;
+  attackFlashes = [];
+  deathBursts = [];
+
   setGameState('NIGHT_INTRO');
 }
 
@@ -399,6 +426,8 @@ function updateNight(ndt) {
   }
 
   if (nightPhase === 'marching') {
+    updateDefender(ndt);
+
     for (let i = nightEnemies.length - 1; i >= 0; i--) {
       const e = nightEnemies[i];
       if (player.effAutoResolvePower >= 9999) {
@@ -456,6 +485,51 @@ function updateFloatingNumbers(ndt) {
     f.y -= 1 * ndt;
     f.alpha -= 0.02 * ndt;
     if (f.alpha <= 0) floatingNumbers.splice(i, 1);
+  }
+}
+
+// ===================== DEFENDER (player-controlled, night marching) =====================
+function updateDefender(ndt) {
+  const spd = 0.14 * ndt;
+  let dx = 0, dy = 0;
+  if (keys['ArrowUp'] || keys['w'] || keys['W']) { dx -= spd; dy -= spd; }
+  if (keys['ArrowDown'] || keys['s'] || keys['S']) { dx += spd; dy += spd; }
+  if (keys['ArrowLeft'] || keys['a'] || keys['A']) { dx -= spd; dy += spd; }
+  if (keys['ArrowRight'] || keys['d'] || keys['D']) { dx += spd; dy -= spd; }
+  defender.gridX = clamp(defender.gridX + dx, 0, GRID_COLS - 1);
+  defender.gridY = clamp(defender.gridY + dy, 0, GRID_ROWS - 2);
+
+  if (defender.attackCooldown > 0) defender.attackCooldown -= ndt;
+  if (keys[' '] && defender.attackCooldown <= 0) {
+    attackNearestEnemy();
+    defender.attackCooldown = 14;
+  }
+}
+
+function attackNearestEnemy() {
+  let nearest = null, nearestDist = Infinity;
+  for (const e of nightEnemies) {
+    const dx = e.gridX - defender.gridX, dy = e.gridY - defender.gridY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < nearestDist) { nearestDist = dist; nearest = e; }
+  }
+  const iso = toIso(defender.gridX, defender.gridY);
+  attackFlashes.push({ x: iso.x, y: iso.y + TILE_H / 2, life: 10 });
+  if (nearest && nearestDist <= 1.7) {
+    const eIso = toIso(nearest.gridX, nearest.gridY);
+    deathBursts.push({ x: eIso.x, y: eIso.y + TILE_H / 2, life: 16 });
+    nightEnemies.splice(nightEnemies.indexOf(nearest), 1);
+  }
+}
+
+function updateAttackFX(ndt) {
+  for (let i = attackFlashes.length - 1; i >= 0; i--) {
+    attackFlashes[i].life -= ndt;
+    if (attackFlashes[i].life <= 0) attackFlashes.splice(i, 1);
+  }
+  for (let i = deathBursts.length - 1; i >= 0; i--) {
+    deathBursts[i].life -= ndt;
+    if (deathBursts[i].life <= 0) deathBursts.splice(i, 1);
   }
 }
 
@@ -955,11 +1029,16 @@ function clampPlayer() {
 // ===================== DRAWING: NIGHT SCENE =====================
 function drawEnemy(e, isSpecial) {
   const iso = toIso(e.gridX, e.gridY);
-  const scale = isSpecial ? 1.5 : 1;
+  const scale = isSpecial ? 1.7 : 1.25;
   const bob = Math.sin(frameCount * 0.1 + e.gridX) * 2;
   const baseY = iso.y + TILE_H / 2 - bob;
   const color = isSpecial ? '#9933cc' : (e.drawColor || '#cc3333');
   const headColor = isSpecial ? '#aa55dd' : '#dd4444';
+
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.beginPath();
+  ctx.ellipse(iso.x, iso.y + TILE_H / 2 + 2, 7 * scale, 3, 0, 0, Math.PI * 2);
+  ctx.fill();
 
   ctx.fillStyle = color;
   ctx.fillRect(iso.x - 4 * scale, baseY - 16 * scale, 8 * scale, 16 * scale);
@@ -967,6 +1046,86 @@ function drawEnemy(e, isSpecial) {
   ctx.arc(iso.x, baseY - 16 * scale - 6 * scale, 6 * scale, 0, Math.PI * 2);
   ctx.fillStyle = headColor;
   ctx.fill();
+}
+
+function drawDefender() {
+  const iso = toIso(defender.gridX, defender.gridY);
+  const bob = Math.sin(frameCount * 0.15) * 2;
+  const baseY = iso.y + TILE_H / 2 - bob;
+
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.beginPath();
+  ctx.ellipse(iso.x, iso.y + TILE_H / 2 + 2, 8, 3, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#fff2c0';
+  ctx.fillRect(iso.x - 5, baseY - 20, 10, 20);
+  ctx.beginPath();
+  ctx.arc(iso.x, baseY - 27, 7, 0, Math.PI * 2);
+  ctx.fillStyle = '#ffe9a8';
+  ctx.fill();
+
+  ctx.strokeStyle = '#ffd76b';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(iso.x + 5, baseY - 10);
+  ctx.lineTo(iso.x + 13, baseY - 18);
+  ctx.stroke();
+}
+
+function drawAmbientProps() {
+  ambientProps.forEach(p => {
+    const iso = toIso(p.gx, p.gy);
+    const cx = iso.x, cy = iso.y + TILE_H / 2;
+    ctx.fillStyle = '#0d0d14';
+    ctx.beginPath();
+    ctx.moveTo(cx - p.size, cy);
+    ctx.lineTo(cx - p.size * 0.3, cy - p.size * 0.9);
+    ctx.lineTo(cx + p.size * 0.6, cy - p.size * 0.4);
+    ctx.lineTo(cx + p.size, cy + p.size * 0.3);
+    ctx.lineTo(cx - p.size * 0.4, cy + p.size * 0.5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#1e1e2e';
+    ctx.stroke();
+  });
+}
+
+function drawBaseGlow() {
+  const iso = toIso(BASE_GX, BASE_GY);
+  const pulse = 0.5 + Math.sin(frameCount * 0.05) * 0.15;
+  const grad = ctx.createRadialGradient(iso.x, iso.y - 6, 2, iso.x, iso.y - 6, 50);
+  grad.addColorStop(0, `rgba(255,120,60,${0.35 * pulse})`);
+  grad.addColorStop(1, 'rgba(255,120,60,0)');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(iso.x, iso.y - 6, 50, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawAttackFX() {
+  ctx.save();
+  attackFlashes.forEach(f => {
+    ctx.globalAlpha = clamp(f.life / 10, 0, 1);
+    ctx.strokeStyle = '#ffe9a8';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(f.x, f.y, 15, -0.7, 0.7);
+    ctx.stroke();
+  });
+  deathBursts.forEach(b => {
+    const t = 1 - clamp(b.life / 16, 0, 1);
+    ctx.globalAlpha = clamp(b.life / 16, 0, 1);
+    ctx.fillStyle = '#ff6644';
+    for (let i = 0; i < 5; i++) {
+      const ang = (i / 5) * Math.PI * 2;
+      const r = 4 + t * 14;
+      ctx.beginPath();
+      ctx.arc(b.x + Math.cos(ang) * r, b.y + Math.sin(ang) * r, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  });
+  ctx.restore();
 }
 
 function drawPlayerBase() {
@@ -1005,6 +1164,9 @@ function drawNightScene(alpha) {
     }
   }
 
+  drawAmbientProps();
+  drawBaseGlow();
+
   const entities = [{ depth: BASE_GX + BASE_GY, draw: drawPlayerBase }];
   const allyPositions = [{ gx: 4, gy: 11 }, { gx: 6, gy: 11 }, { gx: 5, gy: 10 }];
   player.allies.slice(0, 3).forEach((a, i) => {
@@ -1014,6 +1176,9 @@ function drawNightScene(alpha) {
   nightEnemies.forEach(e => {
     entities.push({ depth: e.gridX + e.gridY, draw: () => drawEnemy(e, false) });
   });
+  if (gameState === 'NIGHT' && nightPhase === 'marching') {
+    entities.push({ depth: defender.gridX + defender.gridY + 0.01, draw: drawDefender });
+  }
   if (gameState === 'NIGHT' && nightPhase === 'specialAnnounce' && specialEnemyThisNight) {
     entities.push({ depth: 5 + 6, draw: () => drawEnemy({ gridX: 5, gridY: 6 }, true) });
   }
@@ -1025,6 +1190,12 @@ function drawNightScene(alpha) {
     ctx.font = '20px "Courier New", monospace';
     ctx.textAlign = 'center';
     ctx.fillText('The night is quiet...', 400, 300);
+  }
+  if (gameState === 'NIGHT' && nightPhase === 'marching') {
+    ctx.fillStyle = 'rgba(210,210,220,0.4)';
+    ctx.font = '12px "Courier New", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('WASD / ARROWS MOVE   ·   SPACE ATTACK', 400, 578);
   }
   if (gameState === 'NIGHT' && nightPhase === 'specialAnnounce') {
     const flash = Math.abs(Math.sin(nightPhaseTimer * 0.1));
@@ -1038,6 +1209,7 @@ function drawNightScene(alpha) {
 
   ctx.restore();
   drawFloatingNumbers();
+  drawAttackFX();
 }
 
 function drawFloatingNumbers() {
@@ -1105,6 +1277,12 @@ function drawDodgeBox() {
     ctx.textAlign = 'center';
     ctx.fillText('You endured it.', DODGE_BOX.x + DODGE_BOX.w / 2, DODGE_BOX.y + DODGE_BOX.h / 2);
   }
+
+  ctx.fillStyle = 'rgba(210,210,220,0.4)';
+  ctx.font = '12px "Courier New", monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('WASD / ARROWS TO DODGE', DODGE_BOX.x + DODGE_BOX.w / 2, DODGE_BOX.y + DODGE_BOX.h + 24);
+
   ctx.restore();
 }
 
@@ -1149,6 +1327,7 @@ function drawFinalBossScene() {
 function update(dtMs, ndt) {
   frameCount += ndt;
   updateFloatingNumbers(ndt);
+  updateAttackFX(ndt);
   clampPlayer();
 
   if (gameState === 'NIGHT_INTRO') updateNightIntro(dtMs);
