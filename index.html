@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Last Pact</title>
 <style>
   * { box-sizing: border-box; }
@@ -15,7 +16,9 @@
   }
   #gameContainer {
     position: relative; width: 800px; height: 600px;
+    flex-shrink: 0;
     transform-origin: center center;
+    touch-action: none;
   }
   #gameCanvas {
     position: absolute; top: 0; left: 0;
@@ -74,6 +77,82 @@
   #victoryScreen .title { color: #c0a0ff; }
   .endStats { color: #888; font-size: 13px; margin: 16px 0; }
   .endLine { color: #ccc; font-size: 16px; margin-bottom: 20px; font-style: italic; }
+
+  #gameCanvas { touch-action: none; }
+
+  /* ===== Touch controls (phones/tablets only) ===== */
+  #touchControls { display: none; }
+  body.touch-active #touchControls.show { display: block; }
+
+  #touchControls button {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: none;
+    user-select: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  #dpad {
+    position: fixed;
+    left: max(18px, env(safe-area-inset-left));
+    bottom: max(18px, env(safe-area-inset-bottom));
+    width: 148px; height: 148px;
+    z-index: 20;
+  }
+  .dpadBtn {
+    position: absolute;
+    width: 50px; height: 50px;
+    border: 1px solid #c0a0ff;
+    background: rgba(10,10,15,0.55);
+    color: #c0a0ff;
+    font-size: 18px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .dpadBtn:active { background: #2a1a4a; }
+  .dpadBtn.up    { left: 49px; top: 0; }
+  .dpadBtn.down  { left: 49px; top: 98px; }
+  .dpadBtn.left  { left: 0;   top: 49px; }
+  .dpadBtn.right { left: 98px; top: 49px; }
+
+  #attackBtn {
+    position: fixed;
+    right: max(24px, env(safe-area-inset-right));
+    bottom: max(28px, env(safe-area-inset-bottom));
+    width: 84px; height: 84px;
+    border-radius: 50%;
+    border: 2px solid #8b0000;
+    background: rgba(30,5,5,0.55);
+    color: #ff6666;
+    font-size: 12px;
+    letter-spacing: 1px;
+    z-index: 20;
+  }
+  #attackBtn:active { background: #5a1010; }
+
+  #rotateHint {
+    position: fixed;
+    top: max(10px, env(safe-area-inset-top));
+    left: 50%; transform: translateX(-50%);
+    background: rgba(10,10,15,0.85);
+    border: 1px solid #c0a0ff;
+    color: #c0a0ff;
+    font-size: 12px;
+    padding: 8px 16px;
+    letter-spacing: 0.5px;
+    z-index: 30;
+    display: none;
+  }
+  #rotateHint.dismissed { display: none !important; }
+
+  @media (max-width: 820px) and (orientation: portrait) {
+    body.touch-active #rotateHint { display: block; }
+  }
+
+  @media (pointer: coarse) {
+    button { padding: 13px 24px; font-size: 16px; }
+    .shopItem button { padding: 8px; font-size: 13px; }
+  }
 </style>
 </head>
 <body>
@@ -105,6 +184,18 @@
     <div class="endStats" id="victoryStats"></div>
     <button onclick="location.reload()">[ PLAY AGAIN ]</button>
   </div>
+</div>
+
+<div id="rotateHint">Rotate your device for a bigger view</div>
+
+<div id="touchControls">
+  <div id="dpad">
+    <button class="dpadBtn up" data-key="ArrowUp">▲</button>
+    <button class="dpadBtn down" data-key="ArrowDown">▼</button>
+    <button class="dpadBtn left" data-key="ArrowLeft">◀</button>
+    <button class="dpadBtn right" data-key="ArrowRight">▶</button>
+  </div>
+  <button id="attackBtn">ATTACK</button>
 </div>
 
 <script>
@@ -355,6 +446,59 @@ window.addEventListener('keydown', e => {
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) e.preventDefault();
 });
 window.addEventListener('keyup', e => { keys[e.key] = false; });
+
+// ===================== TOUCH CONTROLS =====================
+const isTouchDevice = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+if (isTouchDevice) document.body.classList.add('touch-active');
+
+const touchControls = document.getElementById('touchControls');
+const rotateHint = document.getElementById('rotateHint');
+rotateHint.addEventListener('pointerdown', () => rotateHint.classList.add('dismissed'));
+
+function updateTouchControlsVisibility() {
+  touchControls.classList.toggle('show', gameState === 'NIGHT' && nightPhase === 'marching');
+}
+
+document.querySelectorAll('.dpadBtn').forEach(btn => {
+  const key = btn.dataset.key;
+  btn.addEventListener('pointerdown', e => { e.preventDefault(); keys[key] = true; });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(evt =>
+    btn.addEventListener(evt, e => { e.preventDefault(); keys[key] = false; })
+  );
+});
+
+const attackBtn = document.getElementById('attackBtn');
+attackBtn.addEventListener('pointerdown', e => { e.preventDefault(); keys[' '] = true; });
+['pointerup', 'pointercancel', 'pointerleave'].forEach(evt =>
+  attackBtn.addEventListener(evt, e => { e.preventDefault(); keys[' '] = false; })
+);
+
+function clientToCanvasCoords(clientX, clientY) {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: (clientX - rect.left) * (800 / rect.width),
+    y: (clientY - rect.top) * (600 / rect.height),
+  };
+}
+
+let dodgeDragActive = false;
+function moveSoulTo(clientX, clientY) {
+  const { x, y } = clientToCanvasCoords(clientX, clientY);
+  soul.x = clamp(x, DODGE_BOX.x + 8, DODGE_BOX.x + DODGE_BOX.w - 8);
+  soul.y = clamp(y, DODGE_BOX.y + 8, DODGE_BOX.y + DODGE_BOX.h - 8);
+}
+gameContainer.addEventListener('pointerdown', e => {
+  if (gameState !== 'DODGE') return;
+  dodgeDragActive = true;
+  moveSoulTo(e.clientX, e.clientY);
+});
+gameContainer.addEventListener('pointermove', e => {
+  if (gameState !== 'DODGE' || !dodgeDragActive) return;
+  e.preventDefault();
+  moveSoulTo(e.clientX, e.clientY);
+});
+window.addEventListener('pointerup', () => { dodgeDragActive = false; });
+window.addEventListener('pointercancel', () => { dodgeDragActive = false; });
 
 // ===================== FLOW: START / NIGHT SETUP =====================
 function startGame() {
@@ -1195,7 +1339,7 @@ function drawNightScene(alpha) {
     ctx.fillStyle = 'rgba(210,210,220,0.4)';
     ctx.font = '12px "Courier New", monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('WASD / ARROWS MOVE   ·   SPACE ATTACK', 400, 578);
+    ctx.fillText(isTouchDevice ? 'D-PAD TO MOVE   ·   TAP ATTACK' : 'WASD / ARROWS MOVE   ·   SPACE ATTACK', 400, 578);
   }
   if (gameState === 'NIGHT' && nightPhase === 'specialAnnounce') {
     const flash = Math.abs(Math.sin(nightPhaseTimer * 0.1));
@@ -1281,7 +1425,7 @@ function drawDodgeBox() {
   ctx.fillStyle = 'rgba(210,210,220,0.4)';
   ctx.font = '12px "Courier New", monospace';
   ctx.textAlign = 'center';
-  ctx.fillText('WASD / ARROWS TO DODGE', DODGE_BOX.x + DODGE_BOX.w / 2, DODGE_BOX.y + DODGE_BOX.h + 24);
+  ctx.fillText(isTouchDevice ? 'DRAG TO DODGE' : 'WASD / ARROWS TO DODGE', DODGE_BOX.x + DODGE_BOX.w / 2, DODGE_BOX.y + DODGE_BOX.h + 24);
 
   ctx.restore();
 }
@@ -1333,6 +1477,8 @@ function update(dtMs, ndt) {
   if (gameState === 'NIGHT_INTRO') updateNightIntro(dtMs);
   else if (gameState === 'NIGHT') updateNight(ndt);
   else if (gameState === 'DODGE') updateDodge(dtMs, ndt);
+
+  updateTouchControlsVisibility();
 }
 
 function draw() {
