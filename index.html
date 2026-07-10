@@ -1,0 +1,1190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Last Pact</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%;
+    background: #0a0a0f; overflow: hidden;
+  }
+  body {
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Courier New', monospace; color: #e8e8e8;
+  }
+  #gameContainer {
+    position: relative; width: 800px; height: 600px;
+    transform-origin: center center;
+  }
+  #gameCanvas {
+    position: absolute; top: 0; left: 0;
+    background: #0a0a0f;
+  }
+  .overlay {
+    position: absolute; top: 0; left: 0; width: 800px; height: 600px;
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column; background: rgba(0,0,0,0.85);
+    text-align: center;
+  }
+  .overlay.hidden { display: none; }
+
+  h1.title {
+    font-size: 56px; color: #8b0000; letter-spacing: 10px;
+    margin-bottom: 6px; text-shadow: 0 0 24px rgba(139,0,0,0.8);
+  }
+  .subtitle { color: #c0a0ff; margin-bottom: 40px; letter-spacing: 3px; font-size: 14px; }
+
+  button {
+    font-family: 'Courier New', monospace; background: transparent;
+    border: 1px solid #c0a0ff; color: #e8e8e8; padding: 10px 22px;
+    font-size: 15px; cursor: pointer; margin: 6px; letter-spacing: 1px;
+  }
+  button:hover:not(:disabled) { background: #1a0a2e; }
+  button:disabled { border-color: #333; color: #444; cursor: not-allowed; }
+
+  .fightBtn { border-color: #8b0000; color: #ff4444; }
+  .spareBtn { border-color: #006400; color: #44ff44; }
+
+  .panel { max-width: 620px; padding: 30px; width: 100%; }
+  .enemyName, .envoyName { font-size: 30px; color: #9933cc; margin-bottom: 14px; letter-spacing: 2px; }
+  .enemyDialogue, .envoyDeal { font-size: 15px; color: #999; font-style: italic; margin-bottom: 10px; }
+  .struckText { color: #661111; margin-bottom: 14px; letter-spacing: 1px; }
+  .enduredTextSmall { color: #5a4a7a; margin-bottom: 14px; letter-spacing: 1px; }
+  .choiceButtons { margin-top: 18px; }
+
+  .dayHeader { color: #c0a0ff; font-size: 22px; margin-bottom: 16px; letter-spacing: 1px; }
+  .hpBarOuter { width: 100%; height: 18px; background: #1a0a0a; border: 1px solid #8b0000; margin-bottom: 6px; }
+  .hpBarInner { height: 100%; background: linear-gradient(90deg,#8b0000,#ff4444); }
+  .hpText { font-size: 13px; color: #ccc; margin-bottom: 14px; }
+  .essenceLine { color: #ffd700; margin-bottom: 14px; font-size: 14px; }
+  .alliesList { text-align: left; margin: 0 auto 16px auto; font-size: 13px; color: #c0a0ff; max-width: 460px; }
+  .allyDiamond {
+    display: inline-block; width: 9px; height: 9px; background: #c0a0ff;
+    transform: rotate(45deg); margin-right: 8px;
+  }
+  .shopGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 18px; text-align: left; }
+  .shopItem { border: 1px solid #2a2a3a; padding: 8px; font-size: 11px; }
+  .shopItem strong { color: #e8e8e8; font-size: 12px; }
+  .shopItem button { width: 100%; margin: 6px 0 0 0; font-size: 12px; padding: 6px; }
+  .beginNightBtn { border-color: #8b0000; color: #ff8888; font-size: 17px; margin-top: 4px; }
+
+  #gameoverScreen .title, #victoryScreen .title { font-size: 42px; letter-spacing: 3px; }
+  #gameoverScreen .title { color: #8b0000; }
+  #victoryScreen .title { color: #c0a0ff; }
+  .endStats { color: #888; font-size: 13px; margin: 16px 0; }
+  .endLine { color: #ccc; font-size: 16px; margin-bottom: 20px; font-style: italic; }
+</style>
+</head>
+<body>
+
+<div id="gameContainer">
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+  <div id="menuScreen" class="overlay">
+    <h1 class="title">LAST PACT</h1>
+    <div class="subtitle">SURVIVE 99 NIGHTS</div>
+    <button onclick="startGame()">[ START ]</button>
+  </div>
+
+  <div id="choiceScreen" class="overlay hidden"></div>
+  <div id="envoyScreen" class="overlay hidden"></div>
+  <div id="dayScreen" class="overlay hidden"></div>
+  <div id="finalBossScreen" class="overlay hidden"></div>
+
+  <div id="gameoverScreen" class="overlay hidden">
+    <div class="title">YOU DIED</div>
+    <div class="endLine" id="gameoverText"></div>
+    <div class="endStats" id="gameoverStats"></div>
+    <button onclick="location.reload()">[ PLAY AGAIN ]</button>
+  </div>
+
+  <div id="victoryScreen" class="overlay hidden">
+    <div class="title">YOU SURVIVED</div>
+    <div class="endLine">Night 99 is over. The pact is yours to keep.</div>
+    <div class="endStats" id="victoryStats"></div>
+    <button onclick="location.reload()">[ PLAY AGAIN ]</button>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ===================== CANVAS / VIEWPORT =====================
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const gameContainer = document.getElementById('gameContainer');
+
+function resizeViewport() {
+  const scale = Math.min(window.innerWidth / 800, window.innerHeight / 600);
+  gameContainer.style.transform = `scale(${scale})`;
+}
+window.addEventListener('resize', resizeViewport);
+resizeViewport();
+
+// ===================== ISOMETRIC HELPERS =====================
+const TILE_W = 64;
+const TILE_H = 32;
+const ISO_ORIGIN_X = 400;
+const ISO_ORIGIN_Y = 150;
+const GRID_COLS = 10;
+const GRID_ROWS = 12;
+const BASE_GX = 5;
+const BASE_GY = 11;
+
+function toIso(gridX, gridY) {
+  return {
+    x: ISO_ORIGIN_X + (gridX - gridY) * (TILE_W / 2),
+    y: ISO_ORIGIN_Y + (gridX + gridY) * (TILE_H / 2)
+  };
+}
+
+function drawIsoTile(ctx, gridX, gridY, fillColor, strokeColor) {
+  const { x, y } = toIso(gridX, gridY);
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x + TILE_W / 2, y + TILE_H / 2);
+  ctx.lineTo(x, y + TILE_H);
+  ctx.lineTo(x - TILE_W / 2, y + TILE_H / 2);
+  ctx.closePath();
+  ctx.fillStyle = fillColor;
+  ctx.fill();
+  ctx.strokeStyle = strokeColor;
+  ctx.stroke();
+}
+
+function drawIsoPrism(ctx, cx, cyBase, halfW, halfH, height, topColor, leftColor, rightColor) {
+  const topY = cyBase - height;
+  ctx.beginPath();
+  ctx.moveTo(cx, topY - halfH);
+  ctx.lineTo(cx + halfW, topY);
+  ctx.lineTo(cx, topY + halfH);
+  ctx.lineTo(cx - halfW, topY);
+  ctx.closePath();
+  ctx.fillStyle = topColor;
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(cx - halfW, topY);
+  ctx.lineTo(cx, topY + halfH);
+  ctx.lineTo(cx, cyBase + halfH);
+  ctx.lineTo(cx - halfW, cyBase);
+  ctx.closePath();
+  ctx.fillStyle = leftColor;
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(cx, topY + halfH);
+  ctx.lineTo(cx + halfW, topY);
+  ctx.lineTo(cx + halfW, cyBase);
+  ctx.lineTo(cx, cyBase + halfH);
+  ctx.closePath();
+  ctx.fillStyle = rightColor;
+  ctx.fill();
+}
+
+function drawIsoDiamondBig(cx, cy, halfW, halfH, color) {
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - halfH);
+  ctx.lineTo(cx + halfW, cy);
+  ctx.lineTo(cx, cy + halfH);
+  ctx.lineTo(cx - halfW, cy);
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.save();
+  ctx.globalAlpha = 0.3;
+  ctx.strokeStyle = '#e8e8e8';
+  ctx.stroke();
+  ctx.restore();
+}
+
+function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+function mulberry32(seed) {
+  return function () {
+    seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const DODGE_BOX = { x: 200, y: 150, w: 400, h: 300 };
+
+// ===================== SCHEDULES =====================
+const specialEnemySchedule = {
+  3:  { name: "Ashgrip",   dialogue: "You should have run when you had the chance.",        pattern: "cross",   spareBonus: { type: "hp", value: 5 } },
+  6:  { name: "Vel",       dialogue: "I don't want to do this either.",                     pattern: "spiral",  spareBonus: { type: "essence", value: 15 } },
+  9:  { name: "Thornback", dialogue: "Pain is just the world being honest.",                pattern: "burst",   spareBonus: { type: "ally", allyName: "Thornback", allyBonus: { autoResolvePower: 5 } } },
+  15: { name: "Mireya",    dialogue: "They told me you were dangerous.",                    pattern: "wave",    spareBonus: { type: "ally", allyName: "Mireya", allyBonus: { dodgeSpeed: 1 } } },
+  20: { name: "Dusk",      dialogue: "Every night I come back. Every night you're still here.", pattern: "cross", spareBonus: { type: "hp", value: 15 } },
+  28: { name: "Ashgrip",   dialogue: "Still alive? Impressive. Or stupid.",                 pattern: "spiral",  spareBonus: { type: "essence", value: 25 } },
+  35: { name: "Vel",       dialogue: "I remember you. You let me go.",                      pattern: "burst",   spareBonus: { type: "ally", allyName: "Vel", allyBonus: { dodgeSpeed: 1.5 } } },
+  45: { name: "Thornback", dialogue: "Something bigger is coming. You feel it too.",        pattern: "wave",    spareBonus: { type: "hp", value: 20 } },
+  55: { name: "Mireya",    dialogue: "The Envoys are losing patience with you.",            pattern: "chaos",   spareBonus: { type: "ally", allyName: "Mireya", allyBonus: { autoResolvePower: 8 } } },
+  65: { name: "Dusk",      dialogue: "Night 99 is closer than you think.",                  pattern: "chaos",   spareBonus: { type: "essence", value: 40 } },
+  75: { name: "Ashgrip",   dialogue: "I'll see you on the last night. One way or another.", pattern: "chaos",   spareBonus: { type: "ally", allyName: "Ashgrip", allyBonus: { autoResolvePower: 12 } } },
+  85: { name: "Vel",       dialogue: "Whatever happens on night 99... I'm sorry.",          pattern: "chaos",   spareBonus: { type: "hp", value: 30 } },
+};
+
+const envoySchedule = {
+  10: { name: "The Pale Voice", pattern: "cross",  deal: "Let me take one of your allies. The next 3 nights will be silent.",       effect: () => { if (player.allies.length) player.allies.shift(); else player.maxHp -= 20; [11, 12, 13].forEach(n => player.nightsWithQuiet.push(n)); } },
+  20: { name: "Render",        pattern: "spiral", deal: "Give up 30 essence. Your auto-resolve power doubles permanently.",          effect: () => { player.essence = Math.max(0, player.essence - 30); player.autoResolvePower *= 2; } },
+  30: { name: "The Pale Voice", pattern: "burst",  deal: "Your max HP drops by 20. You gain 60 essence.",                           effect: () => { player.maxHp -= 20; player.hp = Math.min(player.hp, player.maxHp); player.essence += 60; } },
+  40: { name: "Threshold",     pattern: "wave",   deal: "Stop sparing enemies until night 60. Your dodge speed increases by 2.",    effect: () => { player.dodgeSpeed += 2; spareBanned = true; spareBanLift = 60; } },
+  50: { name: "Render",        pattern: "chaos",  deal: "Take 40 damage. The night count jumps ahead by 3.",                       effect: () => { player.hp -= 40; currentNight = Math.min(99, currentNight + 3); } },
+  60: { name: "Threshold",     pattern: "chaos",  deal: "Your allies leave. You gain 25 essence per ally and +30 max HP.",         effect: () => { player.essence += player.allies.length * 25; player.maxHp += 30; player.allies = []; } },
+  70: { name: "The Pale Voice", pattern: "chaos",  deal: "You forget how to spare. SPARE disabled forever. Basic enemies die instantly.", effect: () => { spareBanned = true; spareBanLift = Infinity; player.autoResolvePower = 9999; } },
+  80: { name: "Render",        pattern: "chaos",  deal: "Take 60 damage now. The final night will be easier.",                     effect: () => { player.hp -= 60; renderPact = true; } },
+  90: { name: "Threshold",     pattern: "chaos",  deal: "Give all your essence. Receive full HP.",                                 effect: () => { player.essence = 0; player.hp = player.maxHp; } },
+};
+
+const upgrades = [
+  { key: 'reinforce', label: 'Reinforce', desc: '+20 max HP, heal 20 HP', cost: 20, apply: () => { player.maxHp += 20; player.hp = Math.min(player.maxHp, player.hp + 20); } },
+  { key: 'sharpen',   label: 'Sharpen Reflexes', desc: '+0.5 dodge speed', cost: 25, apply: () => { player.dodgeSpeed += 0.5; } },
+  { key: 'fortify',   label: 'Fortify', desc: '+5 auto-resolve power', cost: 15, apply: () => { player.autoResolvePower += 5; } },
+  { key: 'mend',      label: 'Mend', desc: 'Heal 30 HP', cost: 10, apply: () => { player.hp = Math.min(player.maxHp, player.hp + 30); } },
+];
+
+// ===================== STATE =====================
+let gameState = 'MENU';
+let currentNight = 1;
+let frameCount = 0;
+let lastTime = 0;
+
+let player, spareBanned, spareBanLift, renderPact;
+let nightEnemies, floatingNumbers, nightTileTexture;
+let nightPhase, nightPhaseTimer, introTimer, isQuietNight;
+let specialEnemyThisNight, specialEnemyMemory, currentSpecialEncounter, currentChoiceHit;
+let currentEnvoy;
+let dodgeCtx, soul, bullets, dodgeState;
+let finalBossData;
+
+function resetState() {
+  gameState = 'MENU';
+  currentNight = 1;
+  frameCount = 0;
+  lastTime = 0;
+
+  player = {
+    hp: 100, maxHp: 100,
+    dodgeSpeed: 3, autoResolvePower: 10,
+    effDodgeSpeed: 3, effAutoResolvePower: 10,
+    essence: 0,
+    allies: [],
+    dealsAccepted: 0, dealsRejected: 0,
+    enemiesSpared: 0, enemiesFought: 0,
+    envoyDealCounts: {},
+    nightsWithQuiet: [],
+  };
+
+  spareBanned = false;
+  spareBanLift = 0;
+  renderPact = false;
+
+  nightEnemies = [];
+  floatingNumbers = [];
+  nightTileTexture = [];
+  nightPhase = null;
+  nightPhaseTimer = 0;
+  introTimer = 0;
+  isQuietNight = false;
+
+  specialEnemyThisNight = null;
+  specialEnemyMemory = {};
+  currentSpecialEncounter = null;
+  currentChoiceHit = false;
+
+  currentEnvoy = null;
+
+  dodgeCtx = null;
+  soul = { x: 400, y: 300 };
+  bullets = [];
+  dodgeState = {};
+
+  finalBossData = null;
+}
+resetState();
+
+// ===================== OVERLAY HELPERS =====================
+const overlays = {
+  MENU: document.getElementById('menuScreen'),
+  CHOICE: document.getElementById('choiceScreen'),
+  ENVOY: document.getElementById('envoyScreen'),
+  DAY: document.getElementById('dayScreen'),
+  FINALBOSS_INTRO: document.getElementById('finalBossScreen'),
+  GAMEOVER: document.getElementById('gameoverScreen'),
+  VICTORY: document.getElementById('victoryScreen'),
+};
+
+function hideAllOverlays() {
+  Object.values(overlays).forEach(el => { if (el) el.classList.add('hidden'); });
+}
+
+function setGameState(newState) {
+  hideAllOverlays();
+  gameState = newState;
+  if (overlays[newState]) overlays[newState].classList.remove('hidden');
+}
+
+// ===================== INPUT =====================
+const keys = {};
+window.addEventListener('keydown', e => {
+  keys[e.key] = true;
+  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) e.preventDefault();
+});
+window.addEventListener('keyup', e => { keys[e.key] = false; });
+
+// ===================== FLOW: START / NIGHT SETUP =====================
+function startGame() {
+  resetState();
+  setupNight(1);
+}
+
+function setupNight(n) {
+  currentNight = clamp(n, 1, 99);
+  if (spareBanned && spareBanLift !== Infinity && currentNight >= spareBanLift) spareBanned = false;
+
+  floatingNumbers = [];
+  nightPhase = null;
+  nightPhaseTimer = 0;
+  introTimer = 0;
+
+  const rng = mulberry32(currentNight * 7919 + 13);
+  nightTileTexture = [];
+  for (let i = 0; i < GRID_COLS * GRID_ROWS; i++) nightTileTexture.push(rng() < (1 / 3));
+
+  isQuietNight = player.nightsWithQuiet.includes(currentNight);
+  if (isQuietNight) {
+    nightEnemies = [];
+  } else {
+    const count = 3 + Math.floor(currentNight / 5);
+    nightEnemies = [];
+    for (let i = 0; i < count; i++) {
+      nightEnemies.push({
+        gridX: Math.floor(Math.random() * GRID_COLS),
+        gridY: 0,
+        speed: 0.02,
+        hp: 1,
+        reached: false,
+        drawColor: '#cc3333'
+      });
+    }
+  }
+
+  specialEnemyThisNight = (currentNight !== 99 && specialEnemySchedule[currentNight]) ? { ...specialEnemySchedule[currentNight] } : null;
+
+  setGameState('NIGHT_INTRO');
+}
+
+// ===================== NIGHT UPDATE =====================
+function updateNightIntro(dtMs) {
+  introTimer += dtMs;
+  if (introTimer >= 1500) {
+    introTimer = 0;
+    nightPhase = isQuietNight ? 'quiet' : 'marching';
+    nightPhaseTimer = 0;
+    setGameState('NIGHT');
+  }
+}
+
+function updateNight(ndt) {
+  if (player.hp <= 0) { triggerGameOver('The last pact is broken.'); return; }
+
+  if (nightPhase === 'quiet') {
+    nightPhaseTimer += ndt;
+    if (nightPhaseTimer > 120) afterBasics();
+    return;
+  }
+
+  if (nightPhase === 'marching') {
+    for (let i = nightEnemies.length - 1; i >= 0; i--) {
+      const e = nightEnemies[i];
+      if (player.effAutoResolvePower >= 9999) {
+        nightEnemies.splice(i, 1);
+        continue;
+      }
+      e.gridY += e.speed * ndt;
+      if (e.gridY >= GRID_ROWS - 1) {
+        const dmg = Math.max(1, 5 - player.effAutoResolvePower);
+        player.hp = Math.max(0, player.hp - dmg);
+        spawnFloatingDamage(dmg);
+        nightEnemies.splice(i, 1);
+        if (player.hp <= 0) { triggerGameOver('The last pact is broken.'); return; }
+      }
+    }
+    if (nightEnemies.length === 0) afterBasics();
+    return;
+  }
+
+  if (nightPhase === 'specialAnnounce') {
+    nightPhaseTimer += ndt;
+    if (nightPhaseTimer > 72) beginSpecialDodge();
+    return;
+  }
+}
+
+function afterBasics() {
+  if (currentNight === 99) {
+    startFinalBossIntro();
+  } else if (specialEnemyThisNight) {
+    nightPhase = 'specialAnnounce';
+    nightPhaseTimer = 0;
+  } else {
+    resolveNightEnd();
+  }
+}
+
+function resolveNightEnd() {
+  if (player.hp <= 0) { triggerGameOver('The last pact is broken.'); return; }
+  if (currentNight % 10 === 0 && envoySchedule[currentNight]) {
+    beginEnvoy();
+  } else {
+    beginDay();
+  }
+}
+
+function spawnFloatingDamage(value) {
+  const iso = toIso(BASE_GX, BASE_GY);
+  floatingNumbers.push({ x: iso.x, y: iso.y, value, alpha: 1, vy: -1 });
+}
+
+function updateFloatingNumbers(ndt) {
+  for (let i = floatingNumbers.length - 1; i >= 0; i--) {
+    const f = floatingNumbers[i];
+    f.y -= 1 * ndt;
+    f.alpha -= 0.02 * ndt;
+    if (f.alpha <= 0) floatingNumbers.splice(i, 1);
+  }
+}
+
+// ===================== SPECIAL ENEMY DODGE =====================
+function beginSpecialDodge() {
+  const data = specialEnemyThisNight;
+  const mem = specialEnemyMemory[data.name] || { spared: false, fought: false };
+  let dialogue = data.dialogue;
+  let bonusMultiplier = 1;
+  let speedMultiplier = 1;
+  if (mem.spared) {
+    dialogue = "You again. Good.";
+    bonusMultiplier = 2;
+  } else if (mem.fought) {
+    speedMultiplier = 1.2;
+  }
+  currentSpecialEncounter = { name: data.name, dialogue, spareBonus: data.spareBonus, bonusMultiplier };
+
+  triggerDodge({
+    pattern: data.pattern,
+    duration: 6,
+    hitDamage: 12,
+    endOnHit: true,
+    speedMultiplier,
+    onHit: () => showChoice(true),
+    onSurvive: () => showChoice(false),
+  });
+}
+
+function showChoice(wasHit) {
+  currentChoiceHit = wasHit;
+  setGameState('CHOICE');
+  populateChoiceScreen();
+}
+
+function populateChoiceScreen() {
+  const el = overlays.CHOICE;
+  const data = currentSpecialEncounter;
+  const stateLine = currentChoiceHit
+    ? '<div class="struckText">You were struck.</div>'
+    : '<div class="enduredTextSmall">You endured it.</div>';
+  el.innerHTML = `
+    <div class="panel">
+      <div class="enemyName">${data.name}</div>
+      <div class="enemyDialogue">"${data.dialogue}"</div>
+      ${stateLine}
+      <div class="choiceButtons">
+        <button class="fightBtn" onclick="onFight()">[FIGHT]</button>
+        <button class="spareBtn" ${spareBanned ? 'disabled' : ''} onclick="onSpare()">[SPARE]</button>
+      </div>
+    </div>
+  `;
+}
+
+function onFight() {
+  const data = currentSpecialEncounter;
+  player.essence += 10 + Math.floor(currentNight / 5);
+  player.enemiesFought++;
+  specialEnemyMemory[data.name] = specialEnemyMemory[data.name] || { spared: false, fought: false };
+  specialEnemyMemory[data.name].fought = true;
+  const idx = player.allies.findIndex(a => a.name === data.name);
+  if (idx >= 0) player.allies.splice(idx, 1);
+  clampPlayer();
+  resolveNightEnd();
+}
+
+function onSpare() {
+  if (spareBanned) return;
+  const data = currentSpecialEncounter;
+  applySpareBonus(data.spareBonus, data.bonusMultiplier);
+  player.enemiesSpared++;
+  specialEnemyMemory[data.name] = specialEnemyMemory[data.name] || { spared: false, fought: false };
+  specialEnemyMemory[data.name].spared = true;
+  clampPlayer();
+  resolveNightEnd();
+}
+
+function applySpareBonus(bonus, mult) {
+  mult = mult || 1;
+  if (bonus.type === 'hp') {
+    player.hp = Math.min(player.maxHp, player.hp + bonus.value * mult);
+  } else if (bonus.type === 'essence') {
+    player.essence += bonus.value * mult;
+  } else if (bonus.type === 'ally') {
+    const existing = player.allies.find(a => a.name === bonus.allyName);
+    if (existing) {
+      Object.keys(bonus.allyBonus).forEach(k => {
+        existing.bonus[k] = (existing.bonus[k] || 0) + bonus.allyBonus[k] * mult;
+      });
+    } else {
+      const scaled = {};
+      Object.keys(bonus.allyBonus).forEach(k => scaled[k] = bonus.allyBonus[k] * mult);
+      player.allies.push({ name: bonus.allyName, bonus: scaled });
+    }
+  }
+  player.essence = Math.max(0, player.essence);
+}
+
+// ===================== ENVOY =====================
+function beginEnvoy() {
+  currentEnvoy = { ...envoySchedule[currentNight] };
+  setGameState('ENVOY');
+  populateEnvoyScreen();
+}
+
+function populateEnvoyScreen() {
+  const el = overlays.ENVOY;
+  el.innerHTML = `
+    <div class="panel">
+      <div class="envoyName">${currentEnvoy.name}</div>
+      <div class="envoyDeal">${currentEnvoy.deal}</div>
+      <div class="choiceButtons">
+        <button class="fightBtn" onclick="startEnvoyDodge()">[Dodge to Reject]</button>
+        <button class="spareBtn" onclick="acceptEnvoyDeal()">[Accept the Deal]</button>
+      </div>
+    </div>
+  `;
+}
+
+function acceptEnvoyDeal() {
+  currentEnvoy.effect();
+  player.dealsAccepted++;
+  player.envoyDealCounts[currentEnvoy.name] = (player.envoyDealCounts[currentEnvoy.name] || 0) + 1;
+  afterEnvoyEffect();
+}
+
+function startEnvoyDodge() {
+  triggerDodge({
+    pattern: currentEnvoy.pattern,
+    duration: 5,
+    hitDamage: 0,
+    endOnHit: true,
+    speedMultiplier: 1,
+    onHit: () => {
+      currentEnvoy.effect();
+      player.dealsAccepted++;
+      player.envoyDealCounts[currentEnvoy.name] = (player.envoyDealCounts[currentEnvoy.name] || 0) + 1;
+      afterEnvoyEffect();
+    },
+    onSurvive: () => {
+      player.dealsRejected++;
+      beginDay();
+    },
+  });
+}
+
+function afterEnvoyEffect() {
+  clampPlayer();
+  if (player.hp <= 0) triggerGameOver('The deal cost you everything.');
+  else beginDay();
+}
+
+// ===================== DAY =====================
+function beginDay() {
+  recalcAllyBonuses();
+  clampPlayer();
+  setGameState('DAY');
+  populateDayScreen();
+}
+
+function recalcAllyBonuses() {
+  let dodgeBonus = 0, powerBonus = 0;
+  player.allies.forEach(a => {
+    dodgeBonus += a.bonus.dodgeSpeed || 0;
+    powerBonus += a.bonus.autoResolvePower || 0;
+  });
+  player.effDodgeSpeed = player.dodgeSpeed + dodgeBonus;
+  player.effAutoResolvePower = player.autoResolvePower + powerBonus;
+}
+
+function populateDayScreen() {
+  const el = overlays.DAY;
+  const hpPct = Math.round((player.hp / player.maxHp) * 100);
+  const alliesHtml = player.allies.length
+    ? player.allies.map(a => {
+        const bonusStr = Object.entries(a.bonus).map(([k, v]) => `${k} +${v}`).join(', ');
+        return `<div><span class="allyDiamond"></span>${a.name} — ${bonusStr}</div>`;
+      }).join('')
+    : '<div style="color:#555;">No allies</div>';
+
+  const shopHtml = upgrades.map(u => {
+    const afford = player.essence >= u.cost;
+    return `<div class="shopItem">
+      <strong>${u.label}</strong><br>${u.desc}<br>Cost: ${u.cost} essence
+      <button ${afford ? '' : 'disabled'} onclick="buyUpgrade('${u.key}')">Buy</button>
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div class="panel">
+      <div class="dayHeader">Dawn — Night ${currentNight} survived</div>
+      <div class="hpBarOuter"><div class="hpBarInner" style="width:${hpPct}%"></div></div>
+      <div class="hpText">HP: ${Math.round(player.hp)} / ${player.maxHp}</div>
+      <div class="essenceLine">Essence: ${player.essence}</div>
+      <div class="alliesList">${alliesHtml}</div>
+      <div class="shopGrid">${shopHtml}</div>
+      <button class="beginNightBtn" onclick="setupNight(currentNight + 1)">[Begin Night ${currentNight + 1}]</button>
+    </div>
+  `;
+}
+
+function buyUpgrade(key) {
+  const up = upgrades.find(u => u.key === key);
+  if (!up || player.essence < up.cost) return;
+  player.essence -= up.cost;
+  up.apply();
+  recalcAllyBonuses();
+  clampPlayer();
+  populateDayScreen();
+}
+
+// ===================== FINAL BOSS (NIGHT 99) =====================
+function startFinalBossIntro() {
+  let ending;
+  if (player.dealsAccepted >= 5) ending = buildEnvoyEnding();
+  else if (player.enemiesSpared >= 10 && player.allies.length >= 3) ending = buildBetrayalEnding();
+  else ending = buildLoneWolfEnding();
+
+  finalBossData = ending;
+  setGameState('FINALBOSS_INTRO');
+  populateFinalBossIntro(ending);
+}
+
+function buildEnvoyEnding() {
+  let topName = null, topCount = -1;
+  Object.keys(player.envoyDealCounts).forEach(name => {
+    if (player.envoyDealCounts[name] > topCount) { topCount = player.envoyDealCounts[name]; topName = name; }
+  });
+  return {
+    type: 'envoy', name: topName || 'The Pale Voice',
+    dialogue: "You called for me with every deal. Here I am.",
+    pattern: 'chaos', duration: 15, hitDamage: 25,
+  };
+}
+
+function buildBetrayalEnding() {
+  return {
+    type: 'betrayal', name: 'Your Allies',
+    dialogue: "They made their own deal.",
+    allyNames: player.allies.map(a => a.name),
+    pattern: 'chaos', duration: 12, hitDamage: 20,
+  };
+}
+
+function buildLoneWolfEnding() {
+  return {
+    type: 'lonewolf', name: 'The Dark',
+    dialogue: "99 nights. And still nothing to show for it.",
+    pattern: 'chaos', duration: 10, hitDamage: 15,
+  };
+}
+
+function populateFinalBossIntro(ending) {
+  const el = overlays.FINALBOSS_INTRO;
+  let dialogueHtml = `<div class="envoyDeal">"${ending.dialogue}"</div>`;
+  if (ending.type === 'betrayal' && ending.allyNames.length) {
+    dialogueHtml = ending.allyNames.map(n => `<div class="envoyDeal">${n}: I'm sorry. We made our own deal.</div>`).join('');
+  }
+  el.innerHTML = `
+    <div class="panel">
+      <div class="envoyName">${ending.name}</div>
+      ${dialogueHtml}
+      <button class="fightBtn" onclick="startFinalBossDodge()">[Face the Dark]</button>
+    </div>
+  `;
+}
+
+function startFinalBossDodge() {
+  const ending = finalBossData;
+  triggerDodge({
+    pattern: ending.pattern,
+    duration: ending.duration,
+    hitDamage: ending.hitDamage,
+    endOnHit: false,
+    isFinalBoss: true,
+    speedMultiplier: renderPact ? 0.7 : 1,
+    onSurvive: () => {
+      setGameState('VICTORY');
+      populateVictory();
+    },
+  });
+}
+
+function populateVictory() {
+  document.getElementById('victoryStats').textContent =
+    `Essence: ${player.essence} | Allies: ${player.allies.length} | Enemies spared: ${player.enemiesSpared} | Enemies fought: ${player.enemiesFought} | Deals accepted: ${player.dealsAccepted}`;
+}
+
+function triggerGameOver(text) {
+  dodgeCtx = null;
+  bullets = [];
+  setGameState('GAMEOVER');
+  document.getElementById('gameoverText').textContent = text;
+  document.getElementById('gameoverStats').textContent =
+    `Fell on night ${currentNight} | Essence: ${player.essence} | Allies: ${player.allies.length}`;
+}
+
+// ===================== DODGE MINIGAME =====================
+function triggerDodge(context) {
+  dodgeCtx = context;
+  bullets = [];
+  soul.x = 400; soul.y = 300;
+  dodgeState = {
+    timer: context.duration,
+    resolving: false, resolveTimer: 0,
+    hitFlashTimer: 0,
+    crossTimer: 0, spiralTimer: 0, burstTimer: 0,
+    spiralRotation: 0,
+    waveActive: false, waveDir: 1, currentWaveSpeedMult: 1,
+  };
+  setGameState('DODGE');
+}
+
+function spawnBullet(x, y, vx, vy) {
+  bullets.push({ x, y, vx, vy, radius: 6, age: 0 });
+}
+
+function randomPerimeterPoint() {
+  const side = Math.floor(Math.random() * 4);
+  const b = DODGE_BOX;
+  if (side === 0) return { x: b.x + Math.random() * b.w, y: b.y };
+  if (side === 1) return { x: b.x + Math.random() * b.w, y: b.y + b.h };
+  if (side === 2) return { x: b.x, y: b.y + Math.random() * b.h };
+  return { x: b.x + b.w, y: b.y + Math.random() * b.h };
+}
+
+function updateCross(ndt, rateMult, speedMult) {
+  dodgeState.crossTimer += ndt;
+  const interval = 40 / rateMult;
+  if (dodgeState.crossTimer >= interval) {
+    dodgeState.crossTimer = 0;
+    const cx = DODGE_BOX.x + DODGE_BOX.w / 2;
+    const cy = DODGE_BOX.y + DODGE_BOX.h / 2;
+    const spd = 2.5 * speedMult;
+    spawnBullet(cx, DODGE_BOX.y, 0, spd);
+    spawnBullet(cx, DODGE_BOX.y + DODGE_BOX.h, 0, -spd);
+    spawnBullet(DODGE_BOX.x, cy, spd, 0);
+    spawnBullet(DODGE_BOX.x + DODGE_BOX.w, cy, -spd, 0);
+  }
+}
+
+function updateSpiral(ndt, rateMult, speedMult) {
+  dodgeState.spiralTimer += ndt;
+  const interval = 25 / rateMult;
+  if (dodgeState.spiralTimer >= interval) {
+    dodgeState.spiralTimer = 0;
+    const cx = DODGE_BOX.x + DODGE_BOX.w / 2, cy = DODGE_BOX.y + DODGE_BOX.h / 2;
+    const spd = 3 * speedMult;
+    const baseAngle = dodgeState.spiralRotation * Math.PI / 180;
+    for (let i = 0; i < 8; i++) {
+      const angle = baseAngle + i * (Math.PI * 2 / 8);
+      spawnBullet(cx, cy, Math.cos(angle) * spd, Math.sin(angle) * spd);
+    }
+    dodgeState.spiralRotation += 15;
+  }
+}
+
+function updateBurst(ndt, rateMult, speedMult) {
+  dodgeState.burstTimer += ndt;
+  const interval = 50 / rateMult;
+  if (dodgeState.burstTimer >= interval) {
+    dodgeState.burstTimer = 0;
+    const p = randomPerimeterPoint();
+    const spd = 2 * speedMult;
+    for (let i = 0; i < 12; i++) {
+      const angle = i * (Math.PI * 2 / 12);
+      spawnBullet(p.x, p.y, Math.cos(angle) * spd, Math.sin(angle) * spd);
+    }
+  }
+}
+
+function startNewWave() {
+  dodgeState.waveActive = true;
+  dodgeState.waveDir = -dodgeState.waveDir;
+  const gapStart = DODGE_BOX.x + Math.random() * (DODGE_BOX.w - 80);
+  const spd = 1.5 * (dodgeState.currentWaveSpeedMult || 1);
+  const y = dodgeState.waveDir > 0 ? DODGE_BOX.y : DODGE_BOX.y + DODGE_BOX.h;
+  const vy = dodgeState.waveDir > 0 ? spd : -spd;
+  for (let x = DODGE_BOX.x; x <= DODGE_BOX.x + DODGE_BOX.w; x += 20) {
+    if (x >= gapStart && x <= gapStart + 80) continue;
+    bullets.push({ x, y, vx: 0, vy, radius: 6, isWave: true, age: 0 });
+  }
+}
+
+function updateWave(ndt, speedMult) {
+  dodgeState.currentWaveSpeedMult = speedMult;
+  if (!dodgeState.waveActive) {
+    startNewWave();
+    return;
+  }
+  const remaining = bullets.filter(b => b.isWave);
+  if (remaining.length === 0) startNewWave();
+}
+
+function updateBulletPattern(pattern, ndt, speedMult) {
+  if (pattern === 'cross') updateCross(ndt, 1, speedMult);
+  else if (pattern === 'spiral') updateSpiral(ndt, 1, speedMult);
+  else if (pattern === 'burst') updateBurst(ndt, 1, speedMult);
+  else if (pattern === 'wave') updateWave(ndt, speedMult);
+  else if (pattern === 'chaos') {
+    updateCross(ndt, 0.7, speedMult * 0.8);
+    updateSpiral(ndt, 0.7, speedMult * 0.8);
+    updateBurst(ndt, 0.7, speedMult * 0.8);
+  }
+}
+
+function handleDodgeHit() {
+  const dmg = dodgeCtx.hitDamage;
+  const isFinal = dodgeCtx.isFinalBoss;
+  player.hp = Math.max(0, player.hp - dmg);
+  bullets = [];
+  if (player.hp <= 0) {
+    dodgeCtx = null;
+    triggerGameOver(isFinal ? 'You were so close.' : 'The last pact is broken.');
+    return;
+  }
+  if (dodgeCtx.endOnHit === false) {
+    dodgeState.hitFlashTimer = 30;
+    return;
+  }
+  const cb = dodgeCtx.onHit;
+  dodgeCtx = null;
+  cb && cb();
+}
+
+function finishDodge() {
+  if (!dodgeCtx) return;
+  const cb = dodgeCtx.onSurvive;
+  dodgeCtx = null;
+  bullets = [];
+  cb && cb();
+}
+
+function updateDodge(dtMs, ndt) {
+  if (!dodgeCtx) return;
+
+  if (dodgeState.resolving) {
+    dodgeState.resolveTimer -= ndt;
+    if (dodgeState.resolveTimer <= 0) finishDodge();
+    return;
+  }
+
+  const spd = player.effDodgeSpeed * ndt;
+  if (keys['ArrowUp'] || keys['w'] || keys['W']) soul.y -= spd;
+  if (keys['ArrowDown'] || keys['s'] || keys['S']) soul.y += spd;
+  if (keys['ArrowLeft'] || keys['a'] || keys['A']) soul.x -= spd;
+  if (keys['ArrowRight'] || keys['d'] || keys['D']) soul.x += spd;
+  soul.x = clamp(soul.x, DODGE_BOX.x + 8, DODGE_BOX.x + DODGE_BOX.w - 8);
+  soul.y = clamp(soul.y, DODGE_BOX.y + 8, DODGE_BOX.y + DODGE_BOX.h - 8);
+
+  updateBulletPattern(dodgeCtx.pattern, ndt, dodgeCtx.speedMultiplier || 1);
+
+  for (let i = bullets.length - 1; i >= 0; i--) {
+    const b = bullets[i];
+    b.x += b.vx * ndt;
+    b.y += b.vy * ndt;
+    b.age += ndt;
+    if (b.x < DODGE_BOX.x - 20 || b.x > DODGE_BOX.x + DODGE_BOX.w + 20 ||
+        b.y < DODGE_BOX.y - 20 || b.y > DODGE_BOX.y + DODGE_BOX.h + 20) {
+      bullets.splice(i, 1);
+    }
+  }
+
+  if (dodgeState.hitFlashTimer > 0) {
+    dodgeState.hitFlashTimer -= ndt;
+  } else {
+    // Bullets are only lethal once they've traveled clear of their spawn
+    // point, so patterns that emit from the soul's own position (e.g.
+    // spiral bursting from box center, where the soul starts) can't
+    // register an unavoidable zero-distance hit at the instant of spawn.
+    for (const b of bullets) {
+      if (b.age < 10) continue;
+      const dx = soul.x - b.x, dy = soul.y - b.y;
+      if (Math.sqrt(dx * dx + dy * dy) < 14) {
+        handleDodgeHit();
+        break;
+      }
+    }
+  }
+
+  if (!dodgeCtx) return;
+
+  dodgeState.timer -= dtMs / 1000;
+  if (dodgeState.timer <= 0 && !dodgeState.resolving) {
+    dodgeState.resolving = true;
+    dodgeState.resolveTimer = 30;
+  }
+}
+
+// ===================== HELPERS =====================
+function clampPlayer() {
+  player.hp = clamp(player.hp, 0, player.maxHp);
+  player.essence = Math.max(0, player.essence);
+  currentNight = clamp(currentNight, 1, 99);
+}
+
+// ===================== DRAWING: NIGHT SCENE =====================
+function drawEnemy(e, isSpecial) {
+  const iso = toIso(e.gridX, e.gridY);
+  const scale = isSpecial ? 1.5 : 1;
+  const bob = Math.sin(frameCount * 0.1 + e.gridX) * 2;
+  const baseY = iso.y + TILE_H / 2 - bob;
+  const color = isSpecial ? '#9933cc' : (e.drawColor || '#cc3333');
+  const headColor = isSpecial ? '#aa55dd' : '#dd4444';
+
+  ctx.fillStyle = color;
+  ctx.fillRect(iso.x - 4 * scale, baseY - 16 * scale, 8 * scale, 16 * scale);
+  ctx.beginPath();
+  ctx.arc(iso.x, baseY - 16 * scale - 6 * scale, 6 * scale, 0, Math.PI * 2);
+  ctx.fillStyle = headColor;
+  ctx.fill();
+}
+
+function drawPlayerBase() {
+  const iso = toIso(BASE_GX, BASE_GY);
+  drawIsoPrism(ctx, iso.x, iso.y + TILE_H, TILE_W / 2, TILE_H / 2, 20, '#1a0808', '#0f0404', '#140606');
+}
+
+function drawAllyDiamond(gx, gy) {
+  const iso = toIso(gx, gy);
+  const cx = iso.x, cy = iso.y + TILE_H / 2;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - 8);
+  ctx.lineTo(cx + 6, cy);
+  ctx.lineTo(cx, cy + 8);
+  ctx.lineTo(cx - 6, cy);
+  ctx.closePath();
+  ctx.fillStyle = '#c0a0ff';
+  ctx.fill();
+}
+
+function drawNightScene(alpha) {
+  alpha = alpha === undefined ? 1 : alpha;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+
+  for (let gy = 0; gy < GRID_ROWS; gy++) {
+    for (let gx = 0; gx < GRID_COLS; gx++) {
+      let fill = '#111118';
+      let stroke = '#1e1e2e';
+      if (gx === BASE_GX && gy === BASE_GY) {
+        fill = '#1a0a0a'; stroke = '#8b0000';
+      } else if (nightTileTexture[gy * GRID_COLS + gx]) {
+        fill = '#151520';
+      }
+      drawIsoTile(ctx, gx, gy, fill, stroke);
+    }
+  }
+
+  const entities = [{ depth: BASE_GX + BASE_GY, draw: drawPlayerBase }];
+  const allyPositions = [{ gx: 4, gy: 11 }, { gx: 6, gy: 11 }, { gx: 5, gy: 10 }];
+  player.allies.slice(0, 3).forEach((a, i) => {
+    const pos = allyPositions[i];
+    entities.push({ depth: pos.gx + pos.gy, draw: () => drawAllyDiamond(pos.gx, pos.gy) });
+  });
+  nightEnemies.forEach(e => {
+    entities.push({ depth: e.gridX + e.gridY, draw: () => drawEnemy(e, false) });
+  });
+  if (gameState === 'NIGHT' && nightPhase === 'specialAnnounce' && specialEnemyThisNight) {
+    entities.push({ depth: 5 + 6, draw: () => drawEnemy({ gridX: 5, gridY: 6 }, true) });
+  }
+  entities.sort((a, b) => a.depth - b.depth);
+  entities.forEach(e => e.draw());
+
+  if (gameState === 'NIGHT' && nightPhase === 'quiet') {
+    ctx.fillStyle = 'rgba(232,232,232,0.5)';
+    ctx.font = '20px "Courier New", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('The night is quiet...', 400, 300);
+  }
+  if (gameState === 'NIGHT' && nightPhase === 'specialAnnounce') {
+    const flash = Math.abs(Math.sin(nightPhaseTimer * 0.1));
+    ctx.fillStyle = `rgba(153,51,204,${0.15 * flash})`;
+    ctx.fillRect(0, 0, 800, 600);
+    ctx.fillStyle = '#cc88ff';
+    ctx.font = 'bold 28px "Courier New", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(specialEnemyThisNight.name, 400, 200);
+  }
+
+  ctx.restore();
+  drawFloatingNumbers();
+}
+
+function drawFloatingNumbers() {
+  ctx.save();
+  ctx.font = 'bold 16px "Courier New", monospace';
+  ctx.textAlign = 'center';
+  floatingNumbers.forEach(f => {
+    ctx.globalAlpha = Math.max(0, f.alpha);
+    ctx.fillStyle = '#ff3333';
+    ctx.fillText('-' + Math.round(f.value), f.x, f.y);
+  });
+  ctx.restore();
+}
+
+function drawNightIntro() {
+  ctx.save();
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, 800, 600);
+  const t = introTimer;
+  let alpha;
+  if (t < 500) alpha = t / 500;
+  else if (t < 1000) alpha = 1;
+  else alpha = 1 - (t - 1000) / 500;
+  ctx.globalAlpha = clamp(alpha, 0, 1);
+  ctx.fillStyle = '#c0a0ff';
+  ctx.font = 'bold 48px "Courier New", monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(`Night ${currentNight}`, 400, 300);
+  ctx.restore();
+}
+
+function drawDodgeBox() {
+  ctx.save();
+  ctx.fillStyle = '#05050d';
+  ctx.fillRect(DODGE_BOX.x, DODGE_BOX.y, DODGE_BOX.w, DODGE_BOX.h);
+  ctx.strokeStyle = '#c0a0ff';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(DODGE_BOX.x, DODGE_BOX.y, DODGE_BOX.w, DODGE_BOX.h);
+
+  if (dodgeCtx) {
+    const pct = clamp(dodgeState.timer / dodgeCtx.duration, 0, 1);
+    ctx.strokeStyle = '#3a2a5a';
+    ctx.strokeRect(DODGE_BOX.x, DODGE_BOX.y - 12, DODGE_BOX.w, 6);
+    ctx.fillStyle = '#c0a0ff';
+    ctx.fillRect(DODGE_BOX.x, DODGE_BOX.y - 12, DODGE_BOX.w * pct, 6);
+  }
+
+  ctx.fillStyle = '#ffffff';
+  bullets.forEach(b => {
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  ctx.fillStyle = '#ff2222';
+  ctx.font = '16px "Courier New", monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('♥', soul.x, soul.y);
+  ctx.textBaseline = 'alphabetic';
+
+  if (dodgeState.resolving) {
+    ctx.fillStyle = '#c0a0ff';
+    ctx.font = '18px "Courier New", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('You endured it.', DODGE_BOX.x + DODGE_BOX.w / 2, DODGE_BOX.y + DODGE_BOX.h / 2);
+  }
+  ctx.restore();
+}
+
+function drawEnvoyScene() {
+  drawNightScene(0.15);
+  if (!currentEnvoy) return;
+  ctx.save();
+  const cx = 400, cy = 380;
+  if (currentEnvoy.name === 'The Pale Voice') {
+    drawIsoDiamondBig(cx, cy, 90, 120, '#b0b0cc');
+  } else if (currentEnvoy.name === 'Render') {
+    drawIsoPrism(ctx, cx, cy, 50, 25, 140, '#cc8800', '#996600', '#aa7700');
+  } else if (currentEnvoy.name === 'Threshold') {
+    drawIsoPrism(ctx, cx, cy, 110, 40, 30, '#008888', '#006666', '#007777');
+  }
+  ctx.restore();
+}
+
+function drawFinalBossScene() {
+  drawNightScene(0.15);
+  if (!finalBossData) return;
+  ctx.save();
+  const cx = 400, cy = 380;
+  if (finalBossData.type === 'envoy') {
+    const n = finalBossData.name;
+    if (n === 'Render') drawIsoPrism(ctx, cx, cy, 65, 32, 180, '#cc8800', '#996600', '#aa7700');
+    else if (n === 'Threshold') drawIsoPrism(ctx, cx, cy, 140, 50, 38, '#008888', '#006666', '#007777');
+    else drawIsoDiamondBig(cx, cy, 115, 150, '#b0b0cc');
+  } else if (finalBossData.type === 'lonewolf') {
+    drawIsoDiamondBig(cx, cy, 110, 140, '#050505');
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  } else if (finalBossData.type === 'betrayal') {
+    ctx.fillStyle = 'rgba(139,0,0,0.15)';
+    ctx.fillRect(0, 0, 800, 600);
+  }
+  ctx.restore();
+}
+
+// ===================== MAIN LOOP =====================
+function update(dtMs, ndt) {
+  frameCount += ndt;
+  updateFloatingNumbers(ndt);
+  clampPlayer();
+
+  if (gameState === 'NIGHT_INTRO') updateNightIntro(dtMs);
+  else if (gameState === 'NIGHT') updateNight(ndt);
+  else if (gameState === 'DODGE') updateDodge(dtMs, ndt);
+}
+
+function draw() {
+  ctx.clearRect(0, 0, 800, 600);
+  ctx.fillStyle = '#0a0a0f';
+  ctx.fillRect(0, 0, 800, 600);
+
+  if (gameState === 'NIGHT_INTRO') drawNightIntro();
+  else if (gameState === 'NIGHT') drawNightScene(1);
+  else if (gameState === 'DODGE') { drawNightScene(0.2); drawDodgeBox(); }
+  else if (gameState === 'CHOICE') drawNightScene(0.35);
+  else if (gameState === 'DAY') drawNightScene(0.35);
+  else if (gameState === 'ENVOY') drawEnvoyScene();
+  else if (gameState === 'FINALBOSS_INTRO') drawFinalBossScene();
+}
+
+function gameLoop(timestamp) {
+  if (!lastTime) lastTime = timestamp;
+  let dt = timestamp - lastTime;
+  lastTime = timestamp;
+  dt = Math.min(dt, 50);
+  const ndt = dt / 16.6667;
+
+  update(dt, ndt);
+  draw();
+
+  requestAnimationFrame(gameLoop);
+}
+
+setGameState('MENU');
+requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>
