@@ -15,21 +15,19 @@
     font-family: 'Courier New', monospace; color: #e8e8e8;
   }
   #gameContainer {
-    position: relative; width: 800px; height: 600px;
-    flex-shrink: 0;
-    transform-origin: center center;
+    position: relative; width: 100%; height: 100%;
     touch-action: none;
   }
   #glCanvas {
-    position: absolute; top: 0; left: 0; width: 800px; height: 600px;
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
     background: #07070d;
   }
   #gameCanvas {
-    position: absolute; top: 0; left: 0;
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
     background: transparent;
   }
   .overlay {
-    position: absolute; top: 0; left: 0; width: 800px; height: 600px;
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
     display: flex; align-items: center; justify-content: center;
     flex-direction: column; background: radial-gradient(ellipse at center, rgba(18,10,24,0.88) 0%, rgba(0,0,0,0.93) 100%);
     text-align: center;
@@ -190,24 +188,23 @@
   }
   #attackBtn:active { background: #5a1010; }
 
-  #rotateHint {
-    position: fixed;
-    top: max(10px, env(safe-area-inset-top));
-    left: 50%; transform: translateX(-50%);
-    background: rgba(10,10,15,0.85);
-    border: 1px solid #c0a0ff;
-    color: #c0a0ff;
-    font-size: 12px;
-    padding: 8px 16px;
-    letter-spacing: 0.5px;
-    z-index: 30;
+  /* hard landscape lock — the game pauses behind this in portrait */
+  #portraitBlock {
     display: none;
+    position: fixed; inset: 0; z-index: 100;
+    background: #0a0a0f;
+    color: #c0a0ff;
+    text-align: center;
+    padding: 24px;
+    letter-spacing: 1px;
   }
-  #rotateHint.dismissed { display: none !important; }
-
-  @media (max-width: 820px) and (orientation: portrait) {
-    body.touch-active #rotateHint { display: block; }
+  body.portrait #portraitBlock {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
   }
+  body.portrait #touchControls { display: none !important; }
+  #portraitBlock .big { font-size: 46px; margin-bottom: 18px; animation: titlePulse 3.6s ease-in-out infinite; }
+  #portraitBlock .msg { font-size: 15px; line-height: 1.7; color: #e8e8e8; }
 
   @media (pointer: coarse) {
     button { padding: 13px 24px; font-size: 16px; }
@@ -254,7 +251,10 @@
   </div>
 </div>
 
-<div id="rotateHint">Rotate your device for a bigger view</div>
+<div id="portraitBlock">
+  <div class="big">⟳</div>
+  <div class="msg">Turn your device sideways.<br>LAST PACT plays in landscape only.</div>
+</div>
 
 <div id="touchControls">
   <div id="dpad">
@@ -286,12 +286,8 @@ const ctx = canvas.getContext('2d');
 const glCanvas = document.getElementById('glCanvas');
 const gameContainer = document.getElementById('gameContainer');
 
-function resizeViewport() {
-  const scale = Math.min(window.innerWidth / 800, window.innerHeight / 600);
-  gameContainer.style.transform = `scale(${scale})`;
-}
-window.addEventListener('resize', resizeViewport);
-resizeViewport();
+// live viewport size — the game fills whatever screen it's on
+let VW = 800, VH = 600, isPortrait = false;
 gameContainer.addEventListener('click', () => window.focus());
 
 // ===================== GRID HELPERS =====================
@@ -498,8 +494,6 @@ const isTouchDevice = ('ontouchstart' in window) || navigator.maxTouchPoints > 0
 if (isTouchDevice) document.body.classList.add('touch-active');
 
 const touchControls = document.getElementById('touchControls');
-const rotateHint = document.getElementById('rotateHint');
-rotateHint.addEventListener('pointerdown', () => rotateHint.classList.add('dismissed'));
 
 function updateTouchControlsVisibility() {
   touchControls.classList.toggle('show', gameState === 'NIGHT' && nightPhase === 'marching');
@@ -522,8 +516,8 @@ attackBtn.addEventListener('pointerdown', e => { e.preventDefault(); keys[' '] =
 function clientToCanvasCoords(clientX, clientY) {
   const rect = canvas.getBoundingClientRect();
   return {
-    x: (clientX - rect.left) * (800 / rect.width),
-    y: (clientY - rect.top) * (600 / rect.height),
+    x: (clientX - rect.left) * (canvas.width / rect.width),
+    y: (clientY - rect.top) * (canvas.height / rect.height),
   };
 }
 
@@ -621,10 +615,34 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(0x0a0d16, 0.028);
 
-const camera = new THREE.PerspectiveCamera(60, 800 / 600, 0.1, 160);
+const camera = new THREE.PerspectiveCamera(55, 800 / 600, 0.1, 160);
 camera.position.set(0, 8, 12);
 const camLook = new THREE.Vector3(0, 0, 0);
 camera.lookAt(camLook);
+
+// fill the real screen on any device; block play in portrait
+function resizeViewport() {
+  VW = Math.max(1, window.innerWidth);
+  VH = Math.max(1, window.innerHeight);
+  canvas.width = VW;
+  canvas.height = VH;
+  renderer.setSize(VW, VH, false);
+  camera.aspect = VW / VH;
+  // keep the whole island in frame on wide screens, zoom the fov out a
+  // touch on squarer ones
+  camera.fov = camera.aspect >= 1.3 ? 55 : 64;
+  camera.updateProjectionMatrix();
+  const bw = Math.min(440, VW * 0.6);
+  const bh = Math.min(320, VH * 0.55);
+  DODGE_BOX.w = bw; DODGE_BOX.h = bh;
+  DODGE_BOX.x = (VW - bw) / 2;
+  DODGE_BOX.y = (VH - bh) / 2;
+  isPortrait = VH > VW;
+  document.body.classList.toggle('portrait', isPortrait);
+}
+window.addEventListener('resize', resizeViewport);
+window.addEventListener('orientationchange', () => setTimeout(resizeViewport, 120));
+resizeViewport();
 
 // --- lights ---
 const hemiLight = new THREE.HemisphereLight(0x4a5a94, 0x1a1a26, 1.15);
@@ -1498,7 +1516,6 @@ function setupNight(n) {
   defender.angle = Math.PI;
   defender.moving = false;
   defender.walkPhase = 0;
-  camYaw = Math.PI;
 
   sfxNightStart();
   setGameState('NIGHT_INTRO');
@@ -1610,18 +1627,15 @@ function gridDist(a, b) {
 
 function updateDefender(ndt) {
   const spd = 0.16 * ndt;
-  // camera-relative input: up runs where the camera faces
-  let ix = 0, iz = 0;
-  if (keys['ArrowUp'] || keys['w'] || keys['W']) iz += 1;
-  if (keys['ArrowDown'] || keys['s'] || keys['S']) iz -= 1;
-  if (keys['ArrowLeft'] || keys['a'] || keys['A']) ix -= 1;
-  if (keys['ArrowRight'] || keys['d'] || keys['D']) ix += 1;
-  defender.moving = (ix !== 0 || iz !== 0);
+  // screen-aligned input: up walks toward the far shore, down toward
+  // the base, left/right across the island
+  let mx = 0, mz = 0;
+  if (keys['ArrowUp'] || keys['w'] || keys['W']) mz -= 1;
+  if (keys['ArrowDown'] || keys['s'] || keys['S']) mz += 1;
+  if (keys['ArrowLeft'] || keys['a'] || keys['A']) mx -= 1;
+  if (keys['ArrowRight'] || keys['d'] || keys['D']) mx += 1;
+  defender.moving = (mx !== 0 || mz !== 0);
   if (defender.moving) {
-    const fx = Math.sin(camYaw), fz = Math.cos(camYaw); // camera forward on the ground
-    const rx = -fz, rz = fx;                            // camera right
-    let mx = fx * iz + rx * ix;
-    let mz = fz * iz + rz * ix;
     const inv = 1 / Math.hypot(mx, mz);
     mx *= inv * spd;
     mz *= inv * spd;
@@ -2155,7 +2169,8 @@ function triggerGameOver(text) {
 function triggerDodge(context) {
   dodgeCtx = context;
   bullets = [];
-  soul.x = 400; soul.y = 300;
+  soul.x = DODGE_BOX.x + DODGE_BOX.w / 2;
+  soul.y = DODGE_BOX.y + DODGE_BOX.h / 2;
   dodgeState = {
     timer: context.duration,
     resolving: false, resolveTimer: 0,
@@ -2523,16 +2538,8 @@ function syncAtmosphere() {
 
 // ===================== CAMERA =====================
 let orbitAngle = 0.6;
-let camYaw = Math.PI; // third-person chase yaw, follows the defender's facing
 const desiredPos = new THREE.Vector3();
 const desiredLook = new THREE.Vector3();
-
-function angleLerp(a, b, k) {
-  let d = b - a;
-  while (d > Math.PI) d -= Math.PI * 2;
-  while (d < -Math.PI) d += Math.PI * 2;
-  return a + d * k;
-}
 
 function updateCamera(ndt) {
   const st = gameState;
@@ -2550,18 +2557,11 @@ function updateCamera(ndt) {
   } else if (st === 'DODGE') {
     desiredPos.set(FIGURE_SPOT.x, 3.4, FIGURE_SPOT.z + 7.6);
     desiredLook.set(FIGURE_SPOT.x, 0.9, FIGURE_SPOT.z);
-  } else if (st === 'NIGHT' && nightPhase === 'quiet') {
-    // nothing to fight — settle into a calm overview of the island
-    desiredPos.set(0, 7.6, 11.6);
-    desiredLook.set(0, 0, 0.4);
   } else {
-    // gameplay: third-person chase camera low behind the defender,
-    // swinging around to follow wherever they're heading
-    camYaw = angleLerp(camYaw, defender.angle, 1 - Math.pow(0.965, ndt));
-    const p = worldPos(defender.gridX, defender.gridY);
-    const fx = Math.sin(camYaw), fz = Math.cos(camYaw);
-    desiredPos.set(p.x - fx * 4.4, 3.0, p.z - fz * 4.4);
-    desiredLook.set(p.x + fx * 2.2, 0.7, p.z + fz * 2.2);
+    // gameplay: fixed elevated view of the whole island — the screen
+    // stays put while the defender moves across it
+    desiredPos.set(0, 7.8, 11.8);
+    desiredLook.set(0, 0.2, 0.5);
   }
 
   const snap = st === 'NIGHT_INTRO';
@@ -2581,8 +2581,8 @@ const projTmp = new THREE.Vector3();
 function worldToScreen(v) {
   projTmp.copy(v).project(camera);
   return {
-    x: (projTmp.x * 0.5 + 0.5) * 800,
-    y: (-projTmp.y * 0.5 + 0.5) * 600,
+    x: (projTmp.x * 0.5 + 0.5) * VW,
+    y: (-projTmp.y * 0.5 + 0.5) * VH,
     behind: projTmp.z > 1,
   };
 }
@@ -2625,18 +2625,19 @@ function drawHUD() {
   ctx.font = '11px "Courier New", monospace';
   ctx.fillText((WEAPONS[player.weapon] || WEAPONS.sword).name, 34, 64);
 
+  const rx = VW - 180;
   ctx.fillStyle = 'rgba(8,6,14,0.62)';
-  ctx.fillRect(620, 10, 170, nightEvent ? 52 : 34);
+  ctx.fillRect(rx, 10, 170, nightEvent ? 52 : 34);
   ctx.strokeStyle = '#2a2a3a';
-  ctx.strokeRect(620.5, 10.5, 169, nightEvent ? 51 : 33);
+  ctx.strokeRect(rx + 0.5, 10.5, 169, nightEvent ? 51 : 33);
   ctx.fillStyle = '#c0a0ff';
   ctx.font = 'bold 16px "Courier New", monospace';
   ctx.textAlign = 'center';
-  ctx.fillText('NIGHT ' + currentNight, 705, 32);
+  ctx.fillText('NIGHT ' + currentNight, rx + 85, 32);
   if (nightEvent) {
     ctx.fillStyle = EVENT_COLORS[nightEvent] || '#e8e8e8';
     ctx.font = 'bold 11px "Courier New", monospace';
-    ctx.fillText(NIGHT_EVENTS[nightEvent].name, 705, 52);
+    ctx.fillText(NIGHT_EVENTS[nightEvent].name, rx + 85, 52);
   }
   ctx.restore();
 }
@@ -2673,7 +2674,7 @@ function drawEnemyHpPips() {
 function drawNightIntro() {
   ctx.save();
   ctx.fillStyle = '#000';
-  ctx.fillRect(0, 0, 800, 600);
+  ctx.fillRect(0, 0, VW, VH);
   const t = introTimer;
   let alpha;
   if (t < 500) alpha = t / 500;
@@ -2683,14 +2684,14 @@ function drawNightIntro() {
   ctx.fillStyle = '#c0a0ff';
   ctx.font = 'bold 48px "Courier New", monospace';
   ctx.textAlign = 'center';
-  ctx.fillText(`Night ${currentNight}`, 400, 300);
+  ctx.fillText(`Night ${currentNight}`, VW / 2, VH / 2);
   if (nightEvent && NIGHT_EVENTS[nightEvent]) {
     ctx.fillStyle = EVENT_COLORS[nightEvent] || '#e8e8e8';
     ctx.font = 'bold 22px "Courier New", monospace';
-    ctx.fillText(NIGHT_EVENTS[nightEvent].name, 400, 348);
+    ctx.fillText(NIGHT_EVENTS[nightEvent].name, VW / 2, VH / 2 + 48);
     ctx.fillStyle = 'rgba(200,200,210,0.75)';
     ctx.font = 'italic 13px "Courier New", monospace';
-    ctx.fillText(NIGHT_EVENTS[nightEvent].tagline, 400, 372);
+    ctx.fillText(NIGHT_EVENTS[nightEvent].tagline, VW / 2, VH / 2 + 72);
   }
   ctx.restore();
 }
@@ -2741,15 +2742,18 @@ function drawDodgeBox() {
 }
 
 function drawVignette() {
-  const grad = ctx.createRadialGradient(400, 300, 170, 400, 300, 520);
+  const grad = ctx.createRadialGradient(
+    VW / 2, VH / 2, Math.min(VW, VH) * 0.32,
+    VW / 2, VH / 2, Math.max(VW, VH) * 0.72
+  );
   grad.addColorStop(0, 'rgba(0,0,0,0)');
   grad.addColorStop(1, 'rgba(0,0,0,0.42)');
   ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, 800, 600);
+  ctx.fillRect(0, 0, VW, VH);
 }
 
 function drawOverlay() {
-  ctx.clearRect(0, 0, 800, 600);
+  ctx.clearRect(0, 0, VW, VH);
 
   if (gameState === 'NIGHT_INTRO') {
     drawNightIntro();
@@ -2760,7 +2764,7 @@ function drawOverlay() {
 
   if (nightEvent === 'bloodMoon' && live && nightPhase !== 'quiet') {
     ctx.fillStyle = 'rgba(170,30,30,0.07)';
-    ctx.fillRect(0, 0, 800, 600);
+    ctx.fillRect(0, 0, VW, VH);
   }
 
   if (live && nightPhase === 'marching') {
@@ -2772,34 +2776,34 @@ function drawOverlay() {
     ctx.fillStyle = 'rgba(232,232,232,0.5)';
     ctx.font = '20px "Courier New", monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('The night is quiet...', 400, 300);
+    ctx.fillText('The night is quiet...', VW / 2, VH / 2);
   }
   if (live && nightPhase === 'marching') {
     ctx.fillStyle = 'rgba(210,210,220,0.4)';
     ctx.font = '12px "Courier New", monospace';
     ctx.textAlign = 'center';
-    ctx.fillText(isTouchDevice ? 'D-PAD TO MOVE   ·   TAP ATTACK' : 'WASD / ARROWS MOVE   ·   SPACE ATTACK', 400, 578);
+    ctx.fillText(isTouchDevice ? 'D-PAD TO MOVE   ·   TAP ATTACK' : 'WASD / ARROWS MOVE   ·   SPACE ATTACK', VW / 2, VH - 22);
   }
   if (live && whisper && whisper.text) {
     const wa = clamp(Math.min(whisper.t / 60, (260 - whisper.t) / 40), 0, 1);
     ctx.fillStyle = `rgba(180,170,200,${0.75 * wa})`;
     ctx.font = 'italic 13px "Courier New", monospace';
     ctx.textAlign = 'center';
-    ctx.fillText(whisper.text, 400, 552);
+    ctx.fillText(whisper.text, VW / 2, VH - 48);
   }
   if (live && nightPhase === 'specialAnnounce') {
     const flash = Math.abs(Math.sin(nightPhaseTimer * 0.1));
     ctx.fillStyle = `rgba(153,51,204,${0.15 * flash})`;
-    ctx.fillRect(0, 0, 800, 600);
+    ctx.fillRect(0, 0, VW, VH);
     ctx.fillStyle = '#cc88ff';
     ctx.font = 'bold 28px "Courier New", monospace';
     ctx.textAlign = 'center';
-    ctx.fillText(specialEnemyThisNight.name, 400, 140);
+    ctx.fillText(specialEnemyThisNight.name, VW / 2, 140);
   }
 
   if (gameState === 'DODGE') {
     ctx.fillStyle = 'rgba(0,0,0,0.5)';
-    ctx.fillRect(0, 0, 800, 600);
+    ctx.fillRect(0, 0, VW, VH);
     drawDodgeBox();
   }
 
@@ -2835,6 +2839,14 @@ function sync3D(ndt) {
 }
 
 function gameLoop(timestamp) {
+  requestAnimationFrame(gameLoop);
+
+  // hard landscape lock: freeze the game behind the rotate screen
+  if (isPortrait) {
+    lastTime = 0;
+    return;
+  }
+
   if (!lastTime) lastTime = timestamp;
   let dt = timestamp - lastTime;
   lastTime = timestamp;
@@ -2845,8 +2857,6 @@ function gameLoop(timestamp) {
   sync3D(ndt);
   renderer.render(scene, camera);
   drawOverlay();
-
-  requestAnimationFrame(gameLoop);
 }
 
 // ===================== BOOT =====================
