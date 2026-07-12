@@ -448,7 +448,7 @@ function resetState() {
 
   finalBossData = null;
 
-  defender = { gridX: 5, gridY: 8, attackCooldown: 0, angle: Math.PI, moving: false, walkPhase: 0 };
+  defender = { gridX: 5, gridY: 8, attackCooldown: 0, swingT: 0, angle: Math.PI, moving: false, walkPhase: 0 };
 
   player.weapon = 'sword';
   player.ownedWeapons = ['sword'];
@@ -545,6 +545,61 @@ gameContainer.addEventListener('pointermove', e => {
 });
 window.addEventListener('pointerup', () => { dodgeDragActive = false; });
 window.addEventListener('pointercancel', () => { dodgeDragActive = false; });
+
+// ===================== PROCEDURAL AUDIO =====================
+let audioCtx = null;
+function initAudio() {
+  if (!audioCtx) {
+    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { audioCtx = null; }
+  }
+  if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function tone(type, f0, f1, dur, vol, delay) {
+  if (!audioCtx) return;
+  const t = audioCtx.currentTime + (delay || 0);
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(f0, t);
+  osc.frequency.exponentialRampToValueAtTime(Math.max(1, f1), t + dur);
+  gain.gain.setValueAtTime(vol, t);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  osc.connect(gain).connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + dur + 0.02);
+}
+
+function noiseBurst(dur, vol, filterFreq) {
+  if (!audioCtx) return;
+  const t = audioCtx.currentTime;
+  const len = Math.floor(audioCtx.sampleRate * dur);
+  const buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len);
+  const src = audioCtx.createBufferSource();
+  src.buffer = buf;
+  const filt = audioCtx.createBiquadFilter();
+  filt.type = 'lowpass';
+  filt.frequency.value = filterFreq;
+  const gain = audioCtx.createGain();
+  gain.gain.setValueAtTime(vol, t);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.connect(filt).connect(gain).connect(audioCtx.destination);
+  src.start(t);
+}
+
+function sfxSwing() { noiseBurst(0.09, 0.1, 2600); tone('triangle', 500, 180, 0.08, 0.04); }
+function sfxBowShot() { tone('square', 700, 240, 0.07, 0.05); noiseBurst(0.05, 0.05, 3200); }
+function sfxHit() { tone('square', 240, 90, 0.09, 0.1); }
+function sfxKill() { tone('sawtooth', 320, 55, 0.2, 0.1); noiseBurst(0.14, 0.08, 1400); }
+function sfxBaseHit() { tone('sine', 100, 38, 0.35, 0.25); noiseBurst(0.2, 0.12, 500); }
+function sfxChest() { tone('sine', 620, 620, 0.09, 0.09); tone('sine', 930, 930, 0.14, 0.09, 0.09); }
+function sfxMeteor() { noiseBurst(0.5, 0.2, 900); tone('sine', 90, 30, 0.5, 0.25); }
+function sfxDodgeHit() { tone('square', 400, 90, 0.16, 0.14); }
+function sfxNightStart() { tone('triangle', 70, 45, 1.4, 0.12); tone('sine', 140, 90, 1.4, 0.04); }
+function sfxGameOver() { tone('sawtooth', 220, 40, 1.2, 0.14); }
+function sfxVictory() { tone('sine', 392, 392, 0.22, 0.12); tone('sine', 523, 523, 0.22, 0.12, 0.2); tone('sine', 659, 659, 0.4, 0.12, 0.4); }
 
 // ===================== THREE.JS SETUP =====================
 let renderer;
@@ -937,9 +992,59 @@ function rebuildIsland() {
   scene.add(islandGroup);
 }
 
-// defender mesh (persistent)
+// defender mesh (persistent), carrying a lantern glow so the hero
+// stays readable in the dark
 const defenderMesh = makeCharacter('defender');
+{
+  const lantern = new THREE.PointLight(0xffc880, 1.8, 3.4, 1.6);
+  lantern.position.set(0, 1.1, 0.25);
+  defenderMesh.add(lantern);
+}
 scene.add(defenderMesh);
+
+// visible weapon in the defender's right hand, rebuilt when the
+// equipped weapon changes
+function makeWeaponMesh(key) {
+  const g = new THREE.Group();
+  if (key === 'cleaver') {
+    g.add(mesh(geoBox(0.05, 0.36, 0.2), matL(0xd8d0c0), 0, -0.22, 0.06));
+    g.add(mesh(geoBox(0.04, 0.14, 0.04), matL(0x54401f), 0, 0.0, 0));
+  } else if (key === 'bow') {
+    const arc = new THREE.Mesh(
+      cachedGeo('bowArc', () => new THREE.TorusGeometry(0.26, 0.02, 6, 12, Math.PI)),
+      matL(0x6b4726)
+    );
+    arc.rotation.z = Math.PI / 2;
+    arc.position.set(0, -0.24, 0.06);
+    g.add(arc);
+  } else if (key === 'storm') {
+    const blade = mesh(geoBox(0.04, 0.4, 0.07), matB(0x9fd4ff), 0, -0.32, 0);
+    g.add(blade);
+    const spark = makeGlowSprite(0x9fd4ff, 0.5, 0.55);
+    spark.position.set(0, -0.42, 0);
+    g.add(spark);
+    g.add(mesh(geoBox(0.12, 0.03, 0.08), matL(0x2a3a4a), 0, -0.13, 0));
+  } else {
+    // rusted sword
+    g.add(mesh(geoBox(0.04, 0.36, 0.07), matL(0x8f8f9c), 0, -0.3, 0));
+    g.add(mesh(geoBox(0.13, 0.03, 0.09), matL(0x54401f), 0, -0.13, 0));
+  }
+  shadowify(g, true, false);
+  return g;
+}
+
+function syncDefenderWeapon() {
+  const key = player.weapon;
+  if (defenderMesh.userData.weaponKey === key) return;
+  defenderMesh.userData.weaponKey = key;
+  const arm = defenderMesh.userData.anim.armR;
+  if (defenderMesh.userData.weaponMesh) arm.remove(defenderMesh.userData.weaponMesh);
+  const w = makeWeaponMesh(key);
+  w.position.set(0.02, -0.26, 0.06);
+  w.rotation.x = -0.55; // angled forward, held at the ready
+  arm.add(w);
+  defenderMesh.userData.weaponMesh = w;
+}
 
 // per-entity mesh maps
 const enemyMeshes = new Map();
@@ -1282,6 +1387,7 @@ function setFigure(tag) {
 // ===================== FLOW: START / NIGHT SETUP =====================
 function startGame() {
   window.focus();
+  initAudio();
   resetState();
   setupNight(1);
 }
@@ -1388,10 +1494,12 @@ function setupNight(n) {
   defender.gridX = 5;
   defender.gridY = 8;
   defender.attackCooldown = 0;
+  defender.swingT = 0;
   defender.angle = Math.PI;
   defender.moving = false;
   defender.walkPhase = 0;
 
+  sfxNightStart();
   setGameState('NIGHT_INTRO');
 }
 
@@ -1436,6 +1544,7 @@ function updateNight(ndt) {
       if (e.gridY >= GRID_ROWS - 1) {
         const dmg = Math.max(1, 5 - player.effAutoResolvePower) * def.dmgMult;
         player.hp = Math.max(0, player.hp - dmg);
+        sfxBaseHit();
         spawnFloatingDamage(dmg);
         shakeMag = Math.max(shakeMag, 4);
         nightEnemies.splice(i, 1);
@@ -1517,6 +1626,7 @@ function updateDefender(ndt) {
   }
 
   if (defender.attackCooldown > 0) defender.attackCooldown -= ndt;
+  if (defender.swingT > 0) defender.swingT -= ndt;
   if (keys[' '] && defender.attackCooldown <= 0) performAttack();
 }
 
@@ -1536,9 +1646,11 @@ function enemyWorldPos(e, h) {
 function performAttack() {
   const w = WEAPONS[player.weapon] || WEAPONS.sword;
   defender.attackCooldown = w.cd;
+  defender.swingT = 12;
   const dPos = worldPos(defender.gridX, defender.gridY);
 
   if (w.kind === 'ranged') {
+    sfxBowShot();
     spawnSparks(new THREE.Vector3(dPos.x, dPos.y + 0.6, dPos.z), 0xd9c9a0, 3, { spread: 0.03 });
     const target = nearestEnemyTo(defender.gridX, defender.gridY, Infinity);
     if (target) {
@@ -1547,6 +1659,7 @@ function performAttack() {
     return;
   }
 
+  sfxSwing();
   addSlash(dPos, defender.angle, w.chain ? 0x9fd4ff : 0xffe9a8, !!w.aoe);
   addFlashLight(new THREE.Vector3(dPos.x, dPos.y + 0.7, dPos.z), w.chain ? 0x9fd4ff : 0xffe9a8, 4, 3.5);
   const inRange = nightEnemies.filter(e => gridDist(e, defender) <= w.range);
@@ -1572,11 +1685,14 @@ function damageEnemy(e, dmg) {
   const idx = nightEnemies.indexOf(e);
   if (idx < 0) return;
   e.hp -= dmg;
+  e.hitT = 8;
   spawnSparks(enemyWorldPos(e, 0.6), 0xffcc88, 4);
   if (e.hp > 0) {
+    sfxHit();
     e.gridY = Math.max(0, e.gridY - 0.18);
     return;
   }
+  sfxKill();
   const def = ENEMY_TYPES[e.type] || ENEMY_TYPES.walker;
   let gain = def.essence;
   if (nightEvent === 'bloodMoon') gain *= 2;
@@ -1625,6 +1741,7 @@ function updateMeteors(ndt) {
     m.t += ndt;
     if (m.t >= 74) {
       const p = worldPos(m.gx, m.gy, 0.15);
+      sfxMeteor();
       spawnSparks(p, 0xff8844, 14, { spread: 0.1 });
       addFlashLight(new THREE.Vector3(p.x, p.y + 0.6, p.z), 0xff8844, 8, 5);
       shakeMag = Math.max(shakeMag, 7);
@@ -1650,6 +1767,7 @@ function updateChests() {
     const d = Math.sqrt((defender.gridX - c.gx) ** 2 + (defender.gridY - c.gy) ** 2);
     if (d < 0.85) {
       c.opened = true;
+      sfxChest();
       const gain = 12 + Math.floor(currentNight / 3);
       player.essence += gain;
       spawnFloat(c.gx, c.gy, 0.9, '+' + gain, '#ffd700');
@@ -2003,6 +2121,7 @@ function startFinalBossDodge() {
     isFinalBoss: true,
     speedMultiplier: renderPact ? 0.7 : 1,
     onSurvive: () => {
+      sfxVictory();
       setFigure(null);
       setGameState('VICTORY');
       populateVictory();
@@ -2018,6 +2137,7 @@ function populateVictory() {
 function triggerGameOver(text) {
   dodgeCtx = null;
   bullets = [];
+  sfxGameOver();
   setFigure(null);
   setGameState('GAMEOVER');
   document.getElementById('gameoverText').textContent = text;
@@ -2137,6 +2257,7 @@ function updateBulletPattern(pattern, ndt, speedMult) {
 function handleDodgeHit() {
   const dmg = dodgeCtx.hitDamage;
   const isFinal = dodgeCtx.isFinalBoss;
+  sfxDodgeHit();
   player.hp = Math.max(0, player.hp - dmg);
   bullets = [];
   if (player.hp <= 0) {
@@ -2227,12 +2348,14 @@ function clampPlayer() {
 // ===================== 3D SCENE SYNC =====================
 const ALLY_POSITIONS = [{ gx: 4, gy: 11 }, { gx: 6, gy: 11 }, { gx: 5, gy: 10 }];
 
-function syncEnemies() {
+function syncEnemies(ndt) {
   syncMap(enemyMeshes, nightEnemies, e => makeCharacter(e.type), (e, g) => {
     const def = ENEMY_TYPES[e.type] || ENEMY_TYPES.walker;
     const h = def.floating ? 0.32 + Math.sin(frameCount * 0.08 + e.phase) * 0.08 : 0;
     g.position.copy(worldPos(e.gridX, e.gridY, h));
-    const s = (CHAR_SPECS[e.type] ? CHAR_SPECS[e.type].scale : 1) * clamp(e.spawnT === undefined ? 1 : e.spawnT, 0.05, 1);
+    if (e.hitT > 0) e.hitT = Math.max(0, e.hitT - ndt);
+    const pop = e.hitT > 0 ? 1 + (e.hitT / 8) * 0.22 : 1;
+    const s = (CHAR_SPECS[e.type] ? CHAR_SPECS[e.type].scale : 1) * clamp(e.spawnT === undefined ? 1 : e.spawnT, 0.05, 1) * pop;
     g.scale.setScalar(s);
     if (g.userData.anim) {
       const ph = frameCount * (0.1 + def.speed * 4) + (e.phase || 0);
@@ -2310,6 +2433,7 @@ function syncDefender() {
   const visible = gameState === 'NIGHT' && nightPhase === 'marching';
   defenderMesh.visible = visible;
   if (!visible) return;
+  syncDefenderWeapon();
   defenderMesh.position.copy(worldPos(defender.gridX, defender.gridY));
   defenderMesh.rotation.y = defender.angle;
   const a = defenderMesh.userData.anim;
@@ -2318,7 +2442,13 @@ function syncDefender() {
     a.legL.rotation.x = sw;
     a.legR.rotation.x = -sw;
     a.armL.rotation.x = -sw * 0.7;
-    a.armR.rotation.x = sw * 0.7;
+    // weapon arm: walk swing, overridden by an attack swing that whips
+    // the arm forward and back over ~12 frames
+    let armR = sw * 0.7;
+    if (defender.swingT > 0) {
+      armR = -Math.sin((1 - defender.swingT / 12) * Math.PI) * 1.9;
+    }
+    a.armR.rotation.x = armR;
   }
 }
 
@@ -2592,7 +2722,7 @@ function drawDodgeBox() {
 function drawVignette() {
   const grad = ctx.createRadialGradient(400, 300, 170, 400, 300, 520);
   grad.addColorStop(0, 'rgba(0,0,0,0)');
-  grad.addColorStop(1, 'rgba(0,0,0,0.55)');
+  grad.addColorStop(1, 'rgba(0,0,0,0.42)');
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, 800, 600);
 }
@@ -2672,7 +2802,7 @@ function update(dtMs, ndt) {
 }
 
 function sync3D(ndt) {
-  syncEnemies();
+  syncEnemies(ndt);
   syncCorpses();
   syncMeteors();
   syncProjectiles();
