@@ -621,7 +621,7 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(0x0a0d16, 0.028);
 
-const camera = new THREE.PerspectiveCamera(55, 800 / 600, 0.1, 160);
+const camera = new THREE.PerspectiveCamera(60, 800 / 600, 0.1, 160);
 camera.position.set(0, 8, 12);
 const camLook = new THREE.Vector3(0, 0, 0);
 camera.lookAt(camLook);
@@ -1498,6 +1498,7 @@ function setupNight(n) {
   defender.angle = Math.PI;
   defender.moving = false;
   defender.walkPhase = 0;
+  camYaw = Math.PI;
 
   sfxNightStart();
   setGameState('NIGHT_INTRO');
@@ -1609,20 +1610,25 @@ function gridDist(a, b) {
 
 function updateDefender(ndt) {
   const spd = 0.16 * ndt;
-  let dx = 0, dy = 0;
-  if (keys['ArrowUp'] || keys['w'] || keys['W']) dy -= 1;
-  if (keys['ArrowDown'] || keys['s'] || keys['S']) dy += 1;
-  if (keys['ArrowLeft'] || keys['a'] || keys['A']) dx -= 1;
-  if (keys['ArrowRight'] || keys['d'] || keys['D']) dx += 1;
-  defender.moving = (dx !== 0 || dy !== 0);
+  // camera-relative input: up runs where the camera faces
+  let ix = 0, iz = 0;
+  if (keys['ArrowUp'] || keys['w'] || keys['W']) iz += 1;
+  if (keys['ArrowDown'] || keys['s'] || keys['S']) iz -= 1;
+  if (keys['ArrowLeft'] || keys['a'] || keys['A']) ix -= 1;
+  if (keys['ArrowRight'] || keys['d'] || keys['D']) ix += 1;
+  defender.moving = (ix !== 0 || iz !== 0);
   if (defender.moving) {
-    const inv = 1 / Math.hypot(dx, dy);
-    dx *= inv * spd;
-    dy *= inv * spd;
-    defender.gridX = clamp(defender.gridX + dx, 0, GRID_COLS - 1);
-    defender.gridY = clamp(defender.gridY + dy, 0, GRID_ROWS - 2);
+    const fx = Math.sin(camYaw), fz = Math.cos(camYaw); // camera forward on the ground
+    const rx = -fz, rz = fx;                            // camera right
+    let mx = fx * iz + rx * ix;
+    let mz = fz * iz + rz * ix;
+    const inv = 1 / Math.hypot(mx, mz);
+    mx *= inv * spd;
+    mz *= inv * spd;
+    defender.gridX = clamp(defender.gridX + mx, 0, GRID_COLS - 1);
+    defender.gridY = clamp(defender.gridY + mz, 0, GRID_ROWS - 2);
     defender.walkPhase += 0.35 * ndt;
-    defender.angle = Math.atan2(dx, dy);
+    defender.angle = Math.atan2(mx, mz);
   }
 
   if (defender.attackCooldown > 0) defender.attackCooldown -= ndt;
@@ -2517,8 +2523,16 @@ function syncAtmosphere() {
 
 // ===================== CAMERA =====================
 let orbitAngle = 0.6;
+let camYaw = Math.PI; // third-person chase yaw, follows the defender's facing
 const desiredPos = new THREE.Vector3();
 const desiredLook = new THREE.Vector3();
+
+function angleLerp(a, b, k) {
+  let d = b - a;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  return a + d * k;
+}
 
 function updateCamera(ndt) {
   const st = gameState;
@@ -2536,11 +2550,18 @@ function updateCamera(ndt) {
   } else if (st === 'DODGE') {
     desiredPos.set(FIGURE_SPOT.x, 3.4, FIGURE_SPOT.z + 7.6);
     desiredLook.set(FIGURE_SPOT.x, 0.9, FIGURE_SPOT.z);
+  } else if (st === 'NIGHT' && nightPhase === 'quiet') {
+    // nothing to fight — settle into a calm overview of the island
+    desiredPos.set(0, 7.6, 11.6);
+    desiredLook.set(0, 0, 0.4);
   } else {
-    // gameplay: elevated camera south of the island, loosely tracking the defender
-    const dx = defender.gridX - 4.5;
-    desiredPos.set(dx * 0.4, 7.6, 11.6);
-    desiredLook.set(dx * 0.5, 0, 0.4);
+    // gameplay: third-person chase camera low behind the defender,
+    // swinging around to follow wherever they're heading
+    camYaw = angleLerp(camYaw, defender.angle, 1 - Math.pow(0.965, ndt));
+    const p = worldPos(defender.gridX, defender.gridY);
+    const fx = Math.sin(camYaw), fz = Math.cos(camYaw);
+    desiredPos.set(p.x - fx * 4.4, 3.0, p.z - fz * 4.4);
+    desiredLook.set(p.x + fx * 2.2, 0.7, p.z + fz * 2.2);
   }
 
   const snap = st === 'NIGHT_INTRO';
