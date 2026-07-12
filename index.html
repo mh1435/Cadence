@@ -86,9 +86,20 @@
 
   .panel {
     max-width: 620px; padding: 30px; width: 100%;
+    max-height: 88vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
     position: relative;
     animation: panelFadeIn 0.4s ease-out;
   }
+  /* thin, unobtrusive scrollbar for panels that overflow */
+  .panel::-webkit-scrollbar { width: 8px; }
+  .panel::-webkit-scrollbar-track { background: transparent; }
+  .panel::-webkit-scrollbar-thumb { background: #3a2a5a; border-radius: 4px; }
+
+  #dayScreen.overlay { align-items: flex-start; padding: 2vh 0; }
+  #dayScreen .panel { max-height: 96vh; }
   .panel::before, .panel::after {
     content: ''; position: absolute; width: 18px; height: 18px;
     border: 1px solid rgba(192,160,255,0.55);
@@ -118,11 +129,17 @@
     display: inline-block; width: 9px; height: 9px; background: #c0a0ff;
     transform: rotate(45deg); margin-right: 8px;
   }
-  .shopGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 12px; text-align: left; }
-  .shopItem { border: 1px solid #2a2a3a; padding: 6px 8px; font-size: 11px; }
-  .shopItem strong { color: #e8e8e8; font-size: 12px; }
-  .shopItem button { width: 100%; margin: 5px 0 0 0; font-size: 12px; padding: 4px; }
+  .shopGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 8px; text-align: left; }
+  .shopItem { border: 1px solid #2a2a3a; padding: 5px 7px; font-size: 10px; line-height: 1.35; }
+  .shopItem strong { color: #e8e8e8; font-size: 11px; }
+  .shopItem button { width: 100%; margin: 4px 0 0 0; font-size: 11px; padding: 3px; }
   .equippedItem { border-color: #d9a72b; }
+  #dayScreen .dayHeader { font-size: 18px; margin-bottom: 10px; }
+  #dayScreen .hpBarOuter { height: 14px; margin-bottom: 4px; }
+  #dayScreen .hpText, #dayScreen .essenceLine { margin-bottom: 8px; font-size: 12px; }
+  #dayScreen .alliesList { margin-bottom: 10px; font-size: 12px; }
+  #dayScreen .sectionLabel { margin-bottom: 4px; padding-bottom: 2px; }
+  #dayScreen .beginNightBtn { margin-top: 2px; }
   .sectionLabel {
     color: #8878a8; font-size: 11px; letter-spacing: 3px;
     text-align: left; margin-bottom: 6px;
@@ -210,6 +227,31 @@
     button { padding: 13px 24px; font-size: 16px; }
     .shopItem button { padding: 8px; font-size: 13px; }
   }
+
+  /* always-reachable controls that float above the scrolling panel */
+  #skipShopBtn {
+    display: none;
+    position: absolute;
+    top: max(10px, env(safe-area-inset-top));
+    right: max(10px, env(safe-area-inset-right));
+    z-index: 40;
+    border-color: #8b0000; color: #ff8888;
+    font-size: 12px; padding: 8px 14px; margin: 0;
+    background: rgba(10,6,10,0.75);
+  }
+  body.state-DAY #skipShopBtn { display: block; }
+
+  #fullscreenBtn {
+    position: absolute;
+    top: max(10px, env(safe-area-inset-top));
+    left: max(10px, env(safe-area-inset-left));
+    z-index: 40;
+    font-size: 11px; padding: 7px 12px; margin: 0;
+    background: rgba(10,6,10,0.6);
+    opacity: 0.8;
+  }
+  #fullscreenBtn:hover { opacity: 1; }
+  body.is-fullscreen #fullscreenBtn { display: none; }
 </style>
 </head>
 <body>
@@ -217,6 +259,9 @@
 <div id="gameContainer">
   <canvas id="glCanvas" width="800" height="600"></canvas>
   <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+  <button id="fullscreenBtn" onclick="toggleFullscreen()" title="Fullscreen">[ ⛶ FULLSCREEN ]</button>
+  <button id="skipShopBtn" onclick="beginNextNight()">[ SKIP ▸ ]</button>
 
   <div id="menuScreen" class="overlay">
     <div class="panel">
@@ -477,7 +522,9 @@ function hideAllOverlays() {
 
 function setGameState(newState) {
   hideAllOverlays();
+  document.body.classList.remove('state-' + gameState);
   gameState = newState;
+  document.body.classList.add('state-' + gameState);
   if (overlays[newState]) overlays[newState].classList.remove('hidden');
 }
 
@@ -1402,10 +1449,39 @@ function setFigure(tag) {
   scene.add(figureGroup);
 }
 
+// ===================== FULLSCREEN =====================
+function requestFS(el) {
+  const fn = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+  if (fn) return fn.call(el);
+  return Promise.reject(new Error('Fullscreen API unavailable'));
+}
+function exitFS() {
+  const fn = document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen;
+  if (fn) return fn.call(document);
+  return Promise.resolve();
+}
+function isFullscreen() {
+  return !!(document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement);
+}
+function toggleFullscreen() {
+  if (isFullscreen()) exitFS().catch(() => {});
+  else requestFS(document.documentElement).catch(() => {});
+}
+['fullscreenchange', 'webkitfullscreenchange', 'msfullscreenchange'].forEach(ev =>
+  document.addEventListener(ev, () => {
+    document.body.classList.toggle('is-fullscreen', isFullscreen());
+    resizeViewport();
+  })
+);
+window.toggleFullscreen = toggleFullscreen;
+
 // ===================== FLOW: START / NIGHT SETUP =====================
 function startGame() {
   window.focus();
   initAudio();
+  // best-effort: a fresh user gesture (this click) is required for the
+  // Fullscreen API, so try it here rather than forcing a second tap
+  requestFS(document.documentElement).catch(() => {});
   resetState();
   setupNight(1);
 }
