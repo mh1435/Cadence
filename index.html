@@ -136,6 +136,9 @@
   .craftItem .cost { color: #b9a8d9; }
   .craftItem button { width: 100%; margin: 4px 0 0; font-size: 10.5px; padding: 4px; }
   .craftItem.equipped { border-color: #d9a72b; }
+  .workshopLevelRow { border: 1px solid #d9a72b; padding: 8px 10px; margin-bottom: 10px; font-size: 12px; color: #ffd27f; text-align: left; }
+  .workshopLevelRow button { display: block; width: 100%; margin: 6px 0 0; font-size: 11px; padding: 6px; border-color: #d9a72b; color: #ffd27f; }
+  .workshopHint { font-size: 10px; color: #a89268; margin-top: 3px; }
 
   #questScreen { pointer-events: none; }
   #questScreen.show { pointer-events: auto; display: flex; }
@@ -360,6 +363,7 @@ function sfxRefuel() { tone('sine', 260, 340, 0.3, 0.08); noiseBurst(0.3, 0.06, 
 function sfxChest() { tone('sine', 620, 620, 0.09, 0.09); tone('sine', 930, 930, 0.14, 0.09, 0.09); tone('sine', 1200, 1200, 0.16, 0.07, 0.2); }
 function sfxRescue() { tone('sine', 440, 660, 0.3, 0.09); tone('sine', 660, 880, 0.35, 0.08, 0.15); }
 function sfxQuestDone() { tone('sine', 500, 700, 0.14, 0.08); tone('sine', 750, 900, 0.16, 0.07, 0.1); }
+function sfxHunt() { tone('square', 380, 140, 0.08, 0.07); noiseBurst(0.06, 0.05, 1800); }
 function sfxHit() { tone('square', 240, 90, 0.09, 0.1); }
 function sfxKill() { tone('sawtooth', 320, 55, 0.2, 0.1); noiseBurst(0.14, 0.08, 1400); }
 function sfxPlayerHurt() { tone('sawtooth', 200, 70, 0.18, 0.13); }
@@ -478,10 +482,10 @@ function makeGlowSprite(hex, scale, opacity) {
 function makeGrassTexture() {
   const c = document.createElement('canvas'); c.width = c.height = 128;
   const g = c.getContext('2d');
-  g.fillStyle = '#233820'; g.fillRect(0, 0, 128, 128);
+  g.fillStyle = '#2e4c28'; g.fillRect(0, 0, 128, 128);
   const rng = mulberry32(4242);
   for (let i = 0; i < 900; i++) {
-    const shades = ['#2a4326', '#1c2e1a', '#31502c', '#274023'];
+    const shades = ['#375a2f', '#284a22', '#3f6636', '#325228'];
     g.fillStyle = shades[Math.floor(rng() * shades.length)];
     const x = rng() * 128, y = rng() * 128, s = 1 + rng() * 2.4;
     g.fillRect(x, y, s, s);
@@ -572,52 +576,88 @@ function makeHumanoid(spec) {
 }
 
 const CHAR_SPECS = {
-  player: { body: 0x4a6b3a, head: 0xe6c39a, limbs: 0x5a4326, eyes: 0x14100c, scale: 1 },
-  walker: { body: 0x4c4c58, head: 0x96b47e, limbs: 0x35353f, eyes: 0xff5544, glowEyes: true, scale: 1 },
+  player: { body: 0x3d7fd9, head: 0xf2c396, limbs: 0x2e2e3a, eyes: 0x14100c, scale: 1 },
+  walker: { body: 0x6b6b7a, head: 0xa8cf8a, limbs: 0x45454f, eyes: 0xff5544, glowEyes: true, scale: 1 },
 };
 function makeWalker() { return makeHumanoid(CHAR_SPECS.walker); }
 function makePlayerMesh() { return makeHumanoid(CHAR_SPECS.player); }
 
 // The Stag: a low-poly antlered horror, blocky quadruped
+// The Stag: a tall, hunched, two-legged antlered horror — long clawed
+// arms, digitigrade legs, a deer-like skull with glowing eyes
 function makeStag() {
   const g = new THREE.Group();
-  const bodyMat = matL(0x241a12), darkMat = matL(0x120d08), eyeMat = matB(0xff5533);
-  const body = mesh(geoBox(0.62, 0.5, 1.15), bodyMat, 0, 0.85, 0);
-  g.add(body);
-  const neck = mesh(geoBox(0.28, 0.55, 0.28), bodyMat, 0, 1.15, 0.55);
-  neck.rotation.x = -0.5;
+  const hideMat = matL(0x241a12), darkMat = matL(0x120d08), clawMat = matL(0x1a1410), eyeMat = matB(0xff5533);
+
+  // hunched torso, tilted forward
+  const torso = mesh(geoBox(0.5, 0.72, 0.34), hideMat, 0, 1.15, 0);
+  torso.rotation.x = 0.18;
+  g.add(torso);
+  const chest = mesh(geoBox(0.4, 0.34, 0.3), hideMat, 0, 1.42, 0.1);
+  g.add(chest);
+
+  // long neck + deer skull head
+  const neck = mesh(geoBox(0.2, 0.32, 0.2), darkMat, 0, 1.72, 0.16);
+  neck.rotation.x = -0.4;
   g.add(neck);
-  const head = mesh(geoBox(0.32, 0.3, 0.46), darkMat, 0, 1.5, 0.86);
+  const head = mesh(geoBox(0.26, 0.24, 0.42), darkMat, 0, 1.95, 0.32);
   g.add(head);
-  g.add(mesh(geoBox(0.05, 0.09, 0.03), eyeMat, -0.09, 1.55, 1.08));
-  g.add(mesh(geoBox(0.05, 0.09, 0.03), eyeMat, 0.09, 1.55, 1.08));
+  const snout = mesh(geoBox(0.14, 0.13, 0.16), darkMat, 0, 1.87, 0.5);
+  g.add(snout);
+  g.add(mesh(geoBox(0.045, 0.08, 0.03), eyeMat, -0.08, 2.0, 0.5));
+  g.add(mesh(geoBox(0.045, 0.08, 0.03), eyeMat, 0.08, 2.0, 0.5));
+
   const antlerMat = matL(0x3a2c1a);
   function antler(side) {
     const grp = new THREE.Group();
-    const base = mesh(geoBox(0.05, 0.42, 0.05), antlerMat, 0, 0.21, 0);
+    const base = mesh(geoBox(0.045, 0.4, 0.045), antlerMat, 0, 0.2, 0);
     grp.add(base);
-    [0.14, 0.26].forEach((h, i) => {
-      const prong = mesh(geoBox(0.04, 0.22, 0.04), antlerMat, side * 0.1 * (i + 1), h + 0.11, 0);
+    [0.13, 0.25].forEach((h, i) => {
+      const prong = mesh(geoBox(0.035, 0.2, 0.035), antlerMat, side * 0.09 * (i + 1), h + 0.1, 0);
       prong.rotation.z = side * 0.7;
       grp.add(prong);
     });
-    grp.position.set(side * 0.09, 1.62, 0.78);
-    grp.rotation.x = -0.3;
+    grp.position.set(side * 0.08, 2.08, 0.28);
+    grp.rotation.x = -0.35;
     return grp;
   }
   g.add(antler(-1), antler(1));
-  const legGeo = cachedGeo('stagLeg', () => new THREE.BoxGeometry(0.13, 0.62, 0.13));
-  const legs = {
-    fl: mesh(legGeo, darkMat, -0.22, 0.31, 0.4),
-    fr: mesh(legGeo, darkMat, 0.22, 0.31, 0.4),
-    bl: mesh(legGeo, darkMat, -0.22, 0.31, -0.4),
-    br: mesh(legGeo, darkMat, 0.22, 0.31, -0.4),
-  };
-  Object.values(legs).forEach(l => g.add(l));
-  const aura = makeGlowSprite(0xff5533, 0.5, 0.3);
-  aura.position.set(0, 1.53, 1.05);
+
+  // long clawed arms, hanging past the knees like the classic hunched horror
+  function arm(side) {
+    const grp = new THREE.Group();
+    const upper = mesh(geoBox(0.13, 0.5, 0.13), hideMat, 0, -0.25, 0);
+    grp.add(upper);
+    const fore = mesh(geoBox(0.1, 0.42, 0.1), darkMat, 0, -0.66, 0.05);
+    fore.rotation.x = 0.3;
+    grp.add(fore);
+    for (let i = -1; i <= 1; i++) {
+      grp.add(mesh(geoBox(0.03, 0.14, 0.03), clawMat, i * 0.045, -0.92, 0.14));
+    }
+    grp.position.set(side * 0.32, 1.5, 0.05);
+    return grp;
+  }
+  const armL = arm(-1), armR = arm(1);
+  g.add(armL, armR);
+
+  // digitigrade legs (two segments each for an animal-like bent silhouette)
+  function leg(side) {
+    const grp = new THREE.Group();
+    const thigh = mesh(geoBox(0.16, 0.4, 0.16), hideMat, 0, -0.2, 0);
+    grp.add(thigh);
+    const shin = mesh(geoBox(0.12, 0.38, 0.12), darkMat, 0, -0.55, 0.08);
+    shin.rotation.x = -0.35;
+    grp.add(shin);
+    grp.position.set(side * 0.17, 0.78, 0);
+    return grp;
+  }
+  const legL = leg(-1), legR = leg(1);
+  g.add(legL, legR);
+
+  const aura = makeGlowSprite(0xff5533, 0.55, 0.32);
+  aura.position.set(0, 1.95, 0.4);
   g.add(aura);
-  g.userData.legs = legs;
+  g.userData.anim = { legL, legR, armL, armR };
   return shadowify(g, true, false);
 }
 
@@ -657,8 +697,8 @@ function makeWeaponMesh(key) {
 // ===================== SCENERY BUILDERS =====================
 function makeBroadleaf() {
   const g = new THREE.Group();
-  g.add(mesh(geoCyl(0.09, 0.13, 0.75, 6), matL(0x4a3a22), 0, 0.375, 0));
-  const canopyMat = matL(0x2e5228);
+  g.add(mesh(geoCyl(0.09, 0.13, 0.75, 6), matL(0x5a4728), 0, 0.375, 0));
+  const canopyMat = matL(0x3e7a34);
   [[0, 1.05, 0.42], [0.28, 0.95, 0.34], [-0.26, 0.9, 0.3]].forEach(([x, y, r]) => {
     g.add(mesh(geoOct(r), canopyMat, x, y, 0));
   });
@@ -666,8 +706,8 @@ function makeBroadleaf() {
 }
 function makeConifer() {
   const g = new THREE.Group();
-  g.add(mesh(geoCyl(0.07, 0.1, 0.4, 6), matL(0x382818), 0, 0.2, 0));
-  const layers = [[0.62, 0.5, '#16261a'], [0.92, 0.4, '#1c2e1f'], [1.2, 0.28, '#233824']];
+  g.add(mesh(geoCyl(0.07, 0.1, 0.4, 6), matL(0x4a3820), 0, 0.2, 0));
+  const layers = [[0.62, 0.5, '#1f3d29'], [0.92, 0.4, '#28492e'], [1.2, 0.28, '#305a36']];
   layers.forEach(([y, r, col]) => g.add(mesh(geoCone(r, 0.55, 7), matL(col), 0, y, 0)));
   return shadowify(g, true, false);
 }
@@ -768,6 +808,52 @@ function makeFlowerPatch() {
   }
   return shadowify(g, true, false);
 }
+// Bunny: harmless prey critter, hoppy and pastel-colored
+function makeBunny() {
+  const g = new THREE.Group();
+  const furMat = matL(0xe8ddc8), earMat = matL(0xf0dfe8), eyeMat = matB(0x2a2018);
+  const body = mesh(geoBox(0.16, 0.14, 0.22), furMat, 0, 0.12, 0);
+  g.add(body);
+  const head = mesh(geoBox(0.13, 0.12, 0.13), furMat, 0, 0.2, 0.13);
+  g.add(head);
+  g.add(mesh(geoBox(0.03, 0.03, 0.02), eyeMat, -0.045, 0.21, 0.195));
+  g.add(mesh(geoBox(0.03, 0.03, 0.02), eyeMat, 0.045, 0.21, 0.195));
+  const earL = mesh(geoBox(0.035, 0.16, 0.025), earMat, -0.04, 0.34, 0.1);
+  earL.rotation.z = -0.15;
+  const earR = mesh(geoBox(0.035, 0.16, 0.025), earMat, 0.04, 0.34, 0.1);
+  earR.rotation.z = 0.15;
+  g.add(earL, earR);
+  const tail = mesh(geoSphere(0.045, 8), matB(0xffffff), 0, 0.13, -0.12);
+  g.add(tail);
+  const legGeo = cachedGeo('bunnyLeg', () => new THREE.BoxGeometry(0.05, 0.09, 0.05));
+  const legs = {
+    fl: mesh(legGeo, furMat, -0.06, 0.05, 0.08), fr: mesh(legGeo, furMat, 0.06, 0.05, 0.08),
+    bl: mesh(legGeo, furMat, -0.06, 0.05, -0.08), br: mesh(legGeo, furMat, 0.06, 0.05, -0.08),
+  };
+  Object.values(legs).forEach(l => g.add(l));
+  g.userData.legs = legs;
+  return shadowify(g, true, false);
+}
+
+function makePond() {
+  const g = new THREE.Group();
+  const water = mesh(new THREE.CircleGeometry(2.6, 24), new THREE.MeshPhongMaterial({ color: 0x2f6fa8, transparent: true, opacity: 0.82, shininess: 90, specular: 0x9fd0ff }), 0, 0.02, 0);
+  water.rotation.x = -Math.PI / 2;
+  g.add(water);
+  const bank = mesh(new THREE.RingGeometry(2.55, 2.95, 24), matL(0x4a3a26), 0, 0.015, 0);
+  bank.rotation.x = -Math.PI / 2;
+  g.add(bank);
+  const rng = mulberry32(9911);
+  for (let i = 0; i < 7; i++) {
+    const a = rng() * Math.PI * 2, r = 2.75 + rng() * 0.3;
+    const rock = mesh(cachedGeo('pondRock', () => new THREE.DodecahedronGeometry(0.14, 0)), matL(0x565e6c), Math.cos(a) * r, 0.06, Math.sin(a) * r);
+    rock.rotation.set(rng(), rng(), rng());
+    g.add(rock);
+  }
+  g.userData.water = water;
+  return g;
+}
+
 function makeChestMesh() {
   const g = new THREE.Group();
   g.add(mesh(geoBox(0.42, 0.22, 0.28), matL(0x5a3a1e), 0, 0.11, 0));
@@ -783,7 +869,7 @@ function makeChestMesh() {
 
 // Survivor NPC (rescue quest) — a tied-up figure with a distress glow
 function makeSurvivorMesh() {
-  const g = makeHumanoid({ body: 0x8a6a4a, head: 0xd9b088, limbs: 0x6b4f34, eyes: 0x2a2018, scale: 1 });
+  const g = makeHumanoid({ body: 0xe0782c, head: 0xe8b98a, limbs: 0x4a4a56, eyes: 0x2a2018, scale: 1 });
   const glow = makeGlowSprite(0xffe08a, 1, 0.35);
   glow.position.y = 1.3;
   g.add(glow);
@@ -794,7 +880,7 @@ function makeSurvivorMesh() {
 // Wolf: fast, low-hp pack hunter
 function makeWolf() {
   const g = new THREE.Group();
-  const bodyMat = matL(0x3a3a42), darkMat = matL(0x1e1e24), eyeMat = matB(0xffd23a);
+  const bodyMat = matL(0x585868), darkMat = matL(0x2e2e38), eyeMat = matB(0xffd23a);
   g.add(mesh(geoBox(0.36, 0.32, 0.78), bodyMat, 0, 0.42, 0));
   const head = mesh(geoBox(0.24, 0.22, 0.32), darkMat, 0, 0.5, 0.5);
   g.add(head);
@@ -817,7 +903,7 @@ function makeWolf() {
 // Bear: tanky, slow, heavy hitter
 function makeBear() {
   const g = new THREE.Group();
-  const bodyMat = matL(0x2c2018), darkMat = matL(0x17110c), eyeMat = matB(0xff3a2a);
+  const bodyMat = matL(0x4a3626), darkMat = matL(0x2a1f16), eyeMat = matB(0xff3a2a);
   g.add(mesh(geoBox(0.68, 0.55, 1.0), bodyMat, 0, 0.55, 0));
   const head = mesh(geoBox(0.36, 0.34, 0.36), bodyMat, 0, 0.68, 0.62);
   g.add(head);
@@ -913,6 +999,13 @@ const RECIPES = [
   { key: 'ironWallKit', tier: 4, label: 'Iron Wall', kind: 'wall', wallTier: 'iron', desc: 'Nearly unbreakable.', cost: { wood: 12, stone: 10, ore: 10 } },
 ];
 const TIER_UNLOCK_NIGHT = { 1: 1, 2: 5, 3: 15, 4: 30 };
+const WORKSHOP_UPGRADE_COST = {
+  2: { wood: 20, stone: 15 },
+  3: { wood: 40, stone: 30, ore: 10 },
+  4: { wood: 70, stone: 50, ore: 30 },
+};
+const WORKSHOP_SPOT = { x: -1.6, z: -1.2 };
+const WORKSHOP_RANGE = 2.2;
 const WALL_HP = { basic: 40, reinforced: 90, great: 170, iron: 300 };
 
 const QUESTS = [
@@ -922,11 +1015,14 @@ const QUESTS = [
   { id: 'craftAxe', label: 'Craft a Stone Axe', check: () => player.ownedTools.includes('axe'), reward: { wood: 10 } },
   { id: 'buildWall', label: 'Build your first wall', check: () => walls.length >= 1, reward: { stone: 10 } },
   { id: 'openChest', label: 'Open a loot chest', check: () => player.chestsOpened >= 1, reward: { wood: 10, stone: 10 } },
+  { id: 'huntBunny', label: 'Hunt a bunny for food', check: () => player.bunniesHunted >= 1, reward: { food: 10 } },
   { id: 'rescueSurvivor', label: 'Free the trapped survivor', check: () => survivor && survivor.state !== 'trapped', reward: { food: 15, wood: 15 } },
   { id: 'mineOre1', label: 'Mine your first ore', check: () => player.oreMined >= 1, reward: { ore: 5 } },
   { id: 'surviveNight10', label: 'Survive to Night 10', check: () => currentNight >= 10, reward: { wood: 20, stone: 20 } },
   { id: 'defeatStag', label: 'Defeat a Stag', check: () => (player.stagKills || 0) >= 1, reward: { food: 20 } },
-  { id: 'tier3', label: 'Reach Tier 3 crafting', check: () => currentNight >= TIER_UNLOCK_NIGHT[3], reward: { stone: 20 } },
+  { id: 'workshop2', label: 'Upgrade the workshop to Level 2', check: () => player.workshopLevel >= 2, reward: { wood: 15, stone: 10 } },
+  { id: 'tier3', label: 'Upgrade the workshop to Level 3', check: () => player.workshopLevel >= 3, reward: { stone: 20 } },
+  { id: 'workshop4', label: 'Max out the workshop (Level 4)', check: () => player.workshopLevel >= 4, reward: { wood: 30, stone: 30, ore: 15 } },
   { id: 'craftIron', label: 'Craft an iron-tier item', check: () => ['pickaxe', 'ironAxe', 'ironSword'].some(k => player.ownedTools.includes(k)) || (player.wallKits.iron || 0) > 0, reward: { food: 25, ore: 10 } },
   { id: 'surviveNight50', label: 'Survive to Night 50', check: () => currentNight >= 50, reward: { wood: 40, stone: 40, ore: 20 } },
   { id: 'surviveNight99', label: 'Survive all 99 nights', check: () => nightsSurvivedFully >= 99, reward: {} },
@@ -937,7 +1033,7 @@ let gameState = 'MENU';
 let frameCount = 0, lastTime = 0;
 let currentNight = 1, dayNightPhase = 'day', phaseTimer = DAY_LEN, cycleAngle = 0.25;
 let introTimer = 0, introText = '';
-let player, trees, bushes, rocks, ores, chests, walls, monsters, floatingNumbers;
+let player, trees, bushes, rocks, ores, chests, walls, monsters, critters, floatingNumbers;
 let survivor = null;
 let campfireFuel = 100;
 let craftOpen = false, buildMode = false, selectedWallKey = null;
@@ -959,14 +1055,16 @@ function resetState() {
     wood: 0, stone: 0, food: 2, ore: 0,
     tool: 'fists', ownedTools: ['fists'],
     wallKits: { basic: 0, reinforced: 0, great: 0, iron: 0 },
+    workshopLevel: 1,
     gatherYieldMult: 1,
     swingT: 0, attackCooldown: 0, moving: false, walkPhase: 0,
-    treesChopped: 0, rocksMined: 0, oreMined: 0, berriesForaged: 0, chestsOpened: 0, stagKills: 0,
+    treesChopped: 0, rocksMined: 0, oreMined: 0, berriesForaged: 0, chestsOpened: 0, stagKills: 0, bunniesHunted: 0,
     questsCompleted: [],
   };
 
   floatingNumbers = [];
   monsters = [];
+  critters = [];
   survivor = null;
   clearFX();
   closeCraft();
@@ -1063,7 +1161,7 @@ function updateIntro(dtMs) {
 const worldGroup = new THREE.Group(); scene.add(worldGroup);
 const fxGroup = new THREE.Group(); scene.add(fxGroup);
 const campfireMesh = makeCampfireMesh(); scene.add(campfireMesh);
-const workshopMesh = makeWorkshopMesh(); workshopMesh.position.set(-1.6, 0, -1.2); scene.add(workshopMesh);
+const workshopMesh = makeWorkshopMesh(); workshopMesh.position.set(WORKSHOP_SPOT.x, 0, WORKSHOP_SPOT.z); scene.add(workshopMesh);
 
 function makeTorch() {
   const g = new THREE.Group();
@@ -1108,7 +1206,7 @@ const SCENERY_BUILDERS = [makeFern, makeMushroomCluster, makeFallenLog, makeFlow
 
 function generateWorld() {
   worldGroup.clear();
-  trees = []; bushes = []; rocks = []; ores = []; chests = []; walls = [];
+  trees = []; bushes = []; rocks = []; ores = []; chests = []; walls = []; critters = [];
   const rng = mulberry32(20260713);
 
   function randomRingPoint(minR, maxR) {
@@ -1179,6 +1277,21 @@ function generateWorld() {
   survivorMesh.position.set(sp.x, 0, sp.z);
   worldGroup.add(survivorMesh);
   survivor = { x: sp.x, z: sp.z, state: 'trapped', mesh: survivorMesh };
+
+  for (let i = 0; i < 7; i++) {
+    const p = randomRingPoint(3, WORLD_RADIUS - 3);
+    const meshObj = makeBunny();
+    meshObj.position.set(p.x, 0, p.z);
+    worldGroup.add(meshObj);
+    critters.push({ x: p.x, z: p.z, alive: true, respawnT: 0, wanderAngle: rng() * Math.PI * 2, wanderT: 0, hopPhase: rng() * Math.PI * 2, mesh: meshObj });
+  }
+
+  for (let i = 0; i < 2; i++) {
+    const p = randomRingPoint(9, WORLD_RADIUS - 5);
+    const pondMesh = makePond();
+    pondMesh.position.set(p.x, 0, p.z);
+    worldGroup.add(pondMesh);
+  }
 }
 
 // ===================== FX =====================
@@ -1263,6 +1376,7 @@ function nearestInteractable() {
     const d = dist2D(player.x, player.z, survivor.x, survivor.z);
     if (d < bestD) { bestD = d; best = { type: 'survivor', obj: survivor }; }
   }
+  for (const c of critters) { if (!c.alive) continue; const d = dist2D(player.x, player.z, c.x, c.z); if (d < bestD) { bestD = d; best = { type: 'critter', obj: c }; } }
   return best;
 }
 function nearestMonster(range) {
@@ -1338,6 +1452,48 @@ function updateResourceRespawns(ndt) {
   rocks.forEach(r => { if (r.alive) return; r.respawnT -= dtSec; if (r.respawnT <= 0) { r.alive = true; r.mesh.visible = true; r.hp = ROCK_DEF.hpMax; } });
   ores.forEach(o => { if (o.alive) return; o.respawnT -= dtSec; if (o.respawnT <= 0) { o.alive = true; o.mesh.visible = true; o.hp = ORE_DEF.hpMax; } });
   bushes.forEach(b => { if (b.alive) return; b.respawnT -= dtSec; if (b.respawnT <= 0) { b.alive = true; b.mesh.visible = true; } });
+  critters.forEach(c => { if (c.alive) return; c.respawnT -= dtSec; if (c.respawnT <= 0) { c.alive = true; c.mesh.visible = true; } });
+}
+
+// ===================== CRITTERS (bunnies) =====================
+const BUNNY_DEF = { foodReward: 6, respawn: 70, fleeRange: 3.2, wanderSpeed: 0.012, fleeSpeed: 0.06 };
+function huntCritter(c) {
+  c.alive = false; c.mesh.visible = false; c.respawnT = BUNNY_DEF.respawn;
+  const gain = Math.round(BUNNY_DEF.foodReward * player.gatherYieldMult);
+  player.food += gain;
+  sfxHunt();
+  spawnFloat(c.x, c.z, 0.3, '+' + gain, '#7fd44a');
+  player.bunniesHunted++;
+}
+function updateCritters(ndt) {
+  const dtSec = ndt / 60;
+  critters.forEach(c => {
+    if (!c.alive) return;
+    c.hopPhase += 0.12 * ndt;
+    const dToPlayer = dist2D(c.x, c.z, player.x, player.z);
+    if (dToPlayer < BUNNY_DEF.fleeRange) {
+      const dx = c.x - player.x, dz = c.z - player.z, d = Math.hypot(dx, dz) || 1;
+      c.x += dx / d * BUNNY_DEF.fleeSpeed * ndt;
+      c.z += dz / d * BUNNY_DEF.fleeSpeed * ndt;
+      c.angle = Math.atan2(dx, dz);
+    } else {
+      c.wanderT -= dtSec;
+      if (c.wanderT <= 0) { c.wanderAngle = Math.random() * Math.PI * 2; c.wanderT = 2 + Math.random() * 3; }
+      c.x += Math.sin(c.wanderAngle) * BUNNY_DEF.wanderSpeed * ndt;
+      c.z += Math.cos(c.wanderAngle) * BUNNY_DEF.wanderSpeed * ndt;
+      c.angle = c.wanderAngle;
+    }
+    const r = Math.hypot(c.x, c.z);
+    if (r > WORLD_RADIUS - 1) { c.x *= (WORLD_RADIUS - 1) / r; c.z *= (WORLD_RADIUS - 1) / r; }
+  });
+}
+function syncCritters() {
+  critters.forEach(c => {
+    if (!c.alive) return;
+    const hop = Math.abs(Math.sin(c.hopPhase)) * 0.05;
+    c.mesh.position.set(c.x, hop, c.z);
+    c.mesh.rotation.y = c.angle || 0;
+  });
 }
 
 // ===================== COMBAT / TOOL USE =====================
@@ -1362,6 +1518,7 @@ function useAction() {
   else if (target.type === 'bush') forageBush(target.obj);
   else if (target.type === 'chest') openChest(target.obj);
   else if (target.type === 'survivor') rescueSurvivor(target.obj);
+  else if (target.type === 'critter') huntCritter(target.obj);
 }
 
 function attackMonster(m, tool) {
@@ -1507,12 +1664,14 @@ function syncMonsters() {
     g.rotation.y = m.angle || 0;
     const pop = m.hitT > 0 ? 1 + (m.hitT / 8) * 0.2 : 1;
     g.scale.setScalar(pop);
-    if (m.kind === 'walker' && g.userData.anim) {
-      const sw = Math.sin(m.walkPhase || 0) * 0.6;
+    if ((m.kind === 'walker' || m.kind === 'stag') && g.userData.anim) {
+      const gaitSpeed = m.kind === 'stag' ? 0.85 : 1;
+      const swingAmt = m.kind === 'stag' ? 0.4 : 0.6;
+      const sw = Math.sin((m.walkPhase || 0) * gaitSpeed) * swingAmt;
       g.userData.anim.legL.rotation.x = sw; g.userData.anim.legR.rotation.x = -sw;
       g.userData.anim.armL.rotation.x = -sw * 0.7; g.userData.anim.armR.rotation.x = sw * 0.7;
-    } else if ((m.kind === 'stag' || m.kind === 'wolf' || m.kind === 'bear') && g.userData.legs) {
-      const gaitSpeed = m.kind === 'wolf' ? 1.8 : m.kind === 'bear' ? 1.0 : 1.3;
+    } else if ((m.kind === 'wolf' || m.kind === 'bear') && g.userData.legs) {
+      const gaitSpeed = m.kind === 'wolf' ? 1.8 : 1.0;
       const sw = Math.sin((m.walkPhase || 0) * gaitSpeed) * 0.5;
       g.userData.legs.fl.rotation.x = sw; g.userData.legs.br.rotation.x = sw;
       g.userData.legs.fr.rotation.x = -sw; g.userData.legs.bl.rotation.x = -sw;
@@ -1611,12 +1770,30 @@ function closeCraft() {
 }
 window.closeCraft = closeCraft;
 function affordable(cost) { return player.wood >= (cost.wood || 0) && player.stone >= (cost.stone || 0) && player.food >= (cost.food || 0) && player.ore >= (cost.ore || 0); }
+function nearWorkshop() { return dist2D(player.x, player.z, WORKSHOP_SPOT.x, WORKSHOP_SPOT.z) <= WORKSHOP_RANGE; }
 function renderCraftMenu() {
   const body = document.getElementById('craftBody');
   let html = '';
+
+  // workshop level + upgrade panel
+  const lvl = player.workshopLevel;
+  const nextCost = WORKSHOP_UPGRADE_COST[lvl + 1];
+  html += `<div class="workshopLevelRow">
+    <span>WORKSHOP — Level ${lvl}${lvl >= 4 ? ' (max)' : ''}</span>`;
+  if (nextCost) {
+    const near = nearWorkshop();
+    const afford = affordable(nextCost);
+    const costStr = ['wood', 'stone', 'food', 'ore'].filter(k => nextCost[k]).map(k => `${nextCost[k]} ${k}`).join(', ');
+    html += `<button ${(near && afford) ? '' : 'disabled'} onclick="upgradeWorkshop()">Upgrade to ${lvl + 1} — ${costStr}</button>`;
+    if (!near) html += `<div class="workshopHint">Stand at the workshop bench to upgrade.</div>`;
+  }
+  html += `</div>`;
+
   [1, 2, 3, 4].forEach(tier => {
-    const unlocked = currentNight >= TIER_UNLOCK_NIGHT[tier];
-    html += `<div class="sectionLabel">TIER ${tier}${unlocked ? '' : ' — unlocks night ' + TIER_UNLOCK_NIGHT[tier]}</div><div class="craftGrid">`;
+    const nightReady = currentNight >= TIER_UNLOCK_NIGHT[tier];
+    const unlocked = nightReady && player.workshopLevel >= tier;
+    const lockReason = !nightReady ? ' — unlocks night ' + TIER_UNLOCK_NIGHT[tier] : !unlocked ? ' — needs Workshop Lv.' + tier : '';
+    html += `<div class="sectionLabel">TIER ${tier}${lockReason}</div><div class="craftGrid">`;
     RECIPES.filter(r => r.tier === tier).forEach(r => {
       const owned = r.kind === 'tool' && player.ownedTools.includes(r.key);
       const equipped = r.kind === 'tool' && player.tool === r.key;
@@ -1635,9 +1812,19 @@ function renderCraftMenu() {
   });
   body.innerHTML = html;
 }
+window.upgradeWorkshop = function () {
+  const lvl = player.workshopLevel;
+  const cost = WORKSHOP_UPGRADE_COST[lvl + 1];
+  if (!cost || !nearWorkshop() || !affordable(cost)) return;
+  player.wood -= cost.wood || 0; player.stone -= cost.stone || 0; player.food -= cost.food || 0; player.ore -= cost.ore || 0;
+  player.workshopLevel++;
+  sfxCraft();
+  spawnFloat(WORKSHOP_SPOT.x, WORKSHOP_SPOT.z, 1, 'Workshop Lv.' + player.workshopLevel + '!', '#ffd27f');
+  renderCraftMenu();
+};
 window.craftItem = function (key) {
   const r = RECIPES.find(x => x.key === key);
-  if (!r || currentNight < TIER_UNLOCK_NIGHT[r.tier] || !affordable(r.cost)) return;
+  if (!r || currentNight < TIER_UNLOCK_NIGHT[r.tier] || player.workshopLevel < r.tier || !affordable(r.cost)) return;
   player.wood -= r.cost.wood || 0; player.stone -= r.cost.stone || 0; player.food -= r.cost.food || 0; player.ore -= r.cost.ore || 0;
   sfxCraft();
   if (r.kind === 'tool') { player.ownedTools.push(r.key); player.tool = r.key; }
@@ -1759,8 +1946,11 @@ function updateContextPrompt() {
     else if (near.type === 'bush') text = 'SPACE — forage berries';
     else if (near.type === 'chest') text = 'SPACE — open chest';
     else if (near.type === 'survivor') text = 'SPACE — free the survivor';
+    else if (near.type === 'critter') text = 'SPACE — hunt the bunny';
   } else if (nearFire) {
     text = 'F — refuel campfire';
+  } else if (nearWorkshop() && player.workshopLevel < 4) {
+    text = 'C — upgrade the workshop';
   }
   if (text) { el.textContent = text; el.classList.add('show'); }
   else if (!promptTimer) el.classList.remove('show');
@@ -1811,13 +2001,13 @@ function updateSkyAndLight() {
   const activeLight = isNight ? moonMesh.position : sunMesh.position;
   sunMoonLight.position.copy(activeLight).normalize().multiplyScalar(20).add(new THREE.Vector3(player.x, 0, player.z));
   sunMoonLight.target.position.set(player.x, 0, player.z);
-  sunMoonLight.color.setHex(isNight ? 0x8fa0d8 : 0xfff2d0);
-  sunMoonLight.intensity = isNight ? (0.75 + arc * 0.4) : (0.9 + arc * 0.5);
+  sunMoonLight.color.setHex(isNight ? 0x8fa0d8 : 0xfff6dc);
+  sunMoonLight.intensity = isNight ? (0.75 + arc * 0.4) : (1.05 + arc * 0.6);
 
-  hemiLight.color.setHex(isNight ? 0x333a5a : 0x6a7cae);
-  hemiLight.intensity = isNight ? 0.75 : 1.15;
+  hemiLight.color.setHex(isNight ? 0x333a5a : 0x84a6d0);
+  hemiLight.intensity = isNight ? 0.75 : 1.35;
 
-  const skyDay = new THREE.Color(0x2a3a5a), skyDusk = new THREE.Color(0x120e1c), skyNight = new THREE.Color(0x05050c);
+  const skyDay = new THREE.Color(0x5a8fd9), skyDusk = new THREE.Color(0x120e1c), skyNight = new THREE.Color(0x05050c);
   let skyCol;
   if (isNight) skyCol = skyDusk.clone().lerp(skyNight, clamp(arc, 0, 1));
   else skyCol = skyDusk.clone().lerp(skyDay, clamp(arc, 0, 1));
@@ -1992,6 +2182,7 @@ function update(dtMs, ndt) {
     updateResourceRespawns(ndt);
     updateProjectiles(ndt);
     updateMonsters(ndt);
+    updateCritters(ndt);
     updateSurvivor(ndt);
     updateCampfire(ndt);
     updateCycle(ndt);
@@ -2009,6 +2200,7 @@ function update(dtMs, ndt) {
 function sync3D() {
   syncPlayerMesh();
   syncMonsters();
+  syncCritters();
   syncSurvivor();
   syncProjectiles();
   syncCampfire();
@@ -2070,6 +2262,10 @@ window.__lp = {
   freeSurvivor: () => { if (survivor) rescueSurvivor(survivor); },
   teleportSurvivor: (x, z) => { if (survivor) { survivor.x = x; survivor.z = z; } },
   lookAt: (x, z) => { const dx = x - player.x, dz = z - player.z; player.angle = Math.atan2(dx, dz); camYaw = player.angle; },
+  get workshopLevel() { return player.workshopLevel; },
+  upgradeWorkshopOnce: () => window.upgradeWorkshop(),
+  get critters() { return critters.map(c => ({ x: c.x, z: c.z, alive: c.alive })); },
+  huntCritterOnce: () => { const c = critters.find(x => x.alive); if (c) huntCritter(c); },
   setNight99AtDawn: () => { currentNight = 99; },
 };
 </script>
