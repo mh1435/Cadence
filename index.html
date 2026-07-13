@@ -99,7 +99,7 @@
   #hudResources { top: 10px; left: 10px; width: 168px; }
   .resLine { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
   .resDot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
-  .resWood { background: #a9743f; } .resStone { background: #9aa0ab; } .resFood { background: #6bc24a; }
+  .resWood { background: #a9743f; } .resStone { background: #9aa0ab; } .resFood { background: #6bc24a; } .resOre { background: #d4a83a; }
   #hudBars { top: 10px; left: 190px; width: 210px; }
   .barRow { margin-bottom: 5px; }
   .barLabel { font-size: 9px; letter-spacing: 1px; color: #9a92b0; margin-bottom: 2px; }
@@ -136,6 +136,18 @@
   .craftItem .cost { color: #b9a8d9; }
   .craftItem button { width: 100%; margin: 4px 0 0; font-size: 10.5px; padding: 4px; }
   .craftItem.equipped { border-color: #d9a72b; }
+
+  #questScreen { pointer-events: none; }
+  #questScreen.show { pointer-events: auto; display: flex; }
+  #questScreen { position: absolute; top: 0; left: 0; width: 800px; height: 600px; display: none; align-items: flex-start; justify-content: center; padding-top: 3vh; z-index: 40; background: rgba(4,2,8,0.55); }
+  #questPanel { max-width: 480px; width: 92%; max-height: 92vh; overflow-y: auto; background: rgba(10,6,16,0.94); border: 1px solid #6a4aa0; padding: 16px 18px; }
+  .questItem { display: flex; align-items: center; gap: 8px; padding: 6px 4px; font-size: 11.5px; border-bottom: 1px solid #221a30; text-align: left; }
+  .questItem.done { opacity: 0.55; }
+  .questMark { color: #7fd44a; font-size: 14px; width: 14px; text-align: center; flex-shrink: 0; }
+  .questItem:not(.done) .questMark { color: #555; }
+  .questLabel { flex: 1; color: #e8e8e8; }
+  .questItem.done .questLabel { text-decoration: line-through; }
+  .questReward { color: #ffd27f; font-size: 10.5px; flex-shrink: 0; }
 
   /* ===== build bar ===== */
   #buildBar {
@@ -177,6 +189,7 @@
     <div id="hudResources" class="hudPanel">
       <div class="resLine"><span class="resDot resWood"></span><span id="resWoodTxt">Wood: 0</span></div>
       <div class="resLine"><span class="resDot resStone"></span><span id="resStoneTxt">Stone: 0</span></div>
+      <div class="resLine"><span class="resDot resOre"></span><span id="resOreTxt">Ore: 0</span></div>
       <div class="resLine"><span class="resDot resFood"></span><span id="resFoodTxt">Food: 0</span></div>
     </div>
     <div id="hudBars" class="hudPanel">
@@ -198,6 +211,13 @@
     <div id="craftPanel">
       <div class="craftHeaderRow"><h2>WORKSHOP</h2><button class="craftClose" onclick="closeCraft()">[ Close ]</button></div>
       <div id="craftBody"></div>
+    </div>
+  </div>
+
+  <div id="questScreen">
+    <div id="questPanel">
+      <div class="craftHeaderRow"><h2>QUEST LOG</h2><button class="craftClose" onclick="closeQuestLog()">[ Close ]</button></div>
+      <div id="questBody"></div>
     </div>
   </div>
 
@@ -245,6 +265,7 @@
     <button class="miniActionBtn" data-key="c">CRAFT</button>
     <button class="miniActionBtn" data-key="b">BUILD</button>
     <button class="miniActionBtn" data-key="f">FUEL</button>
+    <button class="miniActionBtn" data-key="q">QUEST</button>
   </div>
 </div>
 
@@ -336,6 +357,9 @@ function sfxEat() { tone('sine', 500, 380, 0.12, 0.06); tone('sine', 620, 500, 0
 function sfxCraft() { tone('square', 300, 500, 0.08, 0.06); tone('sine', 700, 900, 0.14, 0.06, 0.08); }
 function sfxBuild() { noiseBurst(0.14, 0.12, 1200); tone('triangle', 220, 120, 0.14, 0.07); }
 function sfxRefuel() { tone('sine', 260, 340, 0.3, 0.08); noiseBurst(0.3, 0.06, 1800); }
+function sfxChest() { tone('sine', 620, 620, 0.09, 0.09); tone('sine', 930, 930, 0.14, 0.09, 0.09); tone('sine', 1200, 1200, 0.16, 0.07, 0.2); }
+function sfxRescue() { tone('sine', 440, 660, 0.3, 0.09); tone('sine', 660, 880, 0.35, 0.08, 0.15); }
+function sfxQuestDone() { tone('sine', 500, 700, 0.14, 0.08); tone('sine', 750, 900, 0.16, 0.07, 0.1); }
 function sfxHit() { tone('square', 240, 90, 0.09, 0.1); }
 function sfxKill() { tone('sawtooth', 320, 55, 0.2, 0.1); noiseBurst(0.14, 0.08, 1400); }
 function sfxPlayerHurt() { tone('sawtooth', 200, 70, 0.18, 0.13); }
@@ -614,6 +638,15 @@ function makeWeaponMesh(key) {
   } else if (key === 'axe') {
     g.add(mesh(geoBox(0.04, 0.34, 0.05), matL(0x54401f), 0, -0.24, 0));
     g.add(mesh(geoBox(0.16, 0.12, 0.03), matL(0x9aa0ab), 0.06, -0.4, 0));
+  } else if (key === 'pickaxe') {
+    g.add(mesh(geoBox(0.04, 0.36, 0.05), matL(0x54401f), 0, -0.26, 0));
+    g.add(mesh(geoBox(0.2, 0.05, 0.05), matL(0xd4a83a), 0.04, -0.42, 0));
+  } else if (key === 'ironAxe') {
+    g.add(mesh(geoBox(0.04, 0.36, 0.05), matL(0x3a2c1a), 0, -0.26, 0));
+    g.add(mesh(geoBox(0.19, 0.14, 0.03), matL(0xe0e4ea), 0.07, -0.42, 0));
+  } else if (key === 'ironSword') {
+    g.add(mesh(geoBox(0.055, 0.46, 0.09), matL(0xe0e4ea), 0, -0.35, 0));
+    g.add(mesh(geoBox(0.16, 0.035, 0.1), matL(0x3a2c1a), 0, -0.13, 0));
   } else {
     g.add(mesh(geoBox(0.16, 0.16, 0.16), matL(0x5a4326), 0, -0.15, 0)); // bare fists guard
   }
@@ -659,6 +692,148 @@ function makeRockCluster() {
   }
   return shadowify(g, true, false);
 }
+function makeAncientTree() {
+  const g = new THREE.Group();
+  g.add(mesh(geoCyl(0.16, 0.24, 1.05, 8), matL(0x3a2c1a), 0, 0.525, 0));
+  const canopyMat = matL(0x1f3d22), canopyMat2 = matL(0x27482a);
+  [[0, 1.7, 0.62], [0.4, 1.5, 0.5], [-0.38, 1.45, 0.48], [0, 2.1, 0.42]].forEach(([x, y, r], i) => {
+    g.add(mesh(geoOct(r), i % 2 ? canopyMat2 : canopyMat, x, y, 0));
+  });
+  // gnarled root flare at the base
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2;
+    const root = mesh(geoBox(0.08, 0.3, 0.16), matL(0x2e2214), Math.cos(a) * 0.18, 0.1, Math.sin(a) * 0.18);
+    root.rotation.y = a;
+    g.add(root);
+  }
+  return shadowify(g, true, false);
+}
+function makeOreCluster() {
+  const g = new THREE.Group();
+  const rockMat = matL(0x4a4a56), oreMat = matB(0xd4a83a), rng = mulberry32(Math.floor(Math.random() * 99999));
+  for (let i = 0; i < 3; i++) {
+    const r = mesh(cachedGeo('rockNode', () => new THREE.DodecahedronGeometry(0.22, 0)), rockMat, (rng() - 0.5) * 0.3, 0.12, (rng() - 0.5) * 0.3);
+    r.rotation.set(rng(), rng(), rng());
+    r.scale.setScalar(0.7 + rng() * 0.6);
+    g.add(r);
+  }
+  for (let i = 0; i < 6; i++) {
+    g.add(mesh(geoOct(0.035), oreMat, (rng() - 0.5) * 0.36, 0.1 + rng() * 0.16, (rng() - 0.5) * 0.36));
+  }
+  const glow = makeGlowSprite(0xd4a83a, 0.4, 0.28);
+  glow.position.y = 0.18;
+  g.add(glow);
+  return shadowify(g, true, false);
+}
+function makeFern() {
+  const g = new THREE.Group();
+  const mat = matL(0x2f4f2a);
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2;
+    const blade = mesh(geoCone(0.05, 0.34, 4), mat, Math.cos(a) * 0.09, 0.17, Math.sin(a) * 0.09);
+    blade.rotation.z = Math.cos(a) * 0.5; blade.rotation.x = Math.sin(a) * 0.5;
+    g.add(blade);
+  }
+  return shadowify(g, true, false);
+}
+function makeMushroomCluster() {
+  const g = new THREE.Group();
+  const rng = mulberry32(Math.floor(Math.random() * 99999));
+  const capColors = [0xb4453a, 0xc98a3a];
+  for (let i = 0; i < 3; i++) {
+    const s = 0.5 + rng() * 0.6;
+    const stem = mesh(geoCyl(0.02, 0.025, 0.11 * s, 6), matL(0xe6ddc4), (rng() - 0.5) * 0.2, 0.055 * s, (rng() - 0.5) * 0.2);
+    const cap = mesh(geoCone(0.055 * s, 0.05 * s, 8), matL(capColors[i % 2]), stem.position.x, 0.11 * s, stem.position.z);
+    g.add(stem, cap);
+  }
+  return shadowify(g, true, false);
+}
+function makeFallenLog() {
+  const g = new THREE.Group();
+  const log = mesh(geoCyl(0.11, 0.13, 1.4, 8), matL(0x4a3a26), 0, 0.12, 0);
+  log.rotation.z = Math.PI / 2;
+  g.add(log);
+  const capMat = matL(0x6b5236);
+  g.add(mesh(geoCyl(0.11, 0.11, 0.02, 8), capMat, 0.7, 0.12, 0).rotateZ(Math.PI / 2 - Math.PI / 2));
+  return shadowify(g, true, false);
+}
+function makeFlowerPatch() {
+  const g = new THREE.Group();
+  const rng = mulberry32(Math.floor(Math.random() * 99999));
+  const petalColors = [0xd94f6b, 0xe0c23c, 0xd9d9e8];
+  for (let i = 0; i < 4; i++) {
+    const x = (rng() - 0.5) * 0.3, z = (rng() - 0.5) * 0.3;
+    g.add(mesh(geoCyl(0.006, 0.006, 0.1, 4), matL(0x3a5a2e), x, 0.05, z));
+    g.add(mesh(geoOct(0.028), matB(petalColors[i % 3]), x, 0.1, z));
+  }
+  return shadowify(g, true, false);
+}
+function makeChestMesh() {
+  const g = new THREE.Group();
+  g.add(mesh(geoBox(0.42, 0.22, 0.28), matL(0x5a3a1e), 0, 0.11, 0));
+  const lid = mesh(geoBox(0.42, 0.1, 0.28), matL(0x6b4726), 0, 0.27, -0.02);
+  g.add(lid);
+  g.add(mesh(geoBox(0.05, 0.1, 0.03), matB(0xd9a72b), 0, 0.2, 0.14));
+  const glint = makeGlowSprite(0xffd700, 0.5, 0.6);
+  glint.position.y = 0.45;
+  g.userData.glint = glint;
+  g.add(glint);
+  return shadowify(g, true, false);
+}
+
+// Survivor NPC (rescue quest) — a tied-up figure with a distress glow
+function makeSurvivorMesh() {
+  const g = makeHumanoid({ body: 0x8a6a4a, head: 0xd9b088, limbs: 0x6b4f34, eyes: 0x2a2018, scale: 1 });
+  const glow = makeGlowSprite(0xffe08a, 1, 0.35);
+  glow.position.y = 1.3;
+  g.add(glow);
+  g.userData.distressGlow = glow;
+  return g;
+}
+
+// Wolf: fast, low-hp pack hunter
+function makeWolf() {
+  const g = new THREE.Group();
+  const bodyMat = matL(0x3a3a42), darkMat = matL(0x1e1e24), eyeMat = matB(0xffd23a);
+  g.add(mesh(geoBox(0.36, 0.32, 0.78), bodyMat, 0, 0.42, 0));
+  const head = mesh(geoBox(0.24, 0.22, 0.32), darkMat, 0, 0.5, 0.5);
+  g.add(head);
+  g.add(mesh(geoCone(0.08, 0.16, 4), darkMat, 0, 0.66, 0.66)); // snout hint
+  g.add(mesh(geoBox(0.04, 0.07, 0.03), eyeMat, -0.07, 0.53, 0.62));
+  g.add(mesh(geoBox(0.04, 0.07, 0.03), eyeMat, 0.07, 0.53, 0.62));
+  const legGeo = cachedGeo('wolfLeg', () => new THREE.BoxGeometry(0.08, 0.36, 0.08));
+  const legs = {
+    fl: mesh(legGeo, darkMat, -0.13, 0.18, 0.26), fr: mesh(legGeo, darkMat, 0.13, 0.18, 0.26),
+    bl: mesh(legGeo, darkMat, -0.13, 0.18, -0.26), br: mesh(legGeo, darkMat, 0.13, 0.18, -0.26),
+  };
+  Object.values(legs).forEach(l => g.add(l));
+  const tail = mesh(geoCone(0.05, 0.3, 5), bodyMat, 0, 0.5, -0.48);
+  tail.rotation.x = -1.1;
+  g.add(tail);
+  g.userData.legs = legs;
+  return shadowify(g, true, false);
+}
+
+// Bear: tanky, slow, heavy hitter
+function makeBear() {
+  const g = new THREE.Group();
+  const bodyMat = matL(0x2c2018), darkMat = matL(0x17110c), eyeMat = matB(0xff3a2a);
+  g.add(mesh(geoBox(0.68, 0.55, 1.0), bodyMat, 0, 0.55, 0));
+  const head = mesh(geoBox(0.36, 0.34, 0.36), bodyMat, 0, 0.68, 0.62);
+  g.add(head);
+  g.add(mesh(geoBox(0.09, 0.09, 0.09), darkMat, -0.13, 0.86, 0.68));
+  g.add(mesh(geoBox(0.09, 0.09, 0.09), darkMat, 0.13, 0.86, 0.68));
+  g.add(mesh(geoBox(0.04, 0.05, 0.03), eyeMat, -0.09, 0.7, 0.79));
+  g.add(mesh(geoBox(0.04, 0.05, 0.03), eyeMat, 0.09, 0.7, 0.79));
+  const legGeo = cachedGeo('bearLeg', () => new THREE.BoxGeometry(0.18, 0.42, 0.18));
+  const legs = {
+    fl: mesh(legGeo, darkMat, -0.24, 0.21, 0.36), fr: mesh(legGeo, darkMat, 0.24, 0.21, 0.36),
+    bl: mesh(legGeo, darkMat, -0.24, 0.21, -0.36), br: mesh(legGeo, darkMat, 0.24, 0.21, -0.36),
+  };
+  Object.values(legs).forEach(l => g.add(l));
+  g.userData.legs = legs;
+  return shadowify(g, true, false);
+}
 
 // ===================== CAMPFIRE + WORKSHOP + WALLS =====================
 const torchLights = [];
@@ -693,7 +868,7 @@ function makeWorkshopMesh() {
   return shadowify(g, true, true);
 }
 function makeWallMesh(tier) {
-  const specs = { basic: { h: 0.85, col: 0x5a4326 }, reinforced: { h: 1.05, col: 0x6b6b70 }, great: { h: 1.3, col: 0x8a5a2a } };
+  const specs = { basic: { h: 0.85, col: 0x5a4326 }, reinforced: { h: 1.05, col: 0x6b6b70 }, great: { h: 1.3, col: 0x8a5a2a }, iron: { h: 1.45, col: 0xd8dbe2 } };
   const s = specs[tier] || specs.basic;
   const g = new THREE.Group();
   g.add(mesh(geoBox(1.0, s.h, 0.16), matL(s.col), 0, s.h / 2, 0));
@@ -706,8 +881,10 @@ function makeWallMesh(tier) {
 const TREE_DEFS = {
   normal: { hpMax: 3, woodPerHit: 2, respawn: 55, builder: makeBroadleaf, label: 'Tree' },
   hardwood: { hpMax: 5, woodPerHit: 3, respawn: 85, builder: makeConifer, label: 'Hardwood Tree' },
+  ancient: { hpMax: 8, woodPerHit: 4, respawn: 140, builder: makeAncientTree, label: 'Ancient Tree' },
 };
 const ROCK_DEF = { hpMax: 4, stonePerHit: 2, respawn: 95 };
+const ORE_DEF = { hpMax: 6, orePerHit: 2, respawn: 150 };
 const BUSH_DEF = { foodPerForage: 4, respawn: 42 };
 
 const TOOLS = {
@@ -716,6 +893,9 @@ const TOOLS = {
   stoneSword: { name: 'Stone Sword', dmg: 3, gather: 2, cd: 13, range: 1.7 },
   bow:        { name: 'Hunting Bow', dmg: 2, gather: 1, cd: 20, range: Infinity, ranged: true },
   stormSpear: { name: 'Storm Spear', dmg: 3, gather: 2, cd: 15, range: 1.8, chain: 2 },
+  pickaxe:    { name: 'Iron Pickaxe', dmg: 2, gather: 5, cd: 14, range: 1.55 },
+  ironAxe:    { name: 'Iron Axe', dmg: 3, gather: 5, cd: 13, range: 1.6 },
+  ironSword:  { name: 'Iron Sword', dmg: 5, gather: 2, cd: 11, range: 1.8 },
 };
 
 const RECIPES = [
@@ -727,16 +907,38 @@ const RECIPES = [
   { key: 'reinforcedWallKit', tier: 2, label: 'Reinforced Wall', kind: 'wall', wallTier: 'reinforced', desc: 'Tougher wall, more HP.', cost: { wood: 8, stone: 6 } },
   { key: 'stormSpear', tier: 3, label: 'Storm Spear', kind: 'tool', desc: 'Lightning arcs to nearby foes.', cost: { wood: 12, stone: 10 } },
   { key: 'greatWallKit', tier: 3, label: 'Great Wall', kind: 'wall', wallTier: 'great', desc: 'The strongest defense.', cost: { wood: 14, stone: 12 } },
+  { key: 'pickaxe', tier: 4, label: 'Iron Pickaxe', kind: 'tool', desc: 'Mines ore and stone fast.', cost: { wood: 8, stone: 10, ore: 0 } },
+  { key: 'ironAxe', tier: 4, label: 'Iron Axe', kind: 'tool', desc: 'The finest woodcutting edge.', cost: { wood: 10, stone: 8, ore: 6 } },
+  { key: 'ironSword', tier: 4, label: 'Iron Sword', kind: 'tool', desc: 'Devastating melee damage.', cost: { wood: 10, stone: 8, ore: 8 } },
+  { key: 'ironWallKit', tier: 4, label: 'Iron Wall', kind: 'wall', wallTier: 'iron', desc: 'Nearly unbreakable.', cost: { wood: 12, stone: 10, ore: 10 } },
 ];
-const TIER_UNLOCK_NIGHT = { 1: 1, 2: 5, 3: 15 };
-const WALL_HP = { basic: 40, reinforced: 90, great: 170 };
+const TIER_UNLOCK_NIGHT = { 1: 1, 2: 5, 3: 15, 4: 30 };
+const WALL_HP = { basic: 40, reinforced: 90, great: 170, iron: 300 };
+
+const QUESTS = [
+  { id: 'chop1', label: 'Chop your first tree', check: () => player.treesChopped >= 1, reward: { wood: 5 } },
+  { id: 'mine1', label: 'Mine your first rock', check: () => player.rocksMined >= 1, reward: { stone: 5 } },
+  { id: 'forage1', label: 'Forage your first berries', check: () => player.berriesForaged >= 1, reward: { food: 5 } },
+  { id: 'craftAxe', label: 'Craft a Stone Axe', check: () => player.ownedTools.includes('axe'), reward: { wood: 10 } },
+  { id: 'buildWall', label: 'Build your first wall', check: () => walls.length >= 1, reward: { stone: 10 } },
+  { id: 'openChest', label: 'Open a loot chest', check: () => player.chestsOpened >= 1, reward: { wood: 10, stone: 10 } },
+  { id: 'rescueSurvivor', label: 'Free the trapped survivor', check: () => survivor && survivor.state !== 'trapped', reward: { food: 15, wood: 15 } },
+  { id: 'mineOre1', label: 'Mine your first ore', check: () => player.oreMined >= 1, reward: { ore: 5 } },
+  { id: 'surviveNight10', label: 'Survive to Night 10', check: () => currentNight >= 10, reward: { wood: 20, stone: 20 } },
+  { id: 'defeatStag', label: 'Defeat a Stag', check: () => (player.stagKills || 0) >= 1, reward: { food: 20 } },
+  { id: 'tier3', label: 'Reach Tier 3 crafting', check: () => currentNight >= TIER_UNLOCK_NIGHT[3], reward: { stone: 20 } },
+  { id: 'craftIron', label: 'Craft an iron-tier item', check: () => ['pickaxe', 'ironAxe', 'ironSword'].some(k => player.ownedTools.includes(k)) || (player.wallKits.iron || 0) > 0, reward: { food: 25, ore: 10 } },
+  { id: 'surviveNight50', label: 'Survive to Night 50', check: () => currentNight >= 50, reward: { wood: 40, stone: 40, ore: 20 } },
+  { id: 'surviveNight99', label: 'Survive all 99 nights', check: () => nightsSurvivedFully >= 99, reward: {} },
+];
 
 // ===================== STATE =====================
 let gameState = 'MENU';
 let frameCount = 0, lastTime = 0;
 let currentNight = 1, dayNightPhase = 'day', phaseTimer = DAY_LEN, cycleAngle = 0.25;
 let introTimer = 0, introText = '';
-let player, trees, bushes, rocks, walls, monsters, floatingNumbers;
+let player, trees, bushes, rocks, ores, chests, walls, monsters, floatingNumbers;
+let survivor = null;
 let campfireFuel = 100;
 let craftOpen = false, buildMode = false, selectedWallKey = null;
 let nightsSurvivedFully = 0;
@@ -754,17 +956,21 @@ function resetState() {
 
   player = {
     x: 2.2, z: 3.2, angle: Math.PI, hp: 100, maxHp: 100, hunger: 100, maxHunger: 100,
-    wood: 0, stone: 0, food: 2,
+    wood: 0, stone: 0, food: 2, ore: 0,
     tool: 'fists', ownedTools: ['fists'],
-    wallKits: { basic: 0, reinforced: 0, great: 0 },
+    wallKits: { basic: 0, reinforced: 0, great: 0, iron: 0 },
+    gatherYieldMult: 1,
     swingT: 0, attackCooldown: 0, moving: false, walkPhase: 0,
-    treesChopped: 0, rocksMined: 0, berriesForaged: 0,
+    treesChopped: 0, rocksMined: 0, oreMined: 0, berriesForaged: 0, chestsOpened: 0, stagKills: 0,
+    questsCompleted: [],
   };
 
   floatingNumbers = [];
   monsters = [];
+  survivor = null;
   clearFX();
   closeCraft();
+  closeQuestLog();
   setBuildMode(false);
 }
 
@@ -792,7 +998,8 @@ window.addEventListener('keydown', e => {
     if (e.key === 'c' || e.key === 'C') toggleCraft();
     if (e.key === 'b' || e.key === 'B') setBuildMode(!buildMode);
     if (e.key === 'f' || e.key === 'F') tryRefuelCampfire();
-    if (e.key === 'Escape') { closeCraft(); setBuildMode(false); }
+    if (e.key === 'q' || e.key === 'Q') toggleQuestLog();
+    if (e.key === 'Escape') { closeCraft(); closeQuestLog(); setBuildMode(false); }
   }
 });
 window.addEventListener('keyup', e => { keys[e.key] = false; });
@@ -819,6 +1026,7 @@ document.querySelectorAll('.miniActionBtn').forEach(btn => {
     if (k === 'c') toggleCraft();
     if (k === 'b') setBuildMode(!buildMode);
     if (k === 'f') tryRefuelCampfire();
+    if (k === 'q') toggleQuestLog();
   });
 });
 
@@ -896,9 +1104,11 @@ function syncPlayerWeapon() {
   playerMesh.userData.weaponMesh = w;
 }
 
+const SCENERY_BUILDERS = [makeFern, makeMushroomCluster, makeFallenLog, makeFlowerPatch];
+
 function generateWorld() {
   worldGroup.clear();
-  trees = []; bushes = []; rocks = []; walls = [];
+  trees = []; bushes = []; rocks = []; ores = []; chests = []; walls = [];
   const rng = mulberry32(20260713);
 
   function randomRingPoint(minR, maxR) {
@@ -912,7 +1122,8 @@ function generateWorld() {
 
   for (let i = 0; i < 55; i++) {
     const p = randomRingPoint(4.5, WORLD_RADIUS - 2);
-    const kind = rng() < 0.62 ? 'normal' : 'hardwood';
+    const roll = rng();
+    const kind = roll < 0.55 ? 'normal' : roll < 0.88 ? 'hardwood' : 'ancient';
     const def = TREE_DEFS[kind];
     const meshObj = def.builder();
     meshObj.position.set(p.x, 0, p.z);
@@ -937,6 +1148,37 @@ function generateWorld() {
     worldGroup.add(meshObj);
     rocks.push({ x: p.x, z: p.z, hp: ROCK_DEF.hpMax, alive: true, respawnT: 0, mesh: meshObj });
   }
+  for (let i = 0; i < 10; i++) {
+    const p = randomRingPoint(8, WORLD_RADIUS - 2.5);
+    const meshObj = makeOreCluster();
+    meshObj.position.set(p.x, 0, p.z);
+    meshObj.rotation.y = rng() * Math.PI * 2;
+    worldGroup.add(meshObj);
+    ores.push({ x: p.x, z: p.z, hp: ORE_DEF.hpMax, alive: true, respawnT: 0, mesh: meshObj });
+  }
+  for (let i = 0; i < 42; i++) {
+    const p = randomRingPoint(3, WORLD_RADIUS - 1.5);
+    const builder = SCENERY_BUILDERS[Math.floor(rng() * SCENERY_BUILDERS.length)];
+    const meshObj = builder();
+    meshObj.position.set(p.x, 0, p.z);
+    meshObj.rotation.y = rng() * Math.PI * 2;
+    meshObj.scale.setScalar(0.8 + rng() * 0.5);
+    worldGroup.add(meshObj);
+  }
+  for (let i = 0; i < 8; i++) {
+    const p = randomRingPoint(9, WORLD_RADIUS - 3);
+    const meshObj = makeChestMesh();
+    meshObj.position.set(p.x, 0, p.z);
+    meshObj.rotation.y = rng() * Math.PI * 2;
+    worldGroup.add(meshObj);
+    chests.push({ x: p.x, z: p.z, alive: true, mesh: meshObj });
+  }
+
+  const sp = randomRingPoint(12, WORLD_RADIUS - 4);
+  const survivorMesh = makeSurvivorMesh();
+  survivorMesh.position.set(sp.x, 0, sp.z);
+  worldGroup.add(survivorMesh);
+  survivor = { x: sp.x, z: sp.z, state: 'trapped', mesh: survivorMesh };
 }
 
 // ===================== FX =====================
@@ -1014,7 +1256,13 @@ function nearestInteractable() {
   let best = null, bestD = INTERACT_RANGE;
   for (const t of trees) { if (!t.alive) continue; const d = dist2D(player.x, player.z, t.x, t.z); if (d < bestD) { bestD = d; best = { type: 'tree', obj: t }; } }
   for (const r of rocks) { if (!r.alive) continue; const d = dist2D(player.x, player.z, r.x, r.z); if (d < bestD) { bestD = d; best = { type: 'rock', obj: r }; } }
+  for (const o of ores) { if (!o.alive) continue; const d = dist2D(player.x, player.z, o.x, o.z); if (d < bestD) { bestD = d; best = { type: 'ore', obj: o }; } }
   for (const b of bushes) { if (!b.alive) continue; const d = dist2D(player.x, player.z, b.x, b.z); if (d < bestD) { bestD = d; best = { type: 'bush', obj: b }; } }
+  for (const c of chests) { if (!c.alive) continue; const d = dist2D(player.x, player.z, c.x, c.z); if (d < bestD) { bestD = d; best = { type: 'chest', obj: c }; } }
+  if (survivor && survivor.state === 'trapped') {
+    const d = dist2D(player.x, player.z, survivor.x, survivor.z);
+    if (d < bestD) { bestD = d; best = { type: 'survivor', obj: survivor }; }
+  }
   return best;
 }
 function nearestMonster(range) {
@@ -1029,7 +1277,7 @@ function chopTree(t) {
   const iso = new THREE.Vector3(t.x, 0.7, t.z);
   spawnSparks(iso, 0xa9743f, 5);
   sfxChop();
-  const gain = TREE_DEFS[t.kind].woodPerHit;
+  const gain = Math.round(TREE_DEFS[t.kind].woodPerHit * player.gatherYieldMult);
   player.wood += gain;
   spawnFloat(t.x, t.z, 0.9, '+' + gain, '#c99a5a');
   player.treesChopped++;
@@ -1044,26 +1292,52 @@ function mineRock(r) {
   r.hp -= tool.gather;
   spawnSparks(new THREE.Vector3(r.x, 0.3, r.z), 0x9aa0ab, 5);
   sfxMine();
-  const gain = ROCK_DEF.stonePerHit;
+  const gain = Math.round(ROCK_DEF.stonePerHit * player.gatherYieldMult);
   player.stone += gain;
   spawnFloat(r.x, r.z, 0.5, '+' + gain, '#c8ccd4');
   player.rocksMined++;
   if (r.hp <= 0) { r.alive = false; r.mesh.visible = false; r.respawnT = ROCK_DEF.respawn; }
 }
+function mineOre(o) {
+  const tool = TOOLS[player.tool];
+  o.hp -= tool.gather;
+  spawnSparks(new THREE.Vector3(o.x, 0.3, o.z), 0xd4a83a, 6);
+  sfxMine();
+  const gain = Math.round(ORE_DEF.orePerHit * player.gatherYieldMult);
+  player.ore += gain;
+  spawnFloat(o.x, o.z, 0.5, '+' + gain, '#e0b84a');
+  player.oreMined++;
+  if (o.hp <= 0) { o.alive = false; o.mesh.visible = false; o.respawnT = ORE_DEF.respawn; }
+}
 function forageBush(b) {
   b.alive = false; b.mesh.visible = false; b.respawnT = BUSH_DEF.respawn;
-  player.food += BUSH_DEF.foodPerForage;
+  const gain = Math.round(BUSH_DEF.foodPerForage * player.gatherYieldMult);
+  player.food += gain;
   sfxForage();
-  spawnFloat(b.x, b.z, 0.4, '+' + BUSH_DEF.foodPerForage, '#7fd44a');
+  spawnFloat(b.x, b.z, 0.4, '+' + gain, '#7fd44a');
   player.berriesForaged++;
 }
+function openChest(c) {
+  c.alive = false;
+  if (c.mesh.userData.glint) c.mesh.userData.glint.visible = false;
+  const woodGain = 6 + Math.floor(Math.random() * 8), stoneGain = 4 + Math.floor(Math.random() * 6), oreGain = Math.random() < 0.5 ? 2 + Math.floor(Math.random() * 4) : 0;
+  player.wood += woodGain; player.stone += stoneGain; player.ore += oreGain;
+  sfxChest();
+  spawnFloat(c.x, c.z, 0.6, `+${woodGain}w +${stoneGain}s` + (oreGain ? ` +${oreGain}o` : ''), '#ffd700');
+  spawnSparks(new THREE.Vector3(c.x, 0.3, c.z), 0xffd700, 10, { spread: 0.09 });
+  player.chestsOpened++;
+}
+function rescueSurvivor(s) {
+  s.state = 'following';
+  spawnFloat(s.x, s.z, 1.5, 'Rescued!', '#ffe08a');
+  sfxRescue();
+}
 function updateResourceRespawns(ndt) {
-  const dt = ndt / 60 * (1000 / 16.6667); // approx seconds
-  [...trees, ...rocks, ...bushes].forEach(o => {
-    if (o.alive) return;
-    o.respawnT -= ndt / 60;
-    if (o.respawnT <= 0) { o.alive = true; o.mesh.visible = true; if (o.hp !== undefined) o.hp = (trees.includes(o) ? TREE_DEFS[o.kind].hpMax : ROCK_DEF.hpMax); }
-  });
+  const dtSec = ndt / 60;
+  trees.forEach(t => { if (t.alive) return; t.respawnT -= dtSec; if (t.respawnT <= 0) { t.alive = true; t.mesh.visible = true; t.hp = TREE_DEFS[t.kind].hpMax; } });
+  rocks.forEach(r => { if (r.alive) return; r.respawnT -= dtSec; if (r.respawnT <= 0) { r.alive = true; r.mesh.visible = true; r.hp = ROCK_DEF.hpMax; } });
+  ores.forEach(o => { if (o.alive) return; o.respawnT -= dtSec; if (o.respawnT <= 0) { o.alive = true; o.mesh.visible = true; o.hp = ORE_DEF.hpMax; } });
+  bushes.forEach(b => { if (b.alive) return; b.respawnT -= dtSec; if (b.respawnT <= 0) { b.alive = true; b.mesh.visible = true; } });
 }
 
 // ===================== COMBAT / TOOL USE =====================
@@ -1084,7 +1358,10 @@ function useAction() {
   if (!target) return;
   if (target.type === 'tree') chopTree(target.obj);
   else if (target.type === 'rock') mineRock(target.obj);
+  else if (target.type === 'ore') mineOre(target.obj);
   else if (target.type === 'bush') forageBush(target.obj);
+  else if (target.type === 'chest') openChest(target.obj);
+  else if (target.type === 'survivor') rescueSurvivor(target.obj);
 }
 
 function attackMonster(m, tool) {
@@ -1113,6 +1390,7 @@ function damageMonster(m, dmg) {
   addDeathBurst(nearestEnemyWorldPos(m));
   m.alive = false;
   killCount++;
+  if (m.kind === 'stag') player.stagKills = (player.stagKills || 0) + 1;
 }
 
 const projectiles = [];
@@ -1164,6 +1442,27 @@ function spawnMonsterWave() {
       alive: true, phase: 0, legPhase: 0,
     });
   }
+  if (currentNight >= 6) {
+    const packSize = 2 + (currentNight >= 20 ? 1 : 0);
+    const packAngle = rng() * Math.PI * 2;
+    for (let i = 0; i < packSize; i++) {
+      const a = packAngle + (rng() - 0.5) * 0.6;
+      monsters.push({
+        kind: 'wolf', x: Math.cos(a) * (WORLD_RADIUS - 1), z: Math.sin(a) * (WORLD_RADIUS - 1),
+        hp: 3, maxHp: 3, speed: 0.07 + rng() * 0.015, atkCd: 0, atkCdMax: 35, dmg: 5 + Math.floor(currentNight / 10),
+        alive: true, phase: rng() * Math.PI * 2, walkPhase: 0,
+      });
+    }
+  }
+  if (currentNight >= 10) {
+    const a = rng() * Math.PI * 2;
+    monsters.push({
+      kind: 'bear', x: Math.cos(a) * (WORLD_RADIUS - 1), z: Math.sin(a) * (WORLD_RADIUS - 1),
+      hp: 16 + Math.floor(currentNight / 2.5), maxHp: 16 + Math.floor(currentNight / 2.5),
+      speed: 0.032, atkCd: 0, atkCdMax: 60, dmg: 20 + Math.floor(currentNight / 5),
+      alive: true, phase: 0, walkPhase: 0,
+    });
+  }
 }
 function despawnAllMonsters() {
   monsters.forEach(m => { m.alive = false; });
@@ -1198,26 +1497,25 @@ function updateMonsters(ndt) {
     if (m.hitT > 0) m.hitT -= ndt;
   }
 }
+const MONSTER_BUILDERS = { walker: makeWalker, stag: makeStag, wolf: makeWolf, bear: makeBear };
 function syncMonsters() {
   const live = new Set(monsters);
   for (const m of monsters) {
     let g = monsterMeshes.get(m);
-    if (!g) { g = m.kind === 'stag' ? makeStag() : makeWalker(); worldGroup.add(g); monsterMeshes.set(m, g); }
+    if (!g) { g = (MONSTER_BUILDERS[m.kind] || makeWalker)(); worldGroup.add(g); monsterMeshes.set(m, g); }
     g.position.set(m.x, 0, m.z);
     g.rotation.y = m.angle || 0;
     const pop = m.hitT > 0 ? 1 + (m.hitT / 8) * 0.2 : 1;
-    g.scale.setScalar(pop * (m.kind === 'stag' ? 1 : 1));
+    g.scale.setScalar(pop);
     if (m.kind === 'walker' && g.userData.anim) {
       const sw = Math.sin(m.walkPhase || 0) * 0.6;
       g.userData.anim.legL.rotation.x = sw; g.userData.anim.legR.rotation.x = -sw;
       g.userData.anim.armL.rotation.x = -sw * 0.7; g.userData.anim.armR.rotation.x = sw * 0.7;
-    } else if (m.kind === 'stag' && g.userData.legs) {
-      const sw = Math.sin((m.walkPhase || 0) * 1.3) * 0.5;
+    } else if ((m.kind === 'stag' || m.kind === 'wolf' || m.kind === 'bear') && g.userData.legs) {
+      const gaitSpeed = m.kind === 'wolf' ? 1.8 : m.kind === 'bear' ? 1.0 : 1.3;
+      const sw = Math.sin((m.walkPhase || 0) * gaitSpeed) * 0.5;
       g.userData.legs.fl.rotation.x = sw; g.userData.legs.br.rotation.x = sw;
       g.userData.legs.fr.rotation.x = -sw; g.userData.legs.bl.rotation.x = -sw;
-    }
-    if (m.maxHp > 1) {
-      // hp pip handled in 2D overlay via worldToScreen, nothing to do here
     }
   }
   for (const [m, g] of monsterMeshes) if (!live.has(m)) { worldGroup.remove(g); monsterMeshes.delete(m); }
@@ -1266,6 +1564,7 @@ function renderBuildBar() {
     { tier: 'basic', label: 'Wall' },
     { tier: 'reinforced', label: 'Reinf.' },
     { tier: 'great', label: 'Great' },
+    { tier: 'iron', label: 'Iron' },
   ];
   if (!selectedWallKey) selectedWallKey = 'basic';
   bar.innerHTML = kits.map(k =>
@@ -1311,17 +1610,17 @@ function closeCraft() {
   document.getElementById('craftScreen').classList.remove('show');
 }
 window.closeCraft = closeCraft;
-function affordable(cost) { return player.wood >= (cost.wood || 0) && player.stone >= (cost.stone || 0) && player.food >= (cost.food || 0); }
+function affordable(cost) { return player.wood >= (cost.wood || 0) && player.stone >= (cost.stone || 0) && player.food >= (cost.food || 0) && player.ore >= (cost.ore || 0); }
 function renderCraftMenu() {
   const body = document.getElementById('craftBody');
   let html = '';
-  [1, 2, 3].forEach(tier => {
+  [1, 2, 3, 4].forEach(tier => {
     const unlocked = currentNight >= TIER_UNLOCK_NIGHT[tier];
     html += `<div class="sectionLabel">TIER ${tier}${unlocked ? '' : ' — unlocks night ' + TIER_UNLOCK_NIGHT[tier]}</div><div class="craftGrid">`;
     RECIPES.filter(r => r.tier === tier).forEach(r => {
       const owned = r.kind === 'tool' && player.ownedTools.includes(r.key);
       const equipped = r.kind === 'tool' && player.tool === r.key;
-      const costStr = ['wood', 'stone', 'food'].filter(k => r.cost[k]).map(k => `${r.cost[k]} ${k}`).join(', ');
+      const costStr = ['wood', 'stone', 'food', 'ore'].filter(k => r.cost[k]).map(k => `${r.cost[k]} ${k}`).join(', ');
       let btn;
       if (!unlocked) btn = `<button disabled>Locked</button>`;
       else if (equipped) btn = `<button disabled>Equipped</button>`;
@@ -1339,7 +1638,7 @@ function renderCraftMenu() {
 window.craftItem = function (key) {
   const r = RECIPES.find(x => x.key === key);
   if (!r || currentNight < TIER_UNLOCK_NIGHT[r.tier] || !affordable(r.cost)) return;
-  player.wood -= r.cost.wood || 0; player.stone -= r.cost.stone || 0; player.food -= r.cost.food || 0;
+  player.wood -= r.cost.wood || 0; player.stone -= r.cost.stone || 0; player.food -= r.cost.food || 0; player.ore -= r.cost.ore || 0;
   sfxCraft();
   if (r.kind === 'tool') { player.ownedTools.push(r.key); player.tool = r.key; }
   else if (r.kind === 'wall') { player.wallKits[r.wallTier] = (player.wallKits[r.wallTier] || 0) + 1; }
@@ -1348,6 +1647,47 @@ window.craftItem = function (key) {
   renderBuildBar();
 };
 window.equipTool = function (key) { if (player.ownedTools.includes(key)) { player.tool = key; renderCraftMenu(); } };
+
+// ===================== QUEST LOG =====================
+let questLogOpen = false;
+function toggleQuestLog() { questLogOpen ? closeQuestLog() : openQuestLog(); }
+function openQuestLog() {
+  if (gameState !== 'PLAYING') return;
+  questLogOpen = true;
+  document.getElementById('questScreen').classList.add('show');
+  renderQuestLog();
+}
+function closeQuestLog() {
+  questLogOpen = false;
+  const el = document.getElementById('questScreen');
+  if (el) el.classList.remove('show');
+}
+window.closeQuestLog = closeQuestLog;
+function renderQuestLog() {
+  const body = document.getElementById('questBody');
+  if (!body) return;
+  body.innerHTML = QUESTS.map(q => {
+    const done = player.questsCompleted.includes(q.id);
+    const rewardStr = Object.entries(q.reward).map(([k, v]) => `${v} ${k}`).join(', ') || '—';
+    return `<div class="questItem ${done ? 'done' : ''}">
+      <span class="questMark">${done ? '✓' : '·'}</span>
+      <span class="questLabel">${q.label}</span>
+      <span class="questReward">${rewardStr}</span>
+    </div>`;
+  }).join('');
+}
+function updateQuests() {
+  QUESTS.forEach(q => {
+    if (player.questsCompleted.includes(q.id)) return;
+    if (!q.check()) return;
+    player.questsCompleted.push(q.id);
+    player.wood += q.reward.wood || 0; player.stone += q.reward.stone || 0;
+    player.food += q.reward.food || 0; player.ore += q.reward.ore || 0;
+    sfxQuestDone();
+    showHudPrompt('Quest complete: ' + q.label);
+    if (questLogOpen) renderQuestLog();
+  });
+}
 
 // ===================== PLAYER MOVEMENT =====================
 let camYaw = Math.PI;
@@ -1407,7 +1747,7 @@ function showHudPrompt(text) {
   promptTimer = setTimeout(() => el.classList.remove('show'), 2200);
 }
 function updateContextPrompt() {
-  if (buildMode || craftOpen) return;
+  if (buildMode || craftOpen || questLogOpen) return;
   const el = document.getElementById('hudPrompt');
   const near = nearestInteractable();
   const nearFire = dist2D(player.x, player.z, 0, 0) <= CAMPFIRE_RANGE;
@@ -1415,7 +1755,10 @@ function updateContextPrompt() {
   if (near) {
     if (near.type === 'tree') text = 'SPACE — chop tree';
     else if (near.type === 'rock') text = 'SPACE — mine rock';
+    else if (near.type === 'ore') text = 'SPACE — mine ore';
     else if (near.type === 'bush') text = 'SPACE — forage berries';
+    else if (near.type === 'chest') text = 'SPACE — open chest';
+    else if (near.type === 'survivor') text = 'SPACE — free the survivor';
   } else if (nearFire) {
     text = 'F — refuel campfire';
   }
@@ -1530,19 +1873,20 @@ function triggerGameOver(text) {
   setGameState('GAMEOVER');
   document.getElementById('gameoverText').textContent = text;
   document.getElementById('gameoverStats').textContent =
-    `Fell on night ${currentNight} | Trees chopped: ${player.treesChopped} | Rocks mined: ${player.rocksMined} | Berries foraged: ${player.berriesForaged} | Kills: ${killCount}`;
+    `Fell on night ${currentNight} | Trees: ${player.treesChopped} | Ore: ${player.oreMined} | Chests: ${player.chestsOpened} | Kills: ${killCount} | Quests: ${player.questsCompleted.length}/${QUESTS.length}`;
 }
 function triggerVictory() {
   sfxVictory();
   setGameState('VICTORY');
   document.getElementById('victoryStats').textContent =
-    `Trees chopped: ${player.treesChopped} | Rocks mined: ${player.rocksMined} | Berries foraged: ${player.berriesForaged} | Kills: ${killCount} | Tool: ${TOOLS[player.tool].name}`;
+    `Trees: ${player.treesChopped} | Ore: ${player.oreMined} | Chests: ${player.chestsOpened} | Kills: ${killCount} | Quests: ${player.questsCompleted.length}/${QUESTS.length} | Tool: ${TOOLS[player.tool].name}`;
 }
 
 // ===================== HUD RENDER =====================
 function updateHud() {
   document.getElementById('resWoodTxt').textContent = 'Wood: ' + Math.floor(player.wood);
   document.getElementById('resStoneTxt').textContent = 'Stone: ' + Math.floor(player.stone);
+  document.getElementById('resOreTxt').textContent = 'Ore: ' + Math.floor(player.ore);
   document.getElementById('resFoodTxt').textContent = 'Food: ' + Math.floor(player.food);
   document.getElementById('hpBar').style.width = clamp(player.hp / player.maxHp, 0, 1) * 100 + '%';
   document.getElementById('hungerBar').style.width = clamp(player.hunger / player.maxHunger, 0, 1) * 100 + '%';
@@ -1615,6 +1959,31 @@ function drawOverlay() {
 }
 
 // ===================== MAIN LOOP =====================
+// ===================== COMPANION (rescued survivor) =====================
+const COMPANION_SPOT = { x: -1.6, z: 1.2 };
+function updateSurvivor(ndt) {
+  if (!survivor || survivor.state === 'trapped') return;
+  const targetX = survivor.state === 'atBase' ? COMPANION_SPOT.x : player.x - Math.sin(player.angle) * 1.2;
+  const targetZ = survivor.state === 'atBase' ? COMPANION_SPOT.z : player.z - Math.cos(player.angle) * 1.2;
+  const dx = targetX - survivor.x, dz = targetZ - survivor.z, d = Math.hypot(dx, dz);
+  if (d > 0.2) {
+    const spd = 0.09 * ndt;
+    survivor.x += dx / d * Math.min(spd, d);
+    survivor.z += dz / d * Math.min(spd, d);
+    survivor.angle = Math.atan2(dx, dz);
+  }
+  if (survivor.state === 'following' && dist2D(survivor.x, survivor.z, 0, 0) < 4) {
+    survivor.state = 'atBase';
+    player.gatherYieldMult = 1.2;
+  }
+}
+function syncSurvivor() {
+  if (!survivor) return;
+  survivor.mesh.position.set(survivor.x, 0, survivor.z);
+  if (survivor.state !== 'trapped') survivor.mesh.rotation.y = survivor.angle || 0;
+  if (survivor.mesh.userData.distressGlow) survivor.mesh.userData.distressGlow.visible = survivor.state === 'trapped';
+}
+
 function update(dtMs, ndt) {
   frameCount += ndt;
   if (gameState === 'INTRO') { updateIntro(dtMs); }
@@ -1623,10 +1992,12 @@ function update(dtMs, ndt) {
     updateResourceRespawns(ndt);
     updateProjectiles(ndt);
     updateMonsters(ndt);
+    updateSurvivor(ndt);
     updateCampfire(ndt);
     updateCycle(ndt);
     updatePlacementGhost();
     updateContextPrompt();
+    updateQuests();
     if (campfireFuel <= 0 && dayNightPhase === 'night') {
       // unlit at night: extra danger, small periodic chip damage
       if (Math.random() < 0.002 * ndt) { player.hp = Math.max(0, player.hp - 2); if (player.hp <= 0) triggerGameOver('The dark took you when the fire died.'); }
@@ -1638,6 +2009,7 @@ function update(dtMs, ndt) {
 function sync3D() {
   syncPlayerMesh();
   syncMonsters();
+  syncSurvivor();
   syncProjectiles();
   syncCampfire();
   updateSkyAndLight();
@@ -1677,17 +2049,27 @@ window.__lp = {
   get trees() { return trees.map(t => ({ x: t.x, z: t.z, kind: t.kind, alive: t.alive, hp: t.hp })); },
   get rocks() { return rocks.map(r => ({ x: r.x, z: r.z, alive: r.alive, hp: r.hp })); },
   get bushes() { return bushes.map(b => ({ x: b.x, z: b.z, alive: b.alive })); },
+  get ores() { return ores.map(o => ({ x: o.x, z: o.z, alive: o.alive, hp: o.hp })); },
+  get chests() { return chests.map(c => ({ x: c.x, z: c.z, alive: c.alive })); },
+  get survivor() { return survivor ? { x: survivor.x, z: survivor.z, state: survivor.state } : null; },
   get walls() { return walls.map(w => ({ x: w.x, z: w.z, hp: w.hp, tier: w.tier })); },
+  get quests() { return QUESTS.map(q => ({ id: q.id, done: player.questsCompleted.includes(q.id) })); },
   get fuel() { return campfireFuel; },
   get night() { return currentNight; },
   get phaseTimer() { return phaseTimer; },
   get lastLoopError() { return window.__lpLastError || null; },
-  giveResources: (w, s, f) => { player.wood += w || 0; player.stone += s || 0; player.food += f || 0; },
+  get nearestInteractable() { const n = nearestInteractable(); return n ? { type: n.type, x: n.obj.x, z: n.obj.z } : null; },
+  get attackCooldown() { return player.attackCooldown; },
+  useActionOnce: () => useAction(),
+  giveResources: (w, s, f, o) => { player.wood += w || 0; player.stone += s || 0; player.food += f || 0; player.ore += o || 0; },
   forceNight: n => { currentNight = n; },
   forcePhase: (phase, t) => { dayNightPhase = phase; phaseTimer = t !== undefined ? t : (phase === 'day' ? DAY_LEN : NIGHT_LEN); if (phase === 'night') spawnMonsterWave(); },
   killAllMonsters: () => { monsters.forEach(m => m.alive = false); },
   setFuel: v => { campfireFuel = v; },
   teleport: (x, z) => { player.x = x; player.z = z; },
+  freeSurvivor: () => { if (survivor) rescueSurvivor(survivor); },
+  teleportSurvivor: (x, z) => { if (survivor) { survivor.x = x; survivor.z = z; } },
+  lookAt: (x, z) => { const dx = x - player.x, dz = z - player.z; player.angle = Math.atan2(dx, dz); camYaw = player.angle; },
   setNight99AtDawn: () => { currentNight = 99; },
 };
 </script>
