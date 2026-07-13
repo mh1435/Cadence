@@ -47,7 +47,8 @@
     margin-bottom: 6px; text-shadow: 0 0 24px rgba(139,0,0,0.8);
     animation: titlePulse 3.6s ease-in-out infinite;
   }
-  .subtitle { color: #c0a0ff; margin-bottom: 34px; letter-spacing: 2px; font-size: 13px; }
+  .subtitle { color: #c0a0ff; margin-bottom: 14px; letter-spacing: 2px; font-size: 13px; }
+  .storyLine { color: #9a92b0; font-size: 12px; line-height: 1.7; margin-bottom: 26px; font-style: italic; }
   #bootError { display: none; color: #ff7766; font-size: 13px; margin-bottom: 18px; max-width: 420px; line-height: 1.5; }
 
   button {
@@ -100,17 +101,30 @@
   .resLine { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
   .resDot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
   .resWood { background: #a9743f; } .resStone { background: #9aa0ab; } .resFood { background: #6bc24a; } .resOre { background: #d4a83a; }
-  #hudBars { top: 10px; left: 190px; width: 210px; }
+  #hudBars { bottom: 64px; left: 10px; width: 210px; }
   .barRow { margin-bottom: 5px; }
   .barLabel { font-size: 9px; letter-spacing: 1px; color: #9a92b0; margin-bottom: 2px; }
   .barOuter { height: 9px; background: #1a1622; border: 1px solid #33304a; }
   .barInner { height: 100%; }
-  #hudNight { top: 10px; right: 10px; width: 160px; text-align: center; }
-  #hudNight .nightNum { color: #c0a0ff; font-weight: bold; font-size: 15px; letter-spacing: 1px; }
+  #hudNight { top: 10px; left: 50%; transform: translateX(-50%); width: 190px; text-align: center; }
+  #hudNight .nightNum { color: #c0a0ff; font-weight: bold; font-size: 18px; letter-spacing: 2px; }
   #hudNight .phaseLabel { font-size: 10px; letter-spacing: 2px; margin-top: 2px; }
+  #hudKids { top: 10px; right: 10px; width: 130px; text-align: center; font-size: 11px; color: #ffe08a; }
   #hudTimer { margin-top: 5px; height: 5px; background: #1a1622; border: 1px solid #33304a; }
   #hudTimerFill { height: 100%; background: #c0a0ff; }
-  #hudTool { bottom: 10px; left: 10px; width: 168px; }
+  /* bottom-center tool hotbar */
+  #hotbar {
+    position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 5px; pointer-events: auto;
+  }
+  .hotSlot {
+    width: 52px; height: 52px; border: 2px solid #33304a; background: rgba(8,6,14,0.72);
+    color: #b9a8d9; font-size: 8.5px; line-height: 1.25; text-align: center;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    cursor: pointer; padding: 2px; position: relative;
+  }
+  .hotSlot .slotNum { position: absolute; top: 1px; left: 4px; font-size: 8px; color: #6a6486; }
+  .hotSlot.active { border-color: #ffd27f; color: #ffe6b0; background: rgba(40,28,10,0.8); }
   #hudPrompt {
     position: absolute; bottom: 74px; left: 50%; transform: translateX(-50%);
     background: rgba(8,6,14,0.78); border: 1px solid #6a4aa0; padding: 6px 14px; font-size: 12px;
@@ -205,7 +219,8 @@
       <div class="phaseLabel" id="phaseLabelTxt">DAY</div>
       <div id="hudTimer"><div id="hudTimerFill" style="width:100%"></div></div>
     </div>
-    <div id="hudTool" class="hudPanel">Tool: <span id="toolTxt">Bare Hands</span></div>
+    <div id="hudKids" class="hudPanel">Children: <span id="kidsTxt">0 / 4</span></div>
+    <div id="hotbar"></div>
     <div id="hudPrompt"></div>
     <div id="hudControlsHint"></div>
   </div>
@@ -230,6 +245,7 @@
     <div class="panel">
       <h1 class="title">LAST PACT</h1>
       <div class="subtitle">SURVIVE 99 NIGHTS IN THE FOREST</div>
+      <div class="storyLine">Four children are lost somewhere in these woods.<br>Keep the fire burning. Push back the fog. Bring them all home.</div>
       <div id="bootError">Couldn't load the 3D engine. Check your internet connection and reload the page.</div>
       <button onclick="startGame()">[ START ]</button>
     </div>
@@ -310,12 +326,20 @@ function mulberry32(seed) {
 }
 
 // ===================== WORLD CONSTANTS =====================
-const WORLD_RADIUS = 32;      // playable radius from origin
+const WORLD_RADIUS = 32;      // full world radius (all content is placed within this)
 const BOUNDARY_RADIUS = 34;   // visual cliff ring
+// the explorable area grows as the camp workshop is upgraded; a wall of
+// dark fog marks the current edge and recedes with each level
+const WORLD_RADII_BY_CAMP = [16, 22, 27, 32];
+function currentWorldRadius() {
+  const lvl = (player && player.workshopLevel) || 1;
+  return WORLD_RADII_BY_CAMP[clamp(lvl, 1, 4) - 1];
+}
 const DAY_LEN = 75;           // seconds
 const NIGHT_LEN = 65;         // seconds
-const INTERACT_RANGE = 1.55;
+const INTERACT_RANGE = 1.7;
 const CAMPFIRE_RANGE = 2.2;
+const EYE_HEIGHT = 0.95;      // first-person camera height
 
 // ===================== PROCEDURAL AUDIO =====================
 let audioCtx = null;
@@ -364,6 +388,7 @@ function sfxChest() { tone('sine', 620, 620, 0.09, 0.09); tone('sine', 930, 930,
 function sfxRescue() { tone('sine', 440, 660, 0.3, 0.09); tone('sine', 660, 880, 0.35, 0.08, 0.15); }
 function sfxQuestDone() { tone('sine', 500, 700, 0.14, 0.08); tone('sine', 750, 900, 0.16, 0.07, 0.1); }
 function sfxHunt() { tone('square', 380, 140, 0.08, 0.07); noiseBurst(0.06, 0.05, 1800); }
+function sfxPickup() { tone('sine', 660, 880, 0.07, 0.06); }
 function sfxHit() { tone('square', 240, 90, 0.09, 0.1); }
 function sfxKill() { tone('sawtooth', 320, 55, 0.2, 0.1); noiseBurst(0.14, 0.08, 1400); }
 function sfxPlayerHurt() { tone('sawtooth', 200, 70, 0.18, 0.13); }
@@ -524,6 +549,23 @@ scene.add(clearingMesh);
     ringGroup.add(seg);
   }
   scene.add(ringGroup);
+}
+
+// wall of dark fog at the current explorable edge; recedes on camp upgrades
+const fogWall = new THREE.Mesh(
+  new THREE.CylinderGeometry(1, 1, 6, 48, 1, true),
+  new THREE.MeshBasicMaterial({ color: 0x0a0a16, transparent: true, opacity: 0.62, side: THREE.DoubleSide, depthWrite: false, fog: false })
+);
+fogWall.position.y = 3;
+scene.add(fogWall);
+let fogWallRadius = WORLD_RADII_BY_CAMP[0];
+function syncFogWall(ndt) {
+  const target = currentWorldRadius();
+  fogWallRadius += (target - fogWallRadius) * (1 - Math.pow(0.97, ndt));
+  fogWall.scale.set(fogWallRadius, 1, fogWallRadius);
+  const maxed = target >= WORLD_RADII_BY_CAMP[3] && Math.abs(fogWallRadius - target) < 0.5;
+  fogWall.visible = (gameState === 'PLAYING') && !maxed;
+  fogWall.material.opacity = 0.5 + Math.sin(frameCount * 0.03) * 0.1;
 }
 
 // stars (visible at night)
@@ -867,9 +909,10 @@ function makeChestMesh() {
   return shadowify(g, true, false);
 }
 
-// Survivor NPC (rescue quest) — a tied-up figure with a distress glow
-function makeSurvivorMesh() {
-  const g = makeHumanoid({ body: 0xe0782c, head: 0xe8b98a, limbs: 0x4a4a56, eyes: 0x2a2018, scale: 1 });
+// Lost child NPC (rescue story) — small figure with a distress glow,
+// each kid wears a different bright shirt color
+function makeKidMesh(shirtHex) {
+  const g = makeHumanoid({ body: shirtHex, head: 0xe8b98a, limbs: 0x4a4a56, eyes: 0x2a2018, scale: 0.72 });
   const glow = makeGlowSprite(0xffe08a, 1, 0.35);
   glow.position.y = 1.3;
   g.add(glow);
@@ -965,12 +1008,12 @@ function makeWallMesh(tier) {
 
 // ===================== GAME DATA =====================
 const TREE_DEFS = {
-  normal: { hpMax: 3, woodPerHit: 2, respawn: 55, builder: makeBroadleaf, label: 'Tree' },
-  hardwood: { hpMax: 5, woodPerHit: 3, respawn: 85, builder: makeConifer, label: 'Hardwood Tree' },
-  ancient: { hpMax: 8, woodPerHit: 4, respawn: 140, builder: makeAncientTree, label: 'Ancient Tree' },
+  normal: { hpMax: 3, woodYield: 6, respawn: 55, builder: makeBroadleaf, label: 'Tree' },
+  hardwood: { hpMax: 5, woodYield: 10, respawn: 85, builder: makeConifer, label: 'Hardwood Tree' },
+  ancient: { hpMax: 8, woodYield: 16, respawn: 140, builder: makeAncientTree, label: 'Ancient Tree' },
 };
-const ROCK_DEF = { hpMax: 4, stonePerHit: 2, respawn: 95 };
-const ORE_DEF = { hpMax: 6, orePerHit: 2, respawn: 150 };
+const ROCK_DEF = { hpMax: 4, stoneYield: 8, respawn: 95 };
+const ORE_DEF = { hpMax: 6, oreYield: 8, respawn: 150 };
 const BUSH_DEF = { foodPerForage: 4, respawn: 42 };
 
 const TOOLS = {
@@ -1016,7 +1059,8 @@ const QUESTS = [
   { id: 'buildWall', label: 'Build your first wall', check: () => walls.length >= 1, reward: { stone: 10 } },
   { id: 'openChest', label: 'Open a loot chest', check: () => player.chestsOpened >= 1, reward: { wood: 10, stone: 10 } },
   { id: 'huntBunny', label: 'Hunt a bunny for food', check: () => player.bunniesHunted >= 1, reward: { food: 10 } },
-  { id: 'rescueSurvivor', label: 'Free the trapped survivor', check: () => survivor && survivor.state !== 'trapped', reward: { food: 15, wood: 15 } },
+  { id: 'rescueKid1', label: 'Find your first lost child', check: () => lostKids.some(k => k.state !== 'trapped'), reward: { food: 15, wood: 15 } },
+  { id: 'allKidsHome', label: 'Bring all four children back to camp', check: () => lostKids.length === 4 && lostKids.every(k => k.state === 'atBase'), reward: { wood: 50, stone: 50, food: 30, ore: 20 } },
   { id: 'mineOre1', label: 'Mine your first ore', check: () => player.oreMined >= 1, reward: { ore: 5 } },
   { id: 'surviveNight10', label: 'Survive to Night 10', check: () => currentNight >= 10, reward: { wood: 20, stone: 20 } },
   { id: 'defeatStag', label: 'Defeat a Stag', check: () => (player.stagKills || 0) >= 1, reward: { food: 20 } },
@@ -1033,8 +1077,8 @@ let gameState = 'MENU';
 let frameCount = 0, lastTime = 0;
 let currentNight = 1, dayNightPhase = 'day', phaseTimer = DAY_LEN, cycleAngle = 0.25;
 let introTimer = 0, introText = '';
-let player, trees, bushes, rocks, ores, chests, walls, monsters, critters, floatingNumbers;
-let survivor = null;
+let player, trees, bushes, rocks, ores, chests, walls, monsters, critters, drops, floatingNumbers;
+let lostKids = [];
 let campfireFuel = 100;
 let craftOpen = false, buildMode = false, selectedWallKey = null;
 let nightsSurvivedFully = 0;
@@ -1051,12 +1095,12 @@ function resetState() {
   killCount = 0;
 
   player = {
-    x: 2.2, z: 3.2, angle: Math.PI, hp: 100, maxHp: 100, hunger: 100, maxHunger: 100,
+    x: 2.2, z: 3.2, angle: Math.PI, pitch: 0, hp: 100, maxHp: 100, hunger: 100, maxHunger: 100,
     wood: 0, stone: 0, food: 2, ore: 0,
     tool: 'fists', ownedTools: ['fists'],
     wallKits: { basic: 0, reinforced: 0, great: 0, iron: 0 },
     workshopLevel: 1,
-    gatherYieldMult: 1,
+    gatherYieldMult: 1, fuelEff: 1, campRegen: 0, speedMult: 1,
     swingT: 0, attackCooldown: 0, moving: false, walkPhase: 0,
     treesChopped: 0, rocksMined: 0, oreMined: 0, berriesForaged: 0, chestsOpened: 0, stagKills: 0, bunniesHunted: 0,
     questsCompleted: [],
@@ -1065,7 +1109,8 @@ function resetState() {
   floatingNumbers = [];
   monsters = [];
   critters = [];
-  survivor = null;
+  drops = [];
+  lostKids = [];
   clearFX();
   closeCraft();
   closeQuestLog();
@@ -1097,10 +1142,27 @@ window.addEventListener('keydown', e => {
     if (e.key === 'b' || e.key === 'B') setBuildMode(!buildMode);
     if (e.key === 'f' || e.key === 'F') tryRefuelCampfire();
     if (e.key === 'q' || e.key === 'Q') toggleQuestLog();
+    if (e.key >= '1' && e.key <= '9') window.equipToolSlot(parseInt(e.key, 10) - 1);
     if (e.key === 'Escape') { closeCraft(); closeQuestLog(); setBuildMode(false); }
   }
 });
 window.addEventListener('keyup', e => { keys[e.key] = false; });
+
+// ===================== MOUSE LOOK (pointer lock) =====================
+canvas.addEventListener('click', () => {
+  if (gameState !== 'PLAYING' || craftOpen || questLogOpen) return;
+  if (document.pointerLockElement !== canvas && canvas.requestPointerLock) {
+    canvas.requestPointerLock();
+  }
+});
+document.addEventListener('mousemove', e => {
+  if (document.pointerLockElement !== canvas || gameState !== 'PLAYING') return;
+  player.angle -= e.movementX * 0.0032;
+  player.pitch = clamp(player.pitch - e.movementY * 0.0028, -1.15, 1.15);
+});
+function releasePointerLock() {
+  if (document.pointerLockElement && document.exitPointerLock) document.exitPointerLock();
+}
 
 const isTouchDevice = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
 if (isTouchDevice) document.body.classList.add('touch-active');
@@ -1183,23 +1245,46 @@ function makeTorch() {
   scene.add(t);
 });
 const playerMesh = makePlayerMesh(); scene.add(playerMesh);
-{
-  const lantern = new THREE.PointLight(0xffc880, 1.4, 3, 1.6);
-  lantern.position.set(0, 1.1, 0.25);
-  playerMesh.add(lantern);
-}
+
+// personal lantern glow that follows the player position (kept at scene
+// level so it still works while the body mesh is hidden in first person)
+const playerLantern = new THREE.PointLight(0xffc880, 1.4, 3, 1.6);
+scene.add(playerLantern);
+
+// first-person weapon viewmodel — a copy of the equipped tool attached to
+// the camera, bottom-right, swinging forward when the player attacks
+scene.add(camera);
+const viewmodel = new THREE.Group();
+viewmodel.position.set(0.32, -0.28, -0.55);
+viewmodel.rotation.set(0.35, -0.35, 0);
+camera.add(viewmodel);
 
 function syncPlayerWeapon() {
   const key = player.tool;
-  if (playerMesh.userData.weaponKey === key) return;
-  playerMesh.userData.weaponKey = key;
-  const arm = playerMesh.userData.anim.armR;
-  if (playerMesh.userData.weaponMesh) arm.remove(playerMesh.userData.weaponMesh);
-  const w = makeWeaponMesh(key);
-  w.position.set(0.02, -0.26, 0.06);
-  w.rotation.x = -0.55;
-  arm.add(w);
-  playerMesh.userData.weaponMesh = w;
+  if (playerMesh.userData.weaponKey !== key) {
+    playerMesh.userData.weaponKey = key;
+    const arm = playerMesh.userData.anim.armR;
+    if (playerMesh.userData.weaponMesh) arm.remove(playerMesh.userData.weaponMesh);
+    const w = makeWeaponMesh(key);
+    w.position.set(0.02, -0.26, 0.06);
+    w.rotation.x = -0.55;
+    arm.add(w);
+    playerMesh.userData.weaponMesh = w;
+  }
+  if (viewmodel.userData.weaponKey !== key) {
+    viewmodel.userData.weaponKey = key;
+    viewmodel.clear();
+    const vm = makeWeaponMesh(key);
+    vm.scale.setScalar(1.15);
+    vm.rotation.x = 0.9; // held pointing up-forward in view
+    viewmodel.add(vm);
+  }
+  // swing animation: thrust forward and dip while swingT winds down
+  const t = player.swingT > 0 ? Math.sin((1 - player.swingT / 12) * Math.PI) : 0;
+  viewmodel.position.set(0.32 - t * 0.12, -0.28 - t * 0.05, -0.55 - t * 0.3);
+  viewmodel.rotation.set(0.35 - t * 0.9, -0.35, 0);
+  const bobv = player.moving ? Math.sin(player.walkPhase) * 0.012 : 0;
+  viewmodel.position.y += bobv;
 }
 
 const SCENERY_BUILDERS = [makeFern, makeMushroomCluster, makeFallenLog, makeFlowerPatch];
@@ -1272,11 +1357,22 @@ function generateWorld() {
     chests.push({ x: p.x, z: p.z, alive: true, mesh: meshObj });
   }
 
-  const sp = randomRingPoint(12, WORLD_RADIUS - 4);
-  const survivorMesh = makeSurvivorMesh();
-  survivorMesh.position.set(sp.x, 0, sp.z);
-  worldGroup.add(survivorMesh);
-  survivor = { x: sp.x, z: sp.z, state: 'trapped', mesh: survivorMesh };
+  // four lost children, each hidden deeper into the forest than the last —
+  // reaching the later ones requires upgrading the camp to push the fog back
+  const KID_SPECS = [
+    { radius: 13, shirt: 0xe6c229, bonus: 'yield' },   // yellow — +15% gather yield
+    { radius: 19.5, shirt: 0xd94f4f, bonus: 'fuel' },  // red — campfire burns slower
+    { radius: 24.5, shirt: 0x3fbfb0, bonus: 'regen' }, // teal — heal near the campfire
+    { radius: 29, shirt: 0xa065d9, bonus: 'speed' },   // purple — move faster
+  ];
+  KID_SPECS.forEach((spec, i) => {
+    const a = rng() * Math.PI * 2;
+    const kx = Math.cos(a) * spec.radius, kz = Math.sin(a) * spec.radius;
+    const kidMesh = makeKidMesh(spec.shirt);
+    kidMesh.position.set(kx, 0, kz);
+    worldGroup.add(kidMesh);
+    lostKids.push({ x: kx, z: kz, state: 'trapped', bonus: spec.bonus, seatIndex: i, mesh: kidMesh });
+  });
 
   for (let i = 0; i < 7; i++) {
     const p = randomRingPoint(3, WORLD_RADIUS - 3);
@@ -1365,18 +1461,27 @@ function updateFX(ndt) {
 function dist2D(ax, az, bx, bz) { return Math.hypot(ax - bx, az - bz); }
 function spawnFloat(x, z, h, text, color) { floatingNumbers.push({ x, z, h, text, color, alpha: 1 }); }
 
+// first-person aiming: a target counts only if it's roughly in front of
+// the player (wide ~160° cone so close-range interaction stays forgiving)
+function isFacing(tx, tz) {
+  const dx = tx - player.x, dz = tz - player.z;
+  const d = Math.hypot(dx, dz);
+  if (d < 0.45) return true; // touching it — always allowed
+  return (dx / d) * Math.sin(player.angle) + (dz / d) * Math.cos(player.angle) > 0.15;
+}
 function nearestInteractable() {
   let best = null, bestD = INTERACT_RANGE;
-  for (const t of trees) { if (!t.alive) continue; const d = dist2D(player.x, player.z, t.x, t.z); if (d < bestD) { bestD = d; best = { type: 'tree', obj: t }; } }
-  for (const r of rocks) { if (!r.alive) continue; const d = dist2D(player.x, player.z, r.x, r.z); if (d < bestD) { bestD = d; best = { type: 'rock', obj: r }; } }
-  for (const o of ores) { if (!o.alive) continue; const d = dist2D(player.x, player.z, o.x, o.z); if (d < bestD) { bestD = d; best = { type: 'ore', obj: o }; } }
-  for (const b of bushes) { if (!b.alive) continue; const d = dist2D(player.x, player.z, b.x, b.z); if (d < bestD) { bestD = d; best = { type: 'bush', obj: b }; } }
-  for (const c of chests) { if (!c.alive) continue; const d = dist2D(player.x, player.z, c.x, c.z); if (d < bestD) { bestD = d; best = { type: 'chest', obj: c }; } }
-  if (survivor && survivor.state === 'trapped') {
-    const d = dist2D(player.x, player.z, survivor.x, survivor.z);
-    if (d < bestD) { bestD = d; best = { type: 'survivor', obj: survivor }; }
+  function consider(type, obj, ox, oz) {
+    const d = dist2D(player.x, player.z, ox, oz);
+    if (d < bestD && isFacing(ox, oz)) { bestD = d; best = { type, obj }; }
   }
-  for (const c of critters) { if (!c.alive) continue; const d = dist2D(player.x, player.z, c.x, c.z); if (d < bestD) { bestD = d; best = { type: 'critter', obj: c }; } }
+  for (const t of trees) if (t.alive) consider('tree', t, t.x, t.z);
+  for (const r of rocks) if (r.alive) consider('rock', r, r.x, r.z);
+  for (const o of ores) if (o.alive) consider('ore', o, o.x, o.z);
+  for (const b of bushes) if (b.alive) consider('bush', b, b.x, b.z);
+  for (const c of chests) if (c.alive) consider('chest', c, c.x, c.z);
+  for (const k of lostKids) if (k.state === 'trapped') consider('kid', k, k.x, k.z);
+  for (const c of critters) if (c.alive) consider('critter', c, c.x, c.z);
   return best;
 }
 function nearestMonster(range) {
@@ -1385,20 +1490,79 @@ function nearestMonster(range) {
   return best;
 }
 
+// ===================== PHYSICAL DROPS =====================
+// breaking a node scatters pickup items on the ground; they magnet to the
+// player when close. Total yield is fixed per node — a better tool just
+// breaks the node in fewer swings.
+const DROP_COLORS = { wood: 0xc99a5a, stone: 0xc8ccd4, ore: 0xe0b84a, food: 0x7fd44a };
+function makeDropMesh(kind) {
+  const g = new THREE.Group();
+  if (kind === 'wood') {
+    const log = mesh(geoCyl(0.05, 0.055, 0.26, 6), matL(0x8a5f34), 0, 0.06, 0);
+    log.rotation.z = Math.PI / 2;
+    g.add(log);
+  } else if (kind === 'stone') {
+    g.add(mesh(cachedGeo('dropRock', () => new THREE.DodecahedronGeometry(0.09, 0)), matL(0x9aa0ab), 0, 0.07, 0));
+  } else if (kind === 'ore') {
+    g.add(mesh(cachedGeo('dropRock', () => new THREE.DodecahedronGeometry(0.09, 0)), matL(0x6b6b76), 0, 0.07, 0));
+    g.add(mesh(geoOct(0.035), matB(0xd4a83a), 0.03, 0.11, 0.02));
+  } else {
+    g.add(mesh(geoSphere(0.07, 8), matL(0xd23434), 0, 0.07, 0));
+  }
+  const glow = makeGlowSprite(DROP_COLORS[kind] || 0xffffff, 0.34, 0.3);
+  glow.position.y = 0.1;
+  g.add(glow);
+  return shadowify(g, true, false);
+}
+function spawnDrops(x, z, kind, total) {
+  const pieces = clamp(Math.round(total / 2), 1, 4);
+  const base = Math.floor(total / pieces);
+  let rem = total - base * pieces;
+  for (let i = 0; i < pieces; i++) {
+    const a = Math.random() * Math.PI * 2, r = 0.3 + Math.random() * 0.55;
+    const m = makeDropMesh(kind);
+    const dx = x + Math.cos(a) * r, dz = z + Math.sin(a) * r;
+    m.position.set(dx, 0, dz);
+    m.rotation.y = Math.random() * Math.PI * 2;
+    worldGroup.add(m);
+    drops.push({ x: dx, z: dz, kind, amount: base + (rem-- > 0 ? 1 : 0), mesh: m, bobPhase: Math.random() * Math.PI * 2 });
+  }
+}
+function updateDrops(ndt) {
+  for (let i = drops.length - 1; i >= 0; i--) {
+    const d = drops[i];
+    d.bobPhase += 0.08 * ndt;
+    const dist = dist2D(d.x, d.z, player.x, player.z);
+    if (dist < 1.1) {
+      // magnet toward the player, collect on contact
+      const pull = 0.09 * ndt;
+      d.x += (player.x - d.x) / (dist || 1) * pull;
+      d.z += (player.z - d.z) / (dist || 1) * pull;
+      if (dist < 0.4) {
+        player[d.kind] += d.amount;
+        sfxPickup();
+        spawnFloat(player.x, player.z, 1.1, '+' + d.amount + ' ' + d.kind, '#' + DROP_COLORS[d.kind].toString(16).padStart(6, '0'));
+        worldGroup.remove(d.mesh);
+        drops.splice(i, 1);
+        continue;
+      }
+    }
+    d.mesh.position.set(d.x, Math.abs(Math.sin(d.bobPhase)) * 0.05, d.z);
+    d.mesh.rotation.y += 0.02 * ndt;
+  }
+}
+
 function chopTree(t) {
   const tool = TOOLS[player.tool];
   t.hp -= tool.gather;
-  const iso = new THREE.Vector3(t.x, 0.7, t.z);
-  spawnSparks(iso, 0xa9743f, 5);
+  spawnSparks(new THREE.Vector3(t.x, 0.7, t.z), 0xa9743f, 5);
   sfxChop();
-  const gain = Math.round(TREE_DEFS[t.kind].woodPerHit * player.gatherYieldMult);
-  player.wood += gain;
-  spawnFloat(t.x, t.z, 0.9, '+' + gain, '#c99a5a');
-  player.treesChopped++;
   if (t.hp <= 0) {
     sfxTreeFall();
     t.alive = false; t.mesh.visible = false;
     t.respawnT = TREE_DEFS[t.kind].respawn;
+    spawnDrops(t.x, t.z, 'wood', Math.round(TREE_DEFS[t.kind].woodYield * player.gatherYieldMult));
+    player.treesChopped++;
   }
 }
 function mineRock(r) {
@@ -1406,22 +1570,22 @@ function mineRock(r) {
   r.hp -= tool.gather;
   spawnSparks(new THREE.Vector3(r.x, 0.3, r.z), 0x9aa0ab, 5);
   sfxMine();
-  const gain = Math.round(ROCK_DEF.stonePerHit * player.gatherYieldMult);
-  player.stone += gain;
-  spawnFloat(r.x, r.z, 0.5, '+' + gain, '#c8ccd4');
-  player.rocksMined++;
-  if (r.hp <= 0) { r.alive = false; r.mesh.visible = false; r.respawnT = ROCK_DEF.respawn; }
+  if (r.hp <= 0) {
+    r.alive = false; r.mesh.visible = false; r.respawnT = ROCK_DEF.respawn;
+    spawnDrops(r.x, r.z, 'stone', Math.round(ROCK_DEF.stoneYield * player.gatherYieldMult));
+    player.rocksMined++;
+  }
 }
 function mineOre(o) {
   const tool = TOOLS[player.tool];
   o.hp -= tool.gather;
   spawnSparks(new THREE.Vector3(o.x, 0.3, o.z), 0xd4a83a, 6);
   sfxMine();
-  const gain = Math.round(ORE_DEF.orePerHit * player.gatherYieldMult);
-  player.ore += gain;
-  spawnFloat(o.x, o.z, 0.5, '+' + gain, '#e0b84a');
-  player.oreMined++;
-  if (o.hp <= 0) { o.alive = false; o.mesh.visible = false; o.respawnT = ORE_DEF.respawn; }
+  if (o.hp <= 0) {
+    o.alive = false; o.mesh.visible = false; o.respawnT = ORE_DEF.respawn;
+    spawnDrops(o.x, o.z, 'ore', Math.round(ORE_DEF.oreYield * player.gatherYieldMult));
+    player.oreMined++;
+  }
 }
 function forageBush(b) {
   b.alive = false; b.mesh.visible = false; b.respawnT = BUSH_DEF.respawn;
@@ -1441,10 +1605,12 @@ function openChest(c) {
   spawnSparks(new THREE.Vector3(c.x, 0.3, c.z), 0xffd700, 10, { spread: 0.09 });
   player.chestsOpened++;
 }
-function rescueSurvivor(s) {
-  s.state = 'following';
-  spawnFloat(s.x, s.z, 1.5, 'Rescued!', '#ffe08a');
+function rescueKid(k) {
+  k.state = 'following';
+  spawnFloat(k.x, k.z, 1.5, 'Rescued!', '#ffe08a');
   sfxRescue();
+  const homeCount = lostKids.filter(kk => kk.state !== 'trapped').length;
+  showHudPrompt(`Child found! (${homeCount}/4) — lead them back to camp.`);
 }
 function updateResourceRespawns(ndt) {
   const dtSec = ndt / 60;
@@ -1459,10 +1625,8 @@ function updateResourceRespawns(ndt) {
 const BUNNY_DEF = { foodReward: 6, respawn: 70, fleeRange: 3.2, wanderSpeed: 0.012, fleeSpeed: 0.06 };
 function huntCritter(c) {
   c.alive = false; c.mesh.visible = false; c.respawnT = BUNNY_DEF.respawn;
-  const gain = Math.round(BUNNY_DEF.foodReward * player.gatherYieldMult);
-  player.food += gain;
   sfxHunt();
-  spawnFloat(c.x, c.z, 0.3, '+' + gain, '#7fd44a');
+  spawnDrops(c.x, c.z, 'food', Math.round(BUNNY_DEF.foodReward * player.gatherYieldMult));
   player.bunniesHunted++;
 }
 function updateCritters(ndt) {
@@ -1484,7 +1648,8 @@ function updateCritters(ndt) {
       c.angle = c.wanderAngle;
     }
     const r = Math.hypot(c.x, c.z);
-    if (r > WORLD_RADIUS - 1) { c.x *= (WORLD_RADIUS - 1) / r; c.z *= (WORLD_RADIUS - 1) / r; }
+    const edge = currentWorldRadius() - 1;
+    if (r > edge) { c.x *= edge / r; c.z *= edge / r; }
   });
 }
 function syncCritters() {
@@ -1517,7 +1682,7 @@ function useAction() {
   else if (target.type === 'ore') mineOre(target.obj);
   else if (target.type === 'bush') forageBush(target.obj);
   else if (target.type === 'chest') openChest(target.obj);
-  else if (target.type === 'survivor') rescueSurvivor(target.obj);
+  else if (target.type === 'kid') rescueKid(target.obj);
   else if (target.type === 'critter') huntCritter(target.obj);
 }
 
@@ -1585,7 +1750,7 @@ function spawnMonsterWave() {
   for (let i = 0; i < walkerCount; i++) {
     const a = rng() * Math.PI * 2;
     monsters.push({
-      kind: 'walker', x: Math.cos(a) * (WORLD_RADIUS - 1), z: Math.sin(a) * (WORLD_RADIUS - 1),
+      kind: 'walker', x: Math.cos(a) * (currentWorldRadius() - 1), z: Math.sin(a) * (currentWorldRadius() - 1),
       hp: 2, maxHp: 2, speed: 0.028 + rng() * 0.01, atkCd: 0, atkCdMax: 45, dmg: 6 + Math.floor(currentNight / 8),
       alive: true, phase: rng() * Math.PI * 2, walkPhase: 0,
     });
@@ -1593,7 +1758,7 @@ function spawnMonsterWave() {
   if (currentNight >= 3) {
     const a = rng() * Math.PI * 2;
     monsters.push({
-      kind: 'stag', x: Math.cos(a) * (WORLD_RADIUS - 1), z: Math.sin(a) * (WORLD_RADIUS - 1),
+      kind: 'stag', x: Math.cos(a) * (currentWorldRadius() - 1), z: Math.sin(a) * (currentWorldRadius() - 1),
       hp: 10 + Math.floor(currentNight / 3), maxHp: 10 + Math.floor(currentNight / 3),
       speed: 0.05, atkCd: 0, atkCdMax: 55, dmg: 16 + Math.floor(currentNight / 6),
       alive: true, phase: 0, legPhase: 0,
@@ -1605,7 +1770,7 @@ function spawnMonsterWave() {
     for (let i = 0; i < packSize; i++) {
       const a = packAngle + (rng() - 0.5) * 0.6;
       monsters.push({
-        kind: 'wolf', x: Math.cos(a) * (WORLD_RADIUS - 1), z: Math.sin(a) * (WORLD_RADIUS - 1),
+        kind: 'wolf', x: Math.cos(a) * (currentWorldRadius() - 1), z: Math.sin(a) * (currentWorldRadius() - 1),
         hp: 3, maxHp: 3, speed: 0.07 + rng() * 0.015, atkCd: 0, atkCdMax: 35, dmg: 5 + Math.floor(currentNight / 10),
         alive: true, phase: rng() * Math.PI * 2, walkPhase: 0,
       });
@@ -1614,7 +1779,7 @@ function spawnMonsterWave() {
   if (currentNight >= 10) {
     const a = rng() * Math.PI * 2;
     monsters.push({
-      kind: 'bear', x: Math.cos(a) * (WORLD_RADIUS - 1), z: Math.sin(a) * (WORLD_RADIUS - 1),
+      kind: 'bear', x: Math.cos(a) * (currentWorldRadius() - 1), z: Math.sin(a) * (currentWorldRadius() - 1),
       hp: 16 + Math.floor(currentNight / 2.5), maxHp: 16 + Math.floor(currentNight / 2.5),
       speed: 0.032, atkCd: 0, atkCdMax: 60, dmg: 20 + Math.floor(currentNight / 5),
       alive: true, phase: 0, walkPhase: 0,
@@ -1693,7 +1858,7 @@ function tryRefuelCampfire() {
 }
 function updateCampfire(ndt) {
   const dt = ndt / 60; // seconds elapsed this frame
-  const drainPerSecond = dayNightPhase === 'night' ? 0.55 : 0.25;
+  const drainPerSecond = (dayNightPhase === 'night' ? 0.55 : 0.25) * player.fuelEff;
   campfireFuel = Math.max(0, campfireFuel - drainPerSecond * dt);
 }
 
@@ -1761,6 +1926,7 @@ function toggleCraft() { craftOpen ? closeCraft() : openCraft(); }
 function openCraft() {
   if (gameState !== 'PLAYING') return;
   craftOpen = true;
+  releasePointerLock();
   document.getElementById('craftScreen').classList.add('show');
   renderCraftMenu();
 }
@@ -1820,6 +1986,7 @@ window.upgradeWorkshop = function () {
   player.workshopLevel++;
   sfxCraft();
   spawnFloat(WORKSHOP_SPOT.x, WORKSHOP_SPOT.z, 1, 'Workshop Lv.' + player.workshopLevel + '!', '#ffd27f');
+  showHudPrompt('The camp grows stronger — the fog wall recedes. Explore further!');
   renderCraftMenu();
 };
 window.craftItem = function (key) {
@@ -1841,6 +2008,7 @@ function toggleQuestLog() { questLogOpen ? closeQuestLog() : openQuestLog(); }
 function openQuestLog() {
   if (gameState !== 'PLAYING') return;
   questLogOpen = true;
+  releasePointerLock();
   document.getElementById('questScreen').classList.add('show');
   renderQuestLog();
 }
@@ -1877,34 +2045,43 @@ function updateQuests() {
 }
 
 // ===================== PLAYER MOVEMENT =====================
-let camYaw = Math.PI;
-function angleLerp(a, b, k) { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return a + d * k; }
-
 function updatePlayer(ndt) {
   // check death from damage dealt earlier this frame (or a previous one)
   // BEFORE any regen below can nudge a 0-hp player back to life
   if (player.hp <= 0) { triggerGameOver('The forest finally caught you.'); return; }
 
-  const spd = 0.15 * ndt;
-  let ix = 0, iz = 0;
-  if (keys['ArrowUp'] || keys['w'] || keys['W']) iz += 1;
-  if (keys['ArrowDown'] || keys['s'] || keys['S']) iz -= 1;
-  if (keys['ArrowLeft'] || keys['a'] || keys['A']) ix -= 1;
-  if (keys['ArrowRight'] || keys['d'] || keys['D']) ix += 1;
-  player.moving = (ix !== 0 || iz !== 0) && !buildMode;
+  // first-person controls: W/S walk forward/back along the view direction,
+  // A/D turn (mouse look also turns when pointer-locked), Q/E strafe
+  const spd = 0.15 * player.speedMult * ndt;
+  const turnSpd = 0.048 * ndt;
+  if (keys['ArrowLeft'] || keys['a'] || keys['A']) player.angle += turnSpd;
+  if (keys['ArrowRight'] || keys['d'] || keys['D']) player.angle -= turnSpd;
+  let move = 0, strafe = 0;
+  if (keys['ArrowUp'] || keys['w'] || keys['W']) move += 1;
+  if (keys['ArrowDown'] || keys['s'] || keys['S']) move -= 0.65;
+  if (keys['q'] || keys['Q']) strafe -= 1;
+  if (keys['e'] || keys['E']) strafe += 1;
+  player.moving = (move !== 0 || strafe !== 0) && !buildMode;
   if (player.moving) {
-    const fx = Math.sin(camYaw), fz = Math.cos(camYaw), rx = -fz, rz = fx;
-    let mx = fx * iz + rx * ix, mz = fz * iz + rz * ix;
-    const inv = 1 / Math.hypot(mx, mz);
-    mx *= inv * spd; mz *= inv * spd;
+    const fx = Math.sin(player.angle), fz = Math.cos(player.angle);
+    const rx = fz, rz = -fx;
+    let mx = fx * move + rx * strafe, mz = fz * move + rz * strafe;
+    const mag = Math.hypot(mx, mz) || 1;
+    mx = mx / mag * spd; mz = mz / mag * spd;
     const nx = player.x + mx, nz = player.z + mz;
-    if (Math.hypot(nx, nz) < WORLD_RADIUS - 1) { player.x = nx; player.z = nz; }
+    // the dark fog wall marks the edge of the explored forest — it only
+    // recedes as the camp workshop is upgraded
+    if (Math.hypot(nx, nz) < currentWorldRadius() - 0.6) { player.x = nx; player.z = nz; }
     player.walkPhase += 0.35 * ndt;
-    player.angle = Math.atan2(mx, mz);
   }
   if (player.attackCooldown > 0) player.attackCooldown -= ndt;
   if (player.swingT > 0) player.swingT -= ndt;
   if (keys[' '] && player.attackCooldown <= 0 && !buildMode) useAction();
+
+  // gentle healing near a lit campfire if the teal-shirt kid is home
+  if (player.campRegen > 0 && campfireFuel > 0 && dist2D(player.x, player.z, 0, 0) < 5) {
+    player.hp = Math.min(player.maxHp, player.hp + player.campRegen * ndt);
+  }
 
   player.hunger = Math.max(0, player.hunger - 0.012 * ndt);
   if (player.hunger <= 0) player.hp = Math.max(0, player.hp - 0.03 * ndt);
@@ -1912,16 +2089,19 @@ function updatePlayer(ndt) {
 }
 function syncPlayerMesh() {
   syncPlayerWeapon();
+  // in first person the body is hidden; it still shows on the menu orbit
+  const fpv = gameState === 'PLAYING' || gameState === 'INTRO';
+  playerMesh.visible = !fpv;
+  viewmodel.visible = fpv;
+  playerLantern.position.set(player.x, 1.15, player.z);
   playerMesh.position.set(player.x, 0, player.z);
   playerMesh.rotation.y = player.angle;
   const a = playerMesh.userData.anim;
-  if (a) {
+  if (a && !fpv) {
     const sw = player.moving ? Math.sin(player.walkPhase) * 0.6 : 0;
     a.legL.rotation.x = sw; a.legR.rotation.x = -sw;
     a.armL.rotation.x = -sw * 0.7;
-    let armR = sw * 0.7;
-    if (player.swingT > 0) armR = -Math.sin((1 - player.swingT / 12) * Math.PI) * 1.9;
-    a.armR.rotation.x = armR;
+    a.armR.rotation.x = sw * 0.7;
   }
 }
 
@@ -1945,7 +2125,7 @@ function updateContextPrompt() {
     else if (near.type === 'ore') text = 'SPACE — mine ore';
     else if (near.type === 'bush') text = 'SPACE — forage berries';
     else if (near.type === 'chest') text = 'SPACE — open chest';
-    else if (near.type === 'survivor') text = 'SPACE — free the survivor';
+    else if (near.type === 'kid') text = 'SPACE — free the lost child';
     else if (near.type === 'critter') text = 'SPACE — hunt the bunny';
   } else if (nearFire) {
     text = 'F — refuel campfire';
@@ -2038,16 +2218,23 @@ function updateCamera(ndt) {
     orbitAngle += 0.0016 * ndt;
     desiredPos.set(Math.sin(orbitAngle) * 13, 8, Math.cos(orbitAngle) * 13);
     desiredLook.set(0, 0, 0);
-  } else {
-    camYaw = angleLerp(camYaw, player.angle, 1 - Math.pow(0.965, ndt));
-    const fx = Math.sin(camYaw), fz = Math.cos(camYaw);
-    desiredPos.set(player.x - fx * 4.4, 3.1, player.z - fz * 4.4);
-    desiredLook.set(player.x + fx * 2.2, 0.7, player.z + fz * 2.2);
+    const k = 1 - Math.pow(0.94, ndt);
+    camera.position.lerp(desiredPos, k);
+    camLook.lerp(desiredLook, k);
+    camera.lookAt(camLook);
+    return;
   }
-  const snap = gameState === 'INTRO' && frameCount < 2;
-  const k = snap ? 1 : 1 - Math.pow(0.94, ndt);
-  camera.position.lerp(desiredPos, k);
-  camLook.lerp(desiredLook, k);
+  // first person: camera sits at the player's eyes, no smoothing lag,
+  // with a light head-bob while walking
+  const bob = player.moving ? Math.sin(player.walkPhase * 2) * 0.035 : 0;
+  const eye = EYE_HEIGHT + bob;
+  camera.position.set(player.x, eye, player.z);
+  const cp = Math.cos(player.pitch);
+  camLook.set(
+    player.x + Math.sin(player.angle) * cp,
+    eye + Math.sin(player.pitch),
+    player.z + Math.cos(player.angle) * cp
+  );
   camera.lookAt(camLook);
 }
 const projTmp = new THREE.Vector3();
@@ -2062,17 +2249,41 @@ function triggerGameOver(text) {
   sfxGameOver();
   setGameState('GAMEOVER');
   document.getElementById('gameoverText').textContent = text;
+  const kidsHome = lostKids.filter(k => k.state === 'atBase').length;
   document.getElementById('gameoverStats').textContent =
-    `Fell on night ${currentNight} | Trees: ${player.treesChopped} | Ore: ${player.oreMined} | Chests: ${player.chestsOpened} | Kills: ${killCount} | Quests: ${player.questsCompleted.length}/${QUESTS.length}`;
+    `Fell on night ${currentNight} | Children saved: ${kidsHome}/4 | Trees: ${player.treesChopped} | Ore: ${player.oreMined} | Kills: ${killCount} | Quests: ${player.questsCompleted.length}/${QUESTS.length}`;
 }
 function triggerVictory() {
   sfxVictory();
   setGameState('VICTORY');
+  const kidsHome = lostKids.filter(k => k.state === 'atBase').length;
+  document.querySelector('#victoryScreen .endLine').textContent =
+    kidsHome === 4
+      ? 'Night 99 is over. All four children are safe. The forest lets you go.'
+      : `Night 99 is over — but only ${kidsHome} of 4 children made it home.`;
   document.getElementById('victoryStats').textContent =
-    `Trees: ${player.treesChopped} | Ore: ${player.oreMined} | Chests: ${player.chestsOpened} | Kills: ${killCount} | Quests: ${player.questsCompleted.length}/${QUESTS.length} | Tool: ${TOOLS[player.tool].name}`;
+    `Children saved: ${kidsHome}/4 | Trees: ${player.treesChopped} | Ore: ${player.oreMined} | Kills: ${killCount} | Quests: ${player.questsCompleted.length}/${QUESTS.length} | Tool: ${TOOLS[player.tool].name}`;
 }
 
 // ===================== HUD RENDER =====================
+let hotbarSignature = '';
+function renderHotbar() {
+  // rebuild only when the owned-tool list or equipped tool changes
+  const sig = player.ownedTools.join(',') + '|' + player.tool;
+  if (sig === hotbarSignature) return;
+  hotbarSignature = sig;
+  const bar = document.getElementById('hotbar');
+  bar.innerHTML = player.ownedTools.map((key, i) =>
+    `<div class="hotSlot ${player.tool === key ? 'active' : ''}" onclick="equipToolSlot(${i})">
+      <span class="slotNum">${i + 1}</span>${TOOLS[key].name}
+    </div>`
+  ).join('');
+}
+window.equipToolSlot = function (i) {
+  const key = player.ownedTools[i];
+  if (key) { player.tool = key; renderHotbar(); }
+};
+
 function updateHud() {
   document.getElementById('resWoodTxt').textContent = 'Wood: ' + Math.floor(player.wood);
   document.getElementById('resStoneTxt').textContent = 'Stone: ' + Math.floor(player.stone);
@@ -2086,10 +2297,11 @@ function updateHud() {
   document.getElementById('phaseLabelTxt').style.color = dayNightPhase === 'day' ? '#ffd27f' : '#9db8ff';
   const totalLen = dayNightPhase === 'day' ? DAY_LEN : NIGHT_LEN;
   document.getElementById('hudTimerFill').style.width = clamp(phaseTimer / totalLen, 0, 1) * 100 + '%';
-  document.getElementById('toolTxt').textContent = TOOLS[player.tool].name;
+  document.getElementById('kidsTxt').textContent = lostKids.filter(k => k.state === 'atBase').length + ' / 4';
+  renderHotbar();
   document.getElementById('hudControlsHint').textContent = isTouchDevice
-    ? 'D-PAD MOVE · USE/CRAFT/BUILD/FUEL'
-    : 'WASD MOVE · SPACE USE · C CRAFT · B BUILD · F FUEL';
+    ? 'D-PAD MOVE/TURN · USE/CRAFT/BUILD/FUEL/QUEST'
+    : 'W/S MOVE · A/D TURN · CLICK+MOUSE LOOK · SPACE USE · 1-9 TOOLS · C CRAFT · B BUILD · F FUEL · Q QUESTS';
 }
 
 // ===================== 2D OVERLAY (floating numbers, monster hp, vignette) =====================
@@ -2138,40 +2350,85 @@ function drawVignette() {
   grad.addColorStop(0, 'rgba(0,0,0,0)'); grad.addColorStop(1, 'rgba(0,0,0,0.4)');
   ctx.fillStyle = grad; ctx.fillRect(0, 0, 800, 600);
 }
+function drawCrosshair() {
+  const near = nearestInteractable();
+  ctx.save();
+  ctx.strokeStyle = near ? 'rgba(255,220,140,0.95)' : 'rgba(230,230,240,0.6)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(400, 300, near ? 5 : 3.5, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.fillStyle = ctx.strokeStyle;
+  ctx.fillRect(399, 299, 2, 2);
+  ctx.restore();
+}
 function drawOverlay() {
   ctx.clearRect(0, 0, 800, 600);
   if (gameState === 'INTRO') { drawIntro(); return; }
   if (gameState !== 'PLAYING') return;
   drawFloatingNumbers();
   drawMonsterHp();
+  drawCrosshair();
   if (dayNightPhase === 'night') { ctx.fillStyle = 'rgba(5,5,15,0.12)'; ctx.fillRect(0, 0, 800, 600); }
   drawVignette();
 }
 
 // ===================== MAIN LOOP =====================
-// ===================== COMPANION (rescued survivor) =====================
-const COMPANION_SPOT = { x: -1.6, z: 1.2 };
-function updateSurvivor(ndt) {
-  if (!survivor || survivor.state === 'trapped') return;
-  const targetX = survivor.state === 'atBase' ? COMPANION_SPOT.x : player.x - Math.sin(player.angle) * 1.2;
-  const targetZ = survivor.state === 'atBase' ? COMPANION_SPOT.z : player.z - Math.cos(player.angle) * 1.2;
-  const dx = targetX - survivor.x, dz = targetZ - survivor.z, d = Math.hypot(dx, dz);
-  if (d > 0.2) {
-    const spd = 0.09 * ndt;
-    survivor.x += dx / d * Math.min(spd, d);
-    survivor.z += dz / d * Math.min(spd, d);
-    survivor.angle = Math.atan2(dx, dz);
+// ===================== LOST CHILDREN (companions) =====================
+// rescued kids trail the player home, then settle in seats around the
+// campfire; each kid home grants a distinct camp bonus
+const KID_SEATS = [{ x: -1.6, z: 1.2 }, { x: 1.6, z: 1.4 }, { x: -1.1, z: -2.0 }, { x: 1.9, z: -0.6 }];
+function applyKidBonuses() {
+  let yieldMult = 1, fuelEff = 1, campRegen = 0, speedMult = 1;
+  for (const k of lostKids) {
+    if (k.state !== 'atBase') continue;
+    if (k.bonus === 'yield') yieldMult = 1.15;
+    else if (k.bonus === 'fuel') fuelEff = 0.7;
+    else if (k.bonus === 'regen') campRegen = 0.03;
+    else if (k.bonus === 'speed') speedMult = 1.12;
   }
-  if (survivor.state === 'following' && dist2D(survivor.x, survivor.z, 0, 0) < 4) {
-    survivor.state = 'atBase';
-    player.gatherYieldMult = 1.2;
+  player.gatherYieldMult = yieldMult;
+  player.fuelEff = fuelEff;
+  player.campRegen = campRegen;
+  player.speedMult = speedMult;
+}
+function updateKids(ndt) {
+  let followIdx = 0;
+  for (const k of lostKids) {
+    if (k.state === 'trapped') continue;
+    let targetX, targetZ;
+    if (k.state === 'atBase') {
+      const seat = KID_SEATS[k.seatIndex % KID_SEATS.length];
+      targetX = seat.x; targetZ = seat.z;
+    } else {
+      // trail behind the player, staggered so followers don't stack
+      const trail = 1.2 + followIdx * 0.8;
+      followIdx++;
+      targetX = player.x - Math.sin(player.angle) * trail;
+      targetZ = player.z - Math.cos(player.angle) * trail;
+    }
+    const dx = targetX - k.x, dz = targetZ - k.z, d = Math.hypot(dx, dz);
+    if (d > 0.2) {
+      const spd = 0.11 * ndt;
+      k.x += dx / d * Math.min(spd, d);
+      k.z += dz / d * Math.min(spd, d);
+      k.angle = Math.atan2(dx, dz);
+    }
+    if (k.state === 'following' && dist2D(k.x, k.z, 0, 0) < 4) {
+      k.state = 'atBase';
+      applyKidBonuses();
+      const homeCount = lostKids.filter(kk => kk.state === 'atBase').length;
+      showHudPrompt(`A child is safe at camp! (${homeCount}/4)`);
+      sfxQuestDone();
+    }
   }
 }
-function syncSurvivor() {
-  if (!survivor) return;
-  survivor.mesh.position.set(survivor.x, 0, survivor.z);
-  if (survivor.state !== 'trapped') survivor.mesh.rotation.y = survivor.angle || 0;
-  if (survivor.mesh.userData.distressGlow) survivor.mesh.userData.distressGlow.visible = survivor.state === 'trapped';
+function syncKids() {
+  for (const k of lostKids) {
+    k.mesh.position.set(k.x, 0, k.z);
+    if (k.state !== 'trapped') k.mesh.rotation.y = k.angle || 0;
+    if (k.mesh.userData.distressGlow) k.mesh.userData.distressGlow.visible = k.state === 'trapped';
+  }
 }
 
 function update(dtMs, ndt) {
@@ -2183,7 +2440,8 @@ function update(dtMs, ndt) {
     updateProjectiles(ndt);
     updateMonsters(ndt);
     updateCritters(ndt);
-    updateSurvivor(ndt);
+    updateKids(ndt);
+    updateDrops(ndt);
     updateCampfire(ndt);
     updateCycle(ndt);
     updatePlacementGhost();
@@ -2201,9 +2459,10 @@ function sync3D() {
   syncPlayerMesh();
   syncMonsters();
   syncCritters();
-  syncSurvivor();
+  syncKids();
   syncProjectiles();
   syncCampfire();
+  syncFogWall(1);
   updateSkyAndLight();
   updateCamera(1);
   if (gameState === 'PLAYING') updateHud();
@@ -2243,7 +2502,9 @@ window.__lp = {
   get bushes() { return bushes.map(b => ({ x: b.x, z: b.z, alive: b.alive })); },
   get ores() { return ores.map(o => ({ x: o.x, z: o.z, alive: o.alive, hp: o.hp })); },
   get chests() { return chests.map(c => ({ x: c.x, z: c.z, alive: c.alive })); },
-  get survivor() { return survivor ? { x: survivor.x, z: survivor.z, state: survivor.state } : null; },
+  get kids() { return lostKids.map(k => ({ x: k.x, z: k.z, state: k.state, bonus: k.bonus })); },
+  get drops() { return drops.map(d => ({ x: d.x, z: d.z, kind: d.kind, amount: d.amount })); },
+  get worldRadius() { return currentWorldRadius(); },
   get walls() { return walls.map(w => ({ x: w.x, z: w.z, hp: w.hp, tier: w.tier })); },
   get quests() { return QUESTS.map(q => ({ id: q.id, done: player.questsCompleted.includes(q.id) })); },
   get fuel() { return campfireFuel; },
@@ -2259,9 +2520,9 @@ window.__lp = {
   killAllMonsters: () => { monsters.forEach(m => m.alive = false); },
   setFuel: v => { campfireFuel = v; },
   teleport: (x, z) => { player.x = x; player.z = z; },
-  freeSurvivor: () => { if (survivor) rescueSurvivor(survivor); },
-  teleportSurvivor: (x, z) => { if (survivor) { survivor.x = x; survivor.z = z; } },
-  lookAt: (x, z) => { const dx = x - player.x, dz = z - player.z; player.angle = Math.atan2(dx, dz); camYaw = player.angle; },
+  freeKid: (i) => { const k = lostKids[i || 0]; if (k && k.state === 'trapped') rescueKid(k); },
+  teleportKid: (i, x, z) => { const k = lostKids[i || 0]; if (k) { k.x = x; k.z = z; } },
+  lookAt: (x, z) => { const dx = x - player.x, dz = z - player.z; player.angle = Math.atan2(dx, dz); },
   get workshopLevel() { return player.workshopLevel; },
   upgradeWorkshopOnce: () => window.upgradeWorkshop(),
   get critters() { return critters.map(c => ({ x: c.x, z: c.z, alive: c.alive })); },
