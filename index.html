@@ -98,8 +98,11 @@
   .panel::-webkit-scrollbar-track { background: transparent; }
   .panel::-webkit-scrollbar-thumb { background: #3a2a5a; border-radius: 4px; }
 
-  #dayScreen.overlay { align-items: flex-start; padding: 2vh 0; }
-  #dayScreen .panel { max-height: 96vh; }
+  /* the shop used to vertically-center (and could get clipped on short
+     screens); pin it to the top and let it scroll internally instead */
+  #dayScreen.overlay { justify-content: flex-start; padding: 1.5vh 0 0 0; }
+  #dayScreen .panel { max-width: 520px; max-height: 95vh; padding: 16px 22px; }
+  #dayScreen .panel::before, #dayScreen .panel::after { display: none; }
   .panel::before, .panel::after {
     content: ''; position: absolute; width: 18px; height: 18px;
     border: 1px solid rgba(192,160,255,0.55);
@@ -134,7 +137,10 @@
   .shopItem strong { color: #e8e8e8; font-size: 11px; }
   .shopItem button { width: 100%; margin: 4px 0 0 0; font-size: 11px; padding: 3px; }
   .equippedItem { border-color: #d9a72b; }
-  #dayScreen .dayHeader { font-size: 18px; margin-bottom: 10px; }
+  .dayHeaderRow { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+  .dayHeaderRow .dayHeader { margin-bottom: 0; }
+  .inlineSkipBtn { border-color: #8b0000; color: #ff8888; font-size: 11px; padding: 6px 10px; margin: 0; flex-shrink: 0; }
+  #dayScreen .dayHeader { font-size: 17px; }
   #dayScreen .hpBarOuter { height: 14px; margin-bottom: 4px; }
   #dayScreen .hpText, #dayScreen .essenceLine { margin-bottom: 8px; font-size: 12px; }
   #dayScreen .alliesList { margin-bottom: 10px; font-size: 12px; }
@@ -231,27 +237,44 @@
   /* always-reachable controls that float above the scrolling panel */
   #skipShopBtn {
     display: none;
-    position: absolute;
-    top: max(10px, env(safe-area-inset-top));
-    right: max(10px, env(safe-area-inset-right));
-    z-index: 40;
+    position: fixed;
+    top: max(14px, env(safe-area-inset-top));
+    right: max(14px, env(safe-area-inset-right));
+    z-index: 45;
     border-color: #8b0000; color: #ff8888;
-    font-size: 12px; padding: 8px 14px; margin: 0;
-    background: rgba(10,6,10,0.75);
+    font-size: 14px; padding: 10px 18px; margin: 0;
+    background: rgba(20,6,6,0.9);
+    box-shadow: 0 0 16px rgba(139,0,0,0.4);
   }
   body.state-DAY #skipShopBtn { display: block; }
 
   #fullscreenBtn {
-    position: absolute;
+    position: fixed;
     top: max(10px, env(safe-area-inset-top));
     left: max(10px, env(safe-area-inset-left));
-    z-index: 40;
+    z-index: 45;
     font-size: 11px; padding: 7px 12px; margin: 0;
     background: rgba(10,6,10,0.6);
     opacity: 0.8;
   }
   #fullscreenBtn:hover { opacity: 1; }
   body.is-fullscreen #fullscreenBtn { display: none; }
+
+  #fsToast {
+    display: none;
+    position: fixed;
+    top: max(52px, calc(env(safe-area-inset-top) + 52px));
+    left: max(10px, env(safe-area-inset-left));
+    z-index: 45;
+    max-width: 260px;
+    background: rgba(20,6,6,0.92);
+    border: 1px solid #8b0000;
+    color: #ffb0b0;
+    font-size: 11px;
+    line-height: 1.5;
+    padding: 8px 10px;
+  }
+  #fsToast.show { display: block; }
 </style>
 </head>
 <body>
@@ -261,6 +284,7 @@
   <canvas id="gameCanvas" width="800" height="600"></canvas>
 
   <button id="fullscreenBtn" onclick="toggleFullscreen()" title="Fullscreen">[ ⛶ FULLSCREEN ]</button>
+  <div id="fsToast"></div>
   <button id="skipShopBtn" onclick="beginNextNight()">[ SKIP ▸ ]</button>
 
   <div id="menuScreen" class="overlay">
@@ -1453,7 +1477,7 @@ function setFigure(tag) {
 function requestFS(el) {
   const fn = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
   if (fn) return fn.call(el);
-  return Promise.reject(new Error('Fullscreen API unavailable'));
+  return Promise.reject(new Error('This browser has no Fullscreen API.'));
 }
 function exitFS() {
   const fn = document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen;
@@ -1463,9 +1487,24 @@ function exitFS() {
 function isFullscreen() {
   return !!(document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement);
 }
+let fsToastTimer = null;
+function showFsToast(msg) {
+  const el = document.getElementById('fsToast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(fsToastTimer);
+  fsToastTimer = setTimeout(() => el.classList.remove('show'), 5000);
+}
 function toggleFullscreen() {
-  if (isFullscreen()) exitFS().catch(() => {});
-  else requestFS(document.documentElement).catch(() => {});
+  if (isFullscreen()) {
+    exitFS().catch(() => {});
+    return;
+  }
+  requestFS(document.documentElement).catch(err => {
+    // surface the real reason instead of doing nothing — most often this
+    // is a Permissions-Policy block from an embedding iframe/preview
+    showFsToast('Fullscreen blocked: ' + (err && err.message ? err.message : 'try opening this page in its own browser tab.'));
+  });
 }
 ['fullscreenchange', 'webkitfullscreenchange', 'msfullscreenchange'].forEach(ev =>
   document.addEventListener(ev, () => {
@@ -1480,7 +1519,9 @@ function startGame() {
   window.focus();
   initAudio();
   // best-effort: a fresh user gesture (this click) is required for the
-  // Fullscreen API, so try it here rather than forcing a second tap
+  // Fullscreen API, so try it here rather than forcing a second tap.
+  // Stay silent on failure here (no toast) — the visible FULLSCREEN
+  // button remains as an explicit retry that does report errors.
   requestFS(document.documentElement).catch(() => {});
   resetState();
   setupNight(1);
@@ -2109,7 +2150,10 @@ function populateDayScreen() {
 
   el.innerHTML = `
     <div class="panel">
-      <div class="dayHeader">Dawn — Night ${currentNight} survived</div>
+      <div class="dayHeaderRow">
+        <div class="dayHeader">Dawn — Night ${currentNight} survived</div>
+        <button class="inlineSkipBtn" onclick="beginNextNight()">[ Skip ▸ ]</button>
+      </div>
       <div class="hpBarOuter"><div class="hpBarInner" style="width:${hpPct}%"></div></div>
       <div class="hpText">HP: ${Math.round(player.hp)} / ${player.maxHp}</div>
       <div class="essenceLine">Essence: ${player.essence}</div>
