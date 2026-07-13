@@ -284,7 +284,8 @@
     <button class="miniActionBtn" data-key="c">CRAFT</button>
     <button class="miniActionBtn" data-key="b">BUILD</button>
     <button class="miniActionBtn" data-key="f">FUEL</button>
-    <button class="miniActionBtn" data-key="q">QUEST</button>
+    <button class="miniActionBtn" data-key="l">QUEST</button>
+    <button class="miniActionBtn" data-key="v">VIEW</button>
   </div>
 </div>
 
@@ -443,6 +444,8 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.setClearColor(0x07070d);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.25;
 
 const scene = new THREE.Scene();
 scene.fog = new THREE.FogExp2(0x0a0d16, 0.018);
@@ -503,27 +506,207 @@ function makeGlowSprite(hex, scale, opacity) {
   const s = new THREE.Sprite(mat); s.scale.setScalar(scale); return s;
 }
 
-// ===================== GROUND TEXTURE =====================
-function makeGrassTexture() {
-  const c = document.createElement('canvas'); c.width = c.height = 128;
-  const g = c.getContext('2d');
-  g.fillStyle = '#2e4c28'; g.fillRect(0, 0, 128, 128);
-  const rng = mulberry32(4242);
-  for (let i = 0; i < 900; i++) {
-    const shades = ['#375a2f', '#284a22', '#3f6636', '#325228'];
-    g.fillStyle = shades[Math.floor(rng() * shades.length)];
-    const x = rng() * 128, y = rng() * 128, s = 1 + rng() * 2.4;
-    g.fillRect(x, y, s, s);
-  }
+// ===================== PROCEDURAL DETAIL TEXTURES =====================
+// all surface detail is painted at boot onto small canvases — no external
+// image files, keeps the game a single self-contained page
+function makeCanvasTexture(size, painter, repX, repY) {
+  const c = document.createElement('canvas'); c.width = c.height = size;
+  painter(c.getContext('2d'), size);
   const tex = new THREE.CanvasTexture(c);
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(24, 24);
+  if (repX) tex.repeat.set(repX, repY || repX);
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
 }
+
+function paintGrass(g, S) {
+  g.fillStyle = '#2e4c28'; g.fillRect(0, 0, S, S);
+  const rng = mulberry32(4242);
+  // soft tonal patches first, for large-scale variation
+  for (let i = 0; i < 42; i++) {
+    const x = rng() * S, y = rng() * S, r = 14 + rng() * 42;
+    const grad = g.createRadialGradient(x, y, 2, x, y, r);
+    const light = rng() < 0.5;
+    grad.addColorStop(0, light ? 'rgba(94,140,66,0.20)' : 'rgba(22,44,20,0.24)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = grad;
+    g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+  }
+  // individual grass blades: short angled strokes in varied greens
+  const blades = ['#3f6636', '#355a2c', '#4c7a3c', '#2a4a22', '#587f3a', '#6b9448'];
+  for (let i = 0; i < 3200; i++) {
+    g.strokeStyle = blades[Math.floor(rng() * blades.length)];
+    g.globalAlpha = 0.5 + rng() * 0.5;
+    g.lineWidth = 1;
+    const x = rng() * S, y = rng() * S, len = 2 + rng() * 4, lean = (rng() - 0.5) * 2.4;
+    g.beginPath(); g.moveTo(x, y); g.lineTo(x + lean, y - len); g.stroke();
+  }
+  g.globalAlpha = 1;
+  // scattered clover/dirt flecks
+  for (let i = 0; i < 130; i++) {
+    g.fillStyle = rng() < 0.6 ? '#243c1e' : '#54683a';
+    g.fillRect(rng() * S, rng() * S, 2, 2);
+  }
+}
+
+function paintDirt(g, S) {
+  g.fillStyle = '#3c2f1f'; g.fillRect(0, 0, S, S);
+  const rng = mulberry32(919);
+  for (let i = 0; i < 36; i++) {
+    const x = rng() * S, y = rng() * S, r = 10 + rng() * 34;
+    const grad = g.createRadialGradient(x, y, 2, x, y, r);
+    grad.addColorStop(0, rng() < 0.5 ? 'rgba(90,72,46,0.22)' : 'rgba(30,22,14,0.26)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = grad;
+    g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+  }
+  for (let i = 0; i < 1600; i++) {
+    const shades = ['#463724', '#332818', '#52402a', '#2c2214'];
+    g.fillStyle = shades[Math.floor(rng() * shades.length)];
+    g.globalAlpha = 0.5 + rng() * 0.5;
+    g.fillRect(rng() * S, rng() * S, 1 + rng() * 2, 1 + rng() * 2);
+  }
+  g.globalAlpha = 1;
+  // little embedded pebbles
+  for (let i = 0; i < 60; i++) {
+    const x = rng() * S, y = rng() * S, r = 1 + rng() * 2.2;
+    g.fillStyle = rng() < 0.5 ? '#6b6b70' : '#57575e';
+    g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+    g.fillStyle = 'rgba(255,255,255,0.18)';
+    g.beginPath(); g.arc(x - r * 0.3, y - r * 0.3, r * 0.4, 0, Math.PI * 2); g.fill();
+  }
+}
+
+function paintBark(g, S) {
+  g.fillStyle = '#4a3820'; g.fillRect(0, 0, S, S);
+  const rng = mulberry32(333);
+  // vertical bark ridges of varying width and tone
+  let x = 0;
+  while (x < S) {
+    const w = 3 + rng() * 9;
+    const tones = ['#3a2c18', '#544022', '#2e2212', '#5f4a2a', '#443318'];
+    g.fillStyle = tones[Math.floor(rng() * tones.length)];
+    g.globalAlpha = 0.65 + rng() * 0.35;
+    g.fillRect(x, 0, w, S);
+    // ragged inner streaks along each ridge
+    g.strokeStyle = 'rgba(20,14,6,0.5)';
+    g.lineWidth = 1;
+    for (let s = 0; s < 2; s++) {
+      g.beginPath();
+      let yy = 0, xx = x + rng() * w;
+      g.moveTo(xx, yy);
+      while (yy < S) { yy += 8 + rng() * 14; xx += (rng() - 0.5) * 3; g.lineTo(xx, yy); }
+      g.stroke();
+    }
+    x += w;
+  }
+  g.globalAlpha = 1;
+  // knots
+  for (let i = 0; i < 4; i++) {
+    const kx = rng() * S, ky = rng() * S;
+    g.strokeStyle = '#241a0c';
+    g.lineWidth = 2;
+    g.beginPath(); g.ellipse(kx, ky, 4 + rng() * 3, 6 + rng() * 4, 0, 0, Math.PI * 2); g.stroke();
+    g.fillStyle = '#1c1408';
+    g.beginPath(); g.ellipse(kx, ky, 2, 3, 0, 0, Math.PI * 2); g.fill();
+  }
+}
+
+function paintLeaves(g, S, baseHex, hiHex, loHex) {
+  g.fillStyle = baseHex; g.fillRect(0, 0, S, S);
+  const rng = mulberry32(555);
+  // overlapping leaf clumps — small tilted ellipses in light/dark tones
+  for (let i = 0; i < 900; i++) {
+    g.fillStyle = rng() < 0.5 ? hiHex : loHex;
+    g.globalAlpha = 0.28 + rng() * 0.4;
+    const x = rng() * S, y = rng() * S;
+    g.beginPath();
+    g.ellipse(x, y, 2 + rng() * 3.2, 1 + rng() * 1.8, rng() * Math.PI, 0, Math.PI * 2);
+    g.fill();
+  }
+  g.globalAlpha = 1;
+}
+
+function paintStone(g, S) {
+  g.fillStyle = '#565e6c'; g.fillRect(0, 0, S, S);
+  const rng = mulberry32(777);
+  for (let i = 0; i < 30; i++) {
+    const x = rng() * S, y = rng() * S, r = 8 + rng() * 30;
+    const grad = g.createRadialGradient(x, y, 2, x, y, r);
+    grad.addColorStop(0, rng() < 0.5 ? 'rgba(150,158,172,0.20)' : 'rgba(40,44,54,0.26)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = grad;
+    g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+  }
+  // mineral speckle
+  for (let i = 0; i < 1400; i++) {
+    const t = ['#6b7382', '#454b58', '#7d8494', '#3a3f4a'];
+    g.fillStyle = t[Math.floor(rng() * t.length)];
+    g.globalAlpha = 0.4 + rng() * 0.5;
+    g.fillRect(rng() * S, rng() * S, 1 + rng() * 1.6, 1 + rng() * 1.6);
+  }
+  g.globalAlpha = 1;
+  // hairline cracks
+  g.strokeStyle = 'rgba(20,22,28,0.55)';
+  g.lineWidth = 1;
+  for (let i = 0; i < 7; i++) {
+    let x = rng() * S, y = rng() * S;
+    g.beginPath(); g.moveTo(x, y);
+    for (let s = 0; s < 6; s++) { x += (rng() - 0.5) * 26; y += (rng() - 0.3) * 20; g.lineTo(x, y); }
+    g.stroke();
+  }
+}
+
+function paintPlanks(g, S) {
+  // neutral warm planks; material color tints them per wall tier
+  g.fillStyle = '#a08662'; g.fillRect(0, 0, S, S);
+  const rng = mulberry32(202);
+  const rows = 4, rh = S / rows;
+  for (let r = 0; r < rows; r++) {
+    const y = r * rh;
+    // per-plank tone shift
+    g.fillStyle = `rgba(${60 + rng() * 40},${44 + rng() * 30},${24 + rng() * 20},0.25)`;
+    g.fillRect(0, y, S, rh);
+    // grain lines
+    g.strokeStyle = 'rgba(70,52,30,0.5)';
+    g.lineWidth = 1;
+    for (let i = 0; i < 7; i++) {
+      const gy = y + 2 + rng() * (rh - 4);
+      g.beginPath();
+      g.moveTo(0, gy);
+      for (let x = 0; x <= S; x += 16) g.lineTo(x, gy + Math.sin(x * 0.08 + rng() * 6) * 1.5);
+      g.stroke();
+    }
+    // plank seam + nail heads
+    g.fillStyle = 'rgba(30,20,10,0.8)';
+    g.fillRect(0, y + rh - 1.5, S, 1.5);
+    g.fillStyle = '#3a2c18';
+    g.beginPath(); g.arc(8 + rng() * 10, y + rh / 2, 1.6, 0, Math.PI * 2); g.fill();
+    g.beginPath(); g.arc(S - 8 - rng() * 10, y + rh / 2, 1.6, 0, Math.PI * 2); g.fill();
+  }
+}
+
+const TEX = {
+  grass: makeCanvasTexture(256, paintGrass, 22),
+  dirt: makeCanvasTexture(256, paintDirt, 3),
+  bark: makeCanvasTexture(128, paintBark, 1.5, 1),
+  leafBroad: makeCanvasTexture(128, (g, S) => paintLeaves(g, S, '#3e7a34', '#5c9c4a', '#27561f'), 1.5),
+  leafConifer: makeCanvasTexture(128, (g, S) => paintLeaves(g, S, '#28492e', '#3d6b42', '#16301c'), 1.5),
+  leafAncient: makeCanvasTexture(128, (g, S) => paintLeaves(g, S, '#2b5230', '#427a48', '#1a3a20'), 1.5),
+  stone: makeCanvasTexture(128, paintStone, 1),
+  planks: makeCanvasTexture(128, paintPlanks, 1),
+};
+function texMat(texKey, opts) {
+  const key = 'T' + texKey + JSON.stringify(opts || {});
+  if (!matCache.has(key)) {
+    matCache.set(key, new THREE.MeshLambertMaterial(Object.assign({ map: TEX[texKey] }, opts || {})));
+  }
+  return matCache.get(key);
+}
+
 const groundMesh = mesh(
   new THREE.CircleGeometry(BOUNDARY_RADIUS, 48),
-  new THREE.MeshLambertMaterial({ map: makeGrassTexture() }),
+  new THREE.MeshLambertMaterial({ map: TEX.grass }),
   0, 0, 0
 );
 groundMesh.rotation.x = -Math.PI / 2;
@@ -531,7 +714,7 @@ groundMesh.receiveShadow = true;
 scene.add(groundMesh);
 
 // dirt clearing under the base
-const clearingMesh = mesh(new THREE.CircleGeometry(6.2, 32), matL(0x3a2e1e), 0, 0.01, 0);
+const clearingMesh = mesh(new THREE.CircleGeometry(6.2, 32), new THREE.MeshLambertMaterial({ map: TEX.dirt }), 0, 0.01, 0);
 clearingMesh.rotation.x = -Math.PI / 2;
 clearingMesh.receiveShadow = true;
 scene.add(clearingMesh);
@@ -739,8 +922,8 @@ function makeWeaponMesh(key) {
 // ===================== SCENERY BUILDERS =====================
 function makeBroadleaf() {
   const g = new THREE.Group();
-  g.add(mesh(geoCyl(0.09, 0.13, 0.75, 6), matL(0x5a4728), 0, 0.375, 0));
-  const canopyMat = matL(0x3e7a34);
+  g.add(mesh(geoCyl(0.09, 0.13, 0.75, 6), texMat('bark'), 0, 0.375, 0));
+  const canopyMat = texMat('leafBroad');
   [[0, 1.05, 0.42], [0.28, 0.95, 0.34], [-0.26, 0.9, 0.3]].forEach(([x, y, r]) => {
     g.add(mesh(geoOct(r), canopyMat, x, y, 0));
   });
@@ -748,9 +931,9 @@ function makeBroadleaf() {
 }
 function makeConifer() {
   const g = new THREE.Group();
-  g.add(mesh(geoCyl(0.07, 0.1, 0.4, 6), matL(0x4a3820), 0, 0.2, 0));
-  const layers = [[0.62, 0.5, '#1f3d29'], [0.92, 0.4, '#28492e'], [1.2, 0.28, '#305a36']];
-  layers.forEach(([y, r, col]) => g.add(mesh(geoCone(r, 0.55, 7), matL(col), 0, y, 0)));
+  g.add(mesh(geoCyl(0.07, 0.1, 0.4, 6), texMat('bark'), 0, 0.2, 0));
+  const layers = [[0.62, 0.5], [0.92, 0.4], [1.2, 0.28]];
+  layers.forEach(([y, r]) => g.add(mesh(geoCone(r, 0.55, 7), texMat('leafConifer'), 0, y, 0)));
   return shadowify(g, true, false);
 }
 function makeBush() {
@@ -765,7 +948,7 @@ function makeBush() {
 }
 function makeRockCluster() {
   const g = new THREE.Group();
-  const rockMat = matL(0x565e6c), rng = mulberry32(Math.floor(Math.random() * 99999));
+  const rockMat = texMat('stone'), rng = mulberry32(Math.floor(Math.random() * 99999));
   for (let i = 0; i < 3; i++) {
     const r = mesh(cachedGeo('rockNode', () => new THREE.DodecahedronGeometry(0.22, 0)), rockMat, (rng() - 0.5) * 0.3, 0.12, (rng() - 0.5) * 0.3);
     r.rotation.set(rng(), rng(), rng());
@@ -776,15 +959,15 @@ function makeRockCluster() {
 }
 function makeAncientTree() {
   const g = new THREE.Group();
-  g.add(mesh(geoCyl(0.16, 0.24, 1.05, 8), matL(0x3a2c1a), 0, 0.525, 0));
-  const canopyMat = matL(0x1f3d22), canopyMat2 = matL(0x27482a);
+  g.add(mesh(geoCyl(0.16, 0.24, 1.05, 8), texMat('bark'), 0, 0.525, 0));
+  const canopyMat = texMat('leafAncient'), canopyMat2 = texMat('leafConifer');
   [[0, 1.7, 0.62], [0.4, 1.5, 0.5], [-0.38, 1.45, 0.48], [0, 2.1, 0.42]].forEach(([x, y, r], i) => {
     g.add(mesh(geoOct(r), i % 2 ? canopyMat2 : canopyMat, x, y, 0));
   });
   // gnarled root flare at the base
   for (let i = 0; i < 4; i++) {
     const a = (i / 4) * Math.PI * 2;
-    const root = mesh(geoBox(0.08, 0.3, 0.16), matL(0x2e2214), Math.cos(a) * 0.18, 0.1, Math.sin(a) * 0.18);
+    const root = mesh(geoBox(0.08, 0.3, 0.16), texMat('bark'), Math.cos(a) * 0.18, 0.1, Math.sin(a) * 0.18);
     root.rotation.y = a;
     g.add(root);
   }
@@ -792,7 +975,7 @@ function makeAncientTree() {
 }
 function makeOreCluster() {
   const g = new THREE.Group();
-  const rockMat = matL(0x4a4a56), oreMat = matB(0xd4a83a), rng = mulberry32(Math.floor(Math.random() * 99999));
+  const rockMat = texMat('stone', { color: 0xb9c0cc }), oreMat = matB(0xd4a83a), rng = mulberry32(Math.floor(Math.random() * 99999));
   for (let i = 0; i < 3; i++) {
     const r = mesh(cachedGeo('rockNode', () => new THREE.DodecahedronGeometry(0.22, 0)), rockMat, (rng() - 0.5) * 0.3, 0.12, (rng() - 0.5) * 0.3);
     r.rotation.set(rng(), rng(), rng());
@@ -988,21 +1171,22 @@ function makeCampfireMesh() {
 }
 function makeWorkshopMesh() {
   const g = new THREE.Group();
-  g.add(mesh(geoBox(0.1, 0.7, 0.1), matL(0x4a3520), -0.5, 0.35, -0.3));
-  g.add(mesh(geoBox(0.1, 0.7, 0.1), matL(0x4a3520), 0.5, 0.35, -0.3));
-  g.add(mesh(geoBox(0.1, 0.7, 0.1), matL(0x4a3520), -0.5, 0.35, 0.3));
-  g.add(mesh(geoBox(0.1, 0.7, 0.1), matL(0x4a3520), 0.5, 0.35, 0.3));
-  g.add(mesh(geoBox(1.2, 0.08, 0.7), matL(0x5a4326), 0, 0.72, 0));
+  g.add(mesh(geoBox(0.1, 0.7, 0.1), texMat('bark'), -0.5, 0.35, -0.3));
+  g.add(mesh(geoBox(0.1, 0.7, 0.1), texMat('bark'), 0.5, 0.35, -0.3));
+  g.add(mesh(geoBox(0.1, 0.7, 0.1), texMat('bark'), -0.5, 0.35, 0.3));
+  g.add(mesh(geoBox(0.1, 0.7, 0.1), texMat('bark'), 0.5, 0.35, 0.3));
+  g.add(mesh(geoBox(1.2, 0.08, 0.7), texMat('planks'), 0, 0.72, 0));
   g.add(mesh(geoBox(0.9, 0.05, 0.03), matL(0x9aa0ab), -0.1, 0.78, 0.36).rotateOnAxis(new THREE.Vector3(0,0,1), 0));
   return shadowify(g, true, true);
 }
 function makeWallMesh(tier) {
-  const specs = { basic: { h: 0.85, col: 0x5a4326 }, reinforced: { h: 1.05, col: 0x6b6b70 }, great: { h: 1.3, col: 0x8a5a2a }, iron: { h: 1.45, col: 0xd8dbe2 } };
+  // planks texture is neutral; the material color tints it per tier
+  const specs = { basic: { h: 0.85, col: 0xa08662 }, reinforced: { h: 1.05, col: 0x8d95a4 }, great: { h: 1.3, col: 0xc08a4a }, iron: { h: 1.45, col: 0xe4e8f2 } };
   const s = specs[tier] || specs.basic;
   const g = new THREE.Group();
-  g.add(mesh(geoBox(1.0, s.h, 0.16), matL(s.col), 0, s.h / 2, 0));
-  g.add(mesh(geoCyl(0.06, 0.06, s.h + 0.12, 6), matL(0x2c2010), -0.46, (s.h + 0.12) / 2, 0));
-  g.add(mesh(geoCyl(0.06, 0.06, s.h + 0.12, 6), matL(0x2c2010), 0.46, (s.h + 0.12) / 2, 0));
+  g.add(mesh(geoBox(1.0, s.h, 0.16), texMat('planks', { color: s.col }), 0, s.h / 2, 0));
+  g.add(mesh(geoCyl(0.06, 0.06, s.h + 0.12, 6), texMat('bark'), -0.46, (s.h + 0.12) / 2, 0));
+  g.add(mesh(geoCyl(0.06, 0.06, s.h + 0.12, 6), texMat('bark'), 0.46, (s.h + 0.12) / 2, 0));
   return shadowify(g, true, true);
 }
 
@@ -1141,16 +1325,38 @@ window.addEventListener('keydown', e => {
     if (e.key === 'c' || e.key === 'C') toggleCraft();
     if (e.key === 'b' || e.key === 'B') setBuildMode(!buildMode);
     if (e.key === 'f' || e.key === 'F') tryRefuelCampfire();
-    if (e.key === 'q' || e.key === 'Q') toggleQuestLog();
+    if (e.key === 'l' || e.key === 'L') toggleQuestLog();
     if (e.key >= '1' && e.key <= '9') window.equipToolSlot(parseInt(e.key, 10) - 1);
+    if (e.key === 'v' || e.key === 'V') toggleCameraMode();
     if (e.key === 'Escape') { closeCraft(); closeQuestLog(); setBuildMode(false); }
   }
 });
 window.addEventListener('keyup', e => { keys[e.key] = false; });
 
-// ===================== MOUSE LOOK (pointer lock) =====================
+// ===================== CAMERA MODES & MOUSE/TOUCH LOOK =====================
+// 'first' = eyes-level with mouse-look pointer lock;
+// 'third' = over-the-shoulder orbit camera: right-drag (or touch drag / Q & E)
+// swings the camera around the character, scroll wheel zooms, and zooming
+// all the way in crosses into first person (zooming out crosses back)
+let cameraMode = 'first';
+const orbit = { yaw: Math.PI, pitch: 0.42, dist: 4.5 };
+const ORBIT_MIN_DIST = 1.4, ORBIT_MAX_DIST = 9;
+
+function setCameraMode(mode) {
+  if (mode === cameraMode) return;
+  cameraMode = mode;
+  if (mode === 'third') {
+    releasePointerLock();
+    orbit.yaw = player.angle + Math.PI; // start looking over the shoulder
+    orbit.dist = Math.max(orbit.dist, 3.5);
+  }
+  showHudPrompt(mode === 'first' ? 'First-person view (V to switch)' : 'Third-person view (V to switch)');
+}
+function toggleCameraMode() { setCameraMode(cameraMode === 'first' ? 'third' : 'first'); }
+window.toggleCameraMode = toggleCameraMode;
+
 canvas.addEventListener('click', () => {
-  if (gameState !== 'PLAYING' || craftOpen || questLogOpen) return;
+  if (gameState !== 'PLAYING' || craftOpen || questLogOpen || cameraMode !== 'first') return;
   if (document.pointerLockElement !== canvas && canvas.requestPointerLock) {
     canvas.requestPointerLock();
   }
@@ -1163,6 +1369,48 @@ document.addEventListener('mousemove', e => {
 function releasePointerLock() {
   if (document.pointerLockElement && document.exitPointerLock) document.exitPointerLock();
 }
+
+// third-person orbit: right-mouse drag (desktop) or one-finger drag (touch)
+let orbitDrag = null;
+gameContainer.addEventListener('contextmenu', e => e.preventDefault());
+canvas.addEventListener('pointerdown', e => {
+  if (gameState !== 'PLAYING') return;
+  const rightBtn = e.pointerType === 'mouse' && e.button === 2;
+  const touch = e.pointerType !== 'mouse';
+  if (rightBtn || touch) {
+    orbitDrag = { id: e.pointerId, lx: e.clientX, ly: e.clientY };
+    e.preventDefault();
+  }
+});
+window.addEventListener('pointermove', e => {
+  if (!orbitDrag || e.pointerId !== orbitDrag.id || gameState !== 'PLAYING') return;
+  const dx = e.clientX - orbitDrag.lx, dy = e.clientY - orbitDrag.ly;
+  orbitDrag.lx = e.clientX; orbitDrag.ly = e.clientY;
+  if (cameraMode === 'third') {
+    orbit.yaw -= dx * 0.0055;
+    orbit.pitch = clamp(orbit.pitch + dy * 0.004, -0.12, 1.35);
+  } else {
+    // touch steering in first person
+    player.angle -= dx * 0.0045;
+    player.pitch = clamp(player.pitch - dy * 0.004, -1.15, 1.15);
+  }
+});
+['pointerup', 'pointercancel'].forEach(ev => window.addEventListener(ev, e => {
+  if (orbitDrag && e.pointerId === orbitDrag.id) orbitDrag = null;
+}));
+
+// scroll zoom, crossing between modes at the near limit
+gameContainer.addEventListener('wheel', e => {
+  if (gameState !== 'PLAYING' || craftOpen || questLogOpen) return;
+  e.preventDefault();
+  if (cameraMode === 'third') {
+    orbit.dist = clamp(orbit.dist + e.deltaY * 0.01, ORBIT_MIN_DIST, ORBIT_MAX_DIST);
+    if (orbit.dist <= ORBIT_MIN_DIST + 0.01 && e.deltaY < 0) setCameraMode('first');
+  } else if (e.deltaY > 0) {
+    setCameraMode('third');
+    orbit.dist = 2.6;
+  }
+}, { passive: false });
 
 const isTouchDevice = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
 if (isTouchDevice) document.body.classList.add('touch-active');
@@ -1186,7 +1434,8 @@ document.querySelectorAll('.miniActionBtn').forEach(btn => {
     if (k === 'c') toggleCraft();
     if (k === 'b') setBuildMode(!buildMode);
     if (k === 'f') tryRefuelCampfire();
-    if (k === 'q') toggleQuestLog();
+    if (k === 'l') toggleQuestLog();
+    if (k === 'v') toggleCameraMode();
   });
 });
 
@@ -2050,22 +2299,42 @@ function updatePlayer(ndt) {
   // BEFORE any regen below can nudge a 0-hp player back to life
   if (player.hp <= 0) { triggerGameOver('The forest finally caught you.'); return; }
 
-  // first-person controls: W/S walk forward/back along the view direction,
-  // A/D turn (mouse look also turns when pointer-locked), Q/E strafe
+  // movement depends on camera mode:
+  //  first person — W/S walk along the view, A/D turn, Q/E strafe
+  //  third person — WASD moves relative to the camera (W runs away from
+  //  the camera), the character turns to face where it's going
   const spd = 0.15 * player.speedMult * ndt;
-  const turnSpd = 0.048 * ndt;
-  if (keys['ArrowLeft'] || keys['a'] || keys['A']) player.angle += turnSpd;
-  if (keys['ArrowRight'] || keys['d'] || keys['D']) player.angle -= turnSpd;
-  let move = 0, strafe = 0;
-  if (keys['ArrowUp'] || keys['w'] || keys['W']) move += 1;
-  if (keys['ArrowDown'] || keys['s'] || keys['S']) move -= 0.65;
-  if (keys['q'] || keys['Q']) strafe -= 1;
-  if (keys['e'] || keys['E']) strafe += 1;
-  player.moving = (move !== 0 || strafe !== 0) && !buildMode;
-  if (player.moving) {
+  let mx = 0, mz = 0;
+  if (cameraMode === 'first') {
+    const turnSpd = 0.048 * ndt;
+    if (keys['ArrowLeft'] || keys['a'] || keys['A']) player.angle += turnSpd;
+    if (keys['ArrowRight'] || keys['d'] || keys['D']) player.angle -= turnSpd;
+    let move = 0, strafe = 0;
+    if (keys['ArrowUp'] || keys['w'] || keys['W']) move += 1;
+    if (keys['ArrowDown'] || keys['s'] || keys['S']) move -= 0.65;
+    if (keys['q'] || keys['Q']) strafe -= 1;
+    if (keys['e'] || keys['E']) strafe += 1;
     const fx = Math.sin(player.angle), fz = Math.cos(player.angle);
-    const rx = fz, rz = -fx;
-    let mx = fx * move + rx * strafe, mz = fz * move + rz * strafe;
+    mx = fx * move + fz * strafe;
+    mz = fz * move - fx * strafe;
+  } else {
+    // keyboard camera swing (mouse right-drag also orbits)
+    const orbSpd = 0.045 * ndt;
+    if (keys['q'] || keys['Q']) orbit.yaw += orbSpd;
+    if (keys['e'] || keys['E']) orbit.yaw -= orbSpd;
+    let fwd = 0, strafe = 0;
+    if (keys['ArrowUp'] || keys['w'] || keys['W']) fwd += 1;
+    if (keys['ArrowDown'] || keys['s'] || keys['S']) fwd -= 1;
+    if (keys['ArrowLeft'] || keys['a'] || keys['A']) strafe -= 1;
+    if (keys['ArrowRight'] || keys['d'] || keys['D']) strafe += 1;
+    const viewYaw = orbit.yaw + Math.PI; // camera looks from behind toward the player
+    const fx = Math.sin(viewYaw), fz = Math.cos(viewYaw);
+    mx = fx * fwd + fz * strafe;
+    mz = fz * fwd - fx * strafe;
+    if (mx !== 0 || mz !== 0) player.angle = Math.atan2(mx, mz);
+  }
+  player.moving = (mx !== 0 || mz !== 0) && !buildMode;
+  if (player.moving) {
     const mag = Math.hypot(mx, mz) || 1;
     mx = mx / mag * spd; mz = mz / mag * spd;
     const nx = player.x + mx, nz = player.z + mz;
@@ -2089,8 +2358,10 @@ function updatePlayer(ndt) {
 }
 function syncPlayerMesh() {
   syncPlayerWeapon();
-  // in first person the body is hidden; it still shows on the menu orbit
-  const fpv = gameState === 'PLAYING' || gameState === 'INTRO';
+  // body hidden only when the camera is inside it (first person, playing);
+  // visible in third person and on the menu orbit
+  const inPlay = gameState === 'PLAYING' || gameState === 'INTRO';
+  const fpv = inPlay && cameraMode === 'first';
   playerMesh.visible = !fpv;
   viewmodel.visible = fpv;
   playerLantern.position.set(player.x, 1.15, player.z);
@@ -2101,7 +2372,9 @@ function syncPlayerMesh() {
     const sw = player.moving ? Math.sin(player.walkPhase) * 0.6 : 0;
     a.legL.rotation.x = sw; a.legR.rotation.x = -sw;
     a.armL.rotation.x = -sw * 0.7;
-    a.armR.rotation.x = sw * 0.7;
+    let armR = sw * 0.7;
+    if (player.swingT > 0) armR = -Math.sin((1 - player.swingT / 12) * Math.PI) * 1.9;
+    a.armR.rotation.x = armR;
   }
 }
 
@@ -2224,6 +2497,18 @@ function updateCamera(ndt) {
     camera.lookAt(camLook);
     return;
   }
+  if (cameraMode === 'third') {
+    // orbit camera around the character: yaw/pitch/distance driven by
+    // right-drag / touch drag / Q&E, scroll wheel zooms
+    const cp = Math.cos(orbit.pitch), sp = Math.sin(orbit.pitch);
+    const px = player.x + Math.sin(orbit.yaw) * cp * orbit.dist;
+    const pz = player.z + Math.cos(orbit.yaw) * cp * orbit.dist;
+    const py = Math.max(0.35, 1.0 + sp * orbit.dist);
+    camera.position.set(px, py, pz);
+    camLook.set(player.x, 1.0, player.z);
+    camera.lookAt(camLook);
+    return;
+  }
   // first person: camera sits at the player's eyes, no smoothing lag,
   // with a light head-bob while walking
   const bob = player.moving ? Math.sin(player.walkPhase * 2) * 0.035 : 0;
@@ -2300,8 +2585,10 @@ function updateHud() {
   document.getElementById('kidsTxt').textContent = lostKids.filter(k => k.state === 'atBase').length + ' / 4';
   renderHotbar();
   document.getElementById('hudControlsHint').textContent = isTouchDevice
-    ? 'D-PAD MOVE/TURN · USE/CRAFT/BUILD/FUEL/QUEST'
-    : 'W/S MOVE · A/D TURN · CLICK+MOUSE LOOK · SPACE USE · 1-9 TOOLS · C CRAFT · B BUILD · F FUEL · Q QUESTS';
+    ? (cameraMode === 'first' ? 'D-PAD MOVE/TURN · DRAG TO LOOK · VIEW SWITCHES CAMERA' : 'D-PAD MOVE · DRAG TO ORBIT · VIEW SWITCHES CAMERA')
+    : (cameraMode === 'first'
+      ? 'W/S MOVE · A/D TURN · CLICK+MOUSE LOOK · SCROLL OUT = 3RD PERSON · V VIEW · SPACE USE · C CRAFT · B BUILD · F FUEL · L QUESTS'
+      : 'WASD MOVE · RIGHT-DRAG/Q/E ORBIT · SCROLL ZOOM · V VIEW · SPACE USE · C CRAFT · B BUILD · F FUEL · L QUESTS');
 }
 
 // ===================== 2D OVERLAY (floating numbers, monster hp, vignette) =====================
@@ -2368,7 +2655,7 @@ function drawOverlay() {
   if (gameState !== 'PLAYING') return;
   drawFloatingNumbers();
   drawMonsterHp();
-  drawCrosshair();
+  if (cameraMode === 'first') drawCrosshair();
   if (dayNightPhase === 'night') { ctx.fillStyle = 'rgba(5,5,15,0.12)'; ctx.fillRect(0, 0, 800, 600); }
   drawVignette();
 }
@@ -2525,6 +2812,9 @@ window.__lp = {
   lookAt: (x, z) => { const dx = x - player.x, dz = z - player.z; player.angle = Math.atan2(dx, dz); },
   get workshopLevel() { return player.workshopLevel; },
   upgradeWorkshopOnce: () => window.upgradeWorkshop(),
+  get cameraMode() { return cameraMode; },
+  get orbit() { return { yaw: orbit.yaw, pitch: orbit.pitch, dist: orbit.dist }; },
+  setCameraMode: m => setCameraMode(m),
   get critters() { return critters.map(c => ({ x: c.x, z: c.z, alive: c.alive })); },
   huntCritterOnce: () => { const c = critters.find(x => x.alive); if (c) huntCritter(c); },
   setNight99AtDawn: () => { currentNight = 99; },
