@@ -109,9 +109,22 @@
   #hudNight { top: 10px; left: 50%; transform: translateX(-50%); width: 190px; text-align: center; }
   #hudNight .nightNum { color: #c0a0ff; font-weight: bold; font-size: 18px; letter-spacing: 2px; }
   #hudNight .phaseLabel { font-size: 10px; letter-spacing: 2px; margin-top: 2px; }
-  #hudKids { top: 10px; right: 10px; width: 130px; text-align: center; font-size: 11px; color: #ffe08a; }
+  #hudKids { top: 74px; right: 10px; width: 130px; text-align: center; font-size: 11px; color: #ffe08a; }
   #hudTimer { margin-top: 5px; height: 5px; background: #1a1622; border: 1px solid #33304a; }
   #hudTimerFill { height: 100%; background: #c0a0ff; }
+  /* centered camp-level progress bar, under the day counter */
+  #campProgress { position: absolute; top: 74px; left: 50%; transform: translateX(-50%); width: 300px; text-align: center; }
+  #campProgLabel { font-size: 11px; color: #eafbe0; text-shadow: 0 1px 2px #000; letter-spacing: 0.5px; margin-bottom: 3px; }
+  #campProgTrack { height: 14px; background: #101a10; border: 2px solid #0a120a; border-radius: 3px; overflow: hidden; }
+  #campProgFill { height: 100%; background: linear-gradient(180deg,#7be34a,#4caf2e); transition: width 0.3s ease; }
+  /* compass dial, top-right corner */
+  #hudCompass { position: absolute; top: 10px; right: 10px; width: 52px; height: 52px; border-radius: 50%;
+    background: rgba(8,6,14,0.66); border: 2px solid #33304a; display: flex; align-items: center; justify-content: center; }
+  #compassNeedle { color: #ff6b5a; font-weight: bold; font-size: 15px; }
+  /* currency gem counter, bottom-left above the bars */
+  #hudGem { position: absolute; bottom: 148px; left: 12px; font-size: 15px; color: #7fe0ff;
+    background: rgba(8,6,14,0.6); border: 1px solid #2a4a58; border-radius: 4px; padding: 3px 9px; }
+  #hudGem .gemIcon { color: #59c8f5; margin-right: 5px; }
   /* bottom-center tool hotbar */
   #hotbar {
     position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
@@ -215,11 +228,17 @@
       <div class="barRow"><div class="barLabel">CAMPFIRE FUEL</div><div class="barOuter"><div id="fuelBar" class="barInner" style="background:linear-gradient(90deg,#c85a12,#ffb454);width:100%"></div></div></div>
     </div>
     <div id="hudNight" class="hudPanel">
-      <div class="nightNum" id="nightNumTxt">NIGHT 1</div>
+      <div class="nightNum" id="nightNumTxt">DAY 1</div>
       <div class="phaseLabel" id="phaseLabelTxt">DAY</div>
       <div id="hudTimer"><div id="hudTimerFill" style="width:100%"></div></div>
     </div>
+    <div id="campProgress">
+      <div id="campProgLabel">camp level 1 progress: 0/100</div>
+      <div id="campProgTrack"><div id="campProgFill" style="width:0%"></div></div>
+    </div>
     <div id="hudKids" class="hudPanel">Children: <span id="kidsTxt">0 / 4</span></div>
+    <div id="hudCompass"><div id="compassNeedle">N</div></div>
+    <div id="hudGem"><span class="gemIcon">◆</span><span id="gemTxt">0</span></div>
     <div id="hotbar"></div>
     <div id="hudPrompt"></div>
     <div id="hudControlsHint"></div>
@@ -535,20 +554,21 @@ function makeCanvasTexture(size, painter, repX, repY) {
 }
 
 function paintGrass(g, S) {
-  g.fillStyle = '#2e4c28'; g.fillRect(0, 0, S, S);
+  // bright, saturated cartoon-lawn green — the signature look of the genre
+  g.fillStyle = '#57a83a'; g.fillRect(0, 0, S, S);
   const rng = mulberry32(4242);
   // soft tonal patches first, for large-scale variation
   for (let i = 0; i < 42; i++) {
     const x = rng() * S, y = rng() * S, r = 14 + rng() * 42;
     const grad = g.createRadialGradient(x, y, 2, x, y, r);
     const light = rng() < 0.5;
-    grad.addColorStop(0, light ? 'rgba(94,140,66,0.20)' : 'rgba(22,44,20,0.24)');
+    grad.addColorStop(0, light ? 'rgba(140,205,90,0.28)' : 'rgba(46,110,40,0.24)');
     grad.addColorStop(1, 'rgba(0,0,0,0)');
     g.fillStyle = grad;
     g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
   }
-  // individual grass blades: short angled strokes in varied greens
-  const blades = ['#3f6636', '#355a2c', '#4c7a3c', '#2a4a22', '#587f3a', '#6b9448'];
+  // individual grass blades: short angled strokes in varied bright greens
+  const blades = ['#66bb44', '#4e9c34', '#7fc94f', '#43902e', '#8ed85c', '#5aa83c'];
   for (let i = 0; i < 3200; i++) {
     g.strokeStyle = blades[Math.floor(rng() * blades.length)];
     g.globalAlpha = 0.5 + rng() * 0.5;
@@ -557,9 +577,9 @@ function paintGrass(g, S) {
     g.beginPath(); g.moveTo(x, y); g.lineTo(x + lean, y - len); g.stroke();
   }
   g.globalAlpha = 1;
-  // scattered clover/dirt flecks
+  // scattered clover/highlight flecks
   for (let i = 0; i < 130; i++) {
-    g.fillStyle = rng() < 0.6 ? '#243c1e' : '#54683a';
+    g.fillStyle = rng() < 0.6 ? '#3a7a2e' : '#9adf6a';
     g.fillRect(rng() * S, rng() * S, 2, 2);
   }
 }
@@ -1053,29 +1073,36 @@ function makeWeaponMesh(key) {
 }
 
 // ===================== SCENERY BUILDERS =====================
+// blocky "voxel" foliage: a chunky box trunk topped with a cluster of
+// overlapping leaf cubes, matching the Minecraft-style forests of the genre
 function makeBroadleaf() {
   const g = new THREE.Group();
-  g.add(mesh(geoCyl(0.09, 0.13, 0.75, 6), texMat('bark'), 0, 0.375, 0));
+  g.add(mesh(geoBox(0.24, 0.85, 0.24), texMat('bark'), 0, 0.42, 0));
   const canopyMat = texMat('leafBroad');
-  [[0, 1.05, 0.42], [0.28, 0.95, 0.34], [-0.26, 0.9, 0.3]].forEach(([x, y, r], i) => {
-    g.add(mesh(geoBlob(r, 11 + i), canopyMat, x, y, 0));
-  });
+  // a fat main cube plus offset corner cubes so the crown reads bumpy
+  g.add(mesh(geoBox(0.85, 0.62, 0.85), canopyMat, 0, 1.15, 0));
+  [[0.42, 1.05, 0.2, 0.42], [-0.4, 1.0, -0.22, 0.4], [0.15, 1.5, -0.15, 0.5], [-0.2, 1.45, 0.25, 0.44]]
+    .forEach(([x, y, z, s]) => g.add(mesh(geoBox(s, s, s), canopyMat, x, y, z)));
   return shadowify(g, true, false);
 }
 function makeConifer() {
+  // stepped pyramid of green cubes on a short trunk (blocky pine)
   const g = new THREE.Group();
-  g.add(mesh(geoCyl(0.07, 0.1, 0.4, 6), texMat('bark'), 0, 0.2, 0));
-  const layers = [[0.62, 0.5], [0.92, 0.4], [1.2, 0.28]];
-  layers.forEach(([y, r]) => g.add(mesh(geoCone(r, 0.55, 7), texMat('leafConifer'), 0, y, 0)));
+  g.add(mesh(geoBox(0.2, 0.5, 0.2), texMat('bark'), 0, 0.25, 0));
+  const m = texMat('leafConifer');
+  const layers = [[0.6, 0.8], [0.98, 0.62], [1.32, 0.42], [1.6, 0.24]];
+  layers.forEach(([y, s]) => g.add(mesh(geoBox(s, 0.4, s), m, 0, y, 0)));
   return shadowify(g, true, false);
 }
 function makeBush() {
+  // chunky rectangular hedge box (like the trimmable hedges in the shots)
   const g = new THREE.Group();
-  const bushMat = matL(0x2b4a26);
-  [[0, 0.18, 0.22], [0.14, 0.14, 0.16], [-0.13, 0.15, 0.17]].forEach(([x, y, r], i) => g.add(mesh(geoBlob(r, 21 + i), bushMat, x, y, 0)));
+  const bushMat = texMat('leafBroad', { color: 0x8fca5a });
+  g.add(mesh(geoBox(0.6, 0.4, 0.42), bushMat, 0, 0.22, 0));
+  g.add(mesh(geoBox(0.5, 0.18, 0.34), bushMat, 0.06, 0.46, 0));
   const rng = mulberry32(Math.floor(Math.random() * 99999));
-  for (let i = 0; i < 5; i++) {
-    g.add(mesh(geoSphere(0.028, 6), matB(0xd23434), (rng() - 0.5) * 0.32, 0.14 + rng() * 0.12, (rng() - 0.5) * 0.28));
+  for (let i = 0; i < 6; i++) {
+    g.add(mesh(geoSphere(0.03, 6), matB(0xe23a3a), (rng() - 0.5) * 0.5, 0.2 + rng() * 0.3, (rng() - 0.5) * 0.36));
   }
   return shadowify(g, true, false);
 }
@@ -1092,11 +1119,12 @@ function makeRockCluster() {
 }
 function makeAncientTree() {
   const g = new THREE.Group();
-  g.add(mesh(geoCyl(0.16, 0.24, 1.05, 8), texMat('bark'), 0, 0.525, 0));
+  g.add(mesh(geoBox(0.38, 1.2, 0.38), texMat('bark'), 0, 0.6, 0));
   const canopyMat = texMat('leafAncient'), canopyMat2 = texMat('leafConifer');
-  [[0, 1.7, 0.62], [0.4, 1.5, 0.5], [-0.38, 1.45, 0.48], [0, 2.1, 0.42]].forEach(([x, y, r], i) => {
-    g.add(mesh(geoBlob(r, 31 + i), i % 2 ? canopyMat2 : canopyMat, x, y, 0));
-  });
+  // a big blocky crown of leaf cubes
+  [[0, 1.8, 0, 1.1, canopyMat], [0.55, 1.65, 0.3, 0.6, canopyMat2], [-0.5, 1.6, -0.3, 0.6, canopyMat2],
+   [0.2, 2.3, -0.2, 0.7, canopyMat], [-0.25, 2.25, 0.25, 0.62, canopyMat2]]
+    .forEach(([x, y, z, s, mtl]) => g.add(mesh(geoBox(s, s * 0.82, s), mtl, x, y, z)));
   // gnarled root flare at the base
   for (let i = 0; i < 4; i++) {
     const a = (i / 4) * Math.PI * 2;
@@ -1146,14 +1174,46 @@ function makeMushroomCluster() {
   }
   return shadowify(g, true, false);
 }
-function makeFallenLog() {
+// end-grain texture: concentric tree rings on a pale sapwood disc
+function paintLogEnd(g, S) {
+  g.fillStyle = '#c79a5e'; g.fillRect(0, 0, S, S);
+  const cx = S / 2, cy = S / 2;
+  for (let r = S * 0.46; r > 2; r -= 3 + Math.random() * 3) {
+    g.strokeStyle = `rgba(90,60,28,${0.35 + Math.random() * 0.3})`;
+    g.lineWidth = 1 + Math.random();
+    g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.stroke();
+  }
+  g.fillStyle = '#7a5230';
+  g.beginPath(); g.arc(cx, cy, 3, 0, Math.PI * 2); g.fill(); // heart
+}
+const logSideMat = () => texMat('bark', { color: 0xb0763f });
+let _logEndTex = null;
+function logEndMat() {
+  if (!_logEndTex) { _logEndTex = makeCanvasTexture(64, paintLogEnd); }
+  const key = 'logEnd';
+  if (!matCache.has(key)) matCache.set(key, new THREE.MeshLambertMaterial({ map: _logEndTex }));
+  return matCache.get(key);
+}
+// a smooth orange-brown log; `hollow` puts a dark cavity with a rock inside
+function makeLog(len, hollow) {
   const g = new THREE.Group();
-  const log = mesh(geoCyl(0.11, 0.13, 1.4, 8), matL(0x4a3a26), 0, 0.12, 0);
-  log.rotation.z = Math.PI / 2;
-  g.add(log);
-  const capMat = matL(0x6b5236);
-  g.add(mesh(geoCyl(0.11, 0.11, 0.02, 8), capMat, 0.7, 0.12, 0).rotateZ(Math.PI / 2 - Math.PI / 2));
-  return shadowify(g, true, false);
+  const r = 0.16;
+  const body = new THREE.Mesh(geoCyl(r, r, len, 14),
+    [logSideMat(), logEndMat(), logEndMat()]); // side, top cap, bottom cap
+  // CylinderGeometry uses material groups [side, top, bottom]
+  body.rotation.z = Math.PI / 2;
+  body.position.y = r;
+  g.add(body);
+  if (hollow) {
+    g.add(mesh(geoCyl(r * 0.62, r * 0.62, 0.06, 12), matL(0x140d08), len / 2 - 0.02, r, 0).rotateOnAxis(new THREE.Vector3(0, 0, 1), Math.PI / 2));
+    const rock = mesh(cachedGeo('logRock', () => new THREE.DodecahedronGeometry(0.13, 0)), matL(0x2a2622), 0.02, r + 0.02, 0);
+    rock.rotation.set(0.4, 0.7, 0.2);
+    g.add(rock);
+  }
+  return shadowify(g, true, true);
+}
+function makeFallenLog() {
+  return makeLog(1.4, Math.random() < 0.4);
 }
 function makeFlowerPatch() {
   const g = new THREE.Group();
@@ -1417,7 +1477,7 @@ function resetState() {
     tool: 'fists', ownedTools: ['fists'],
     wallKits: { basic: 0, reinforced: 0, great: 0, iron: 0 },
     workshopLevel: 1,
-    gatherYieldMult: 1, fuelEff: 1, campRegen: 0, speedMult: 1,
+    gatherYieldMult: 1, fuelEff: 1, campRegen: 0, speedMult: 1, gems: 0,
     swingT: 0, attackCooldown: 0, moving: false, walkPhase: 0,
     treesChopped: 0, rocksMined: 0, oreMined: 0, berriesForaged: 0, chestsOpened: 0, stagKills: 0, bunniesHunted: 0,
     questsCompleted: [],
@@ -2007,6 +2067,7 @@ function openChest(c) {
   spawnFloat(c.x, c.z, 0.6, `+${woodGain}w +${stoneGain}s` + (oreGain ? ` +${oreGain}o` : ''), '#ffd700');
   spawnSparks(new THREE.Vector3(c.x, 0.3, c.z), 0xffd700, 10, { spread: 0.09 });
   player.chestsOpened++;
+  player.gems += 5;
 }
 function rescueKid(k) {
   k.state = 'following';
@@ -2031,6 +2092,7 @@ function huntCritter(c) {
   sfxHunt();
   spawnDrops(c.x, c.z, 'food', Math.round(BUNNY_DEF.foodReward * player.gatherYieldMult));
   player.bunniesHunted++;
+  player.gems += 1;
 }
 function updateCritters(ndt) {
   const dtSec = ndt / 60;
@@ -2608,19 +2670,30 @@ function updateSkyAndLight() {
   const activeLight = isNight ? moonMesh.position : sunMesh.position;
   sunMoonLight.position.copy(activeLight).normalize().multiplyScalar(20).add(new THREE.Vector3(player.x, 0, player.z));
   sunMoonLight.target.position.set(player.x, 0, player.z);
-  sunMoonLight.color.setHex(isNight ? 0x8fa0d8 : 0xfff6dc);
-  sunMoonLight.intensity = isNight ? (0.75 + arc * 0.4) : (1.05 + arc * 0.6);
+  sunMoonLight.color.setHex(isNight ? 0x8fa0d8 : 0xfff8e6);
+  sunMoonLight.intensity = isNight ? (0.75 + arc * 0.4) : (1.35 + arc * 0.5);
 
-  hemiLight.color.setHex(isNight ? 0x333a5a : 0x84a6d0);
-  hemiLight.intensity = isNight ? 0.75 : 1.35;
+  // bright, flat daytime ambient like a sunny cartoon lawn
+  hemiLight.color.setHex(isNight ? 0x333a5a : 0xbfe4ff);
+  hemiLight.intensity = isNight ? 0.75 : 2.0;
 
-  const skyDay = new THREE.Color(0x5a8fd9), skyDusk = new THREE.Color(0x120e1c), skyNight = new THREE.Color(0x05050c);
-  let skyCol;
-  if (isNight) skyCol = skyDusk.clone().lerp(skyNight, clamp(arc, 0, 1));
-  else skyCol = skyDusk.clone().lerp(skyDay, clamp(arc, 0, 1));
+  // the sky and the distance fog share a color; by day it's a pale
+  // near-white haze so far trees wash out into the horizon (the genre's
+  // signature "foggy bright forest" backdrop), by night deep blue-black
+  const skyDay = new THREE.Color(0x8fb8e0), skyHazeDay = new THREE.Color(0xdfeaf2);
+  const skyDusk = new THREE.Color(0x120e1c), skyNight = new THREE.Color(0x05050c);
+  let skyCol, fogCol;
+  if (isNight) {
+    skyCol = skyDusk.clone().lerp(skyNight, clamp(arc, 0, 1));
+    fogCol = skyCol;
+    scene.fog.density = 0.024;
+  } else {
+    skyCol = skyDusk.clone().lerp(skyDay, clamp(arc, 0, 1));
+    fogCol = skyDusk.clone().lerp(skyHazeDay, clamp(arc, 0, 1));
+    scene.fog.density = 0.02; // denser but pale — trees fade to white, not dark
+  }
   renderer.setClearColor(skyCol);
-  scene.fog.color.copy(skyCol);
-  scene.fog.density = isNight ? 0.024 : 0.012;
+  scene.fog.color.copy(fogCol);
 }
 
 // ===================== CAMPFIRE VISUAL =====================
@@ -2731,12 +2804,33 @@ function updateHud() {
   document.getElementById('hpBar').style.width = clamp(player.hp / player.maxHp, 0, 1) * 100 + '%';
   document.getElementById('hungerBar').style.width = clamp(player.hunger / player.maxHunger, 0, 1) * 100 + '%';
   document.getElementById('fuelBar').style.width = clamp(campfireFuel / 100, 0, 1) * 100 + '%';
-  document.getElementById('nightNumTxt').textContent = 'NIGHT ' + currentNight;
+  document.getElementById('nightNumTxt').textContent = 'DAY ' + currentNight;
   document.getElementById('phaseLabelTxt').textContent = dayNightPhase === 'day' ? 'DAY' : 'NIGHT';
   document.getElementById('phaseLabelTxt').style.color = dayNightPhase === 'day' ? '#ffd27f' : '#9db8ff';
   const totalLen = dayNightPhase === 'day' ? DAY_LEN : NIGHT_LEN;
   document.getElementById('hudTimerFill').style.width = clamp(phaseTimer / totalLen, 0, 1) * 100 + '%';
   document.getElementById('kidsTxt').textContent = lostKids.filter(k => k.state === 'atBase').length + ' / 4';
+
+  // camp-level progress bar: progress toward the next workshop upgrade,
+  // measured by the resources on hand vs. the next upgrade cost
+  const lvl = player.workshopLevel;
+  const nextCost = WORKSHOP_UPGRADE_COST[lvl + 1];
+  let pct = 100, label = 'camp level ' + lvl + ' — MAX';
+  if (nextCost) {
+    const need = (nextCost.wood || 0) + (nextCost.stone || 0) + (nextCost.ore || 0);
+    const have = Math.min(player.wood, nextCost.wood || 0) + Math.min(player.stone, nextCost.stone || 0) + Math.min(player.ore, nextCost.ore || 0);
+    pct = need ? Math.round(have / need * 100) : 100;
+    label = 'camp level ' + lvl + ' progress: ' + Math.min(have, need) + '/' + need;
+  }
+  document.getElementById('campProgFill').style.width = clamp(pct, 0, 100) + '%';
+  document.getElementById('campProgLabel').textContent = label;
+
+  // compass needle points to camp-relative north; letter flips by facing
+  const facing = cameraMode === 'first' ? player.angle : (orbit.yaw + Math.PI);
+  const dirs = ['N', 'NW', 'W', 'SW', 'S', 'SE', 'E', 'NE'];
+  document.getElementById('compassNeedle').textContent = dirs[(Math.round(facing / (Math.PI / 4)) % 8 + 8) % 8];
+
+  document.getElementById('gemTxt').textContent = player.gems || 0;
   renderHotbar();
   document.getElementById('hudControlsHint').textContent = isTouchDevice
     ? (cameraMode === 'first' ? 'D-PAD MOVE/TURN · DRAG TO LOOK · VIEW SWITCHES CAMERA' : 'D-PAD MOVE · DRAG TO ORBIT · VIEW SWITCHES CAMERA')
@@ -2787,8 +2881,10 @@ function drawIntro() {
   ctx.restore();
 }
 function drawVignette() {
-  const grad = ctx.createRadialGradient(400, 300, 170, 400, 300, 520);
-  grad.addColorStop(0, 'rgba(0,0,0,0)'); grad.addColorStop(1, 'rgba(0,0,0,0.4)');
+  // faint by day for a flat, sunny look; heavier at night for mood
+  const edge = dayNightPhase === 'night' ? 0.42 : 0.16;
+  const grad = ctx.createRadialGradient(400, 300, 190, 400, 300, 540);
+  grad.addColorStop(0, 'rgba(0,0,0,0)'); grad.addColorStop(1, 'rgba(0,0,0,' + edge + ')');
   ctx.fillStyle = grad; ctx.fillRect(0, 0, 800, 600);
 }
 function drawCrosshair() {
