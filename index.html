@@ -486,6 +486,21 @@ function geoCone(r, h, s) { return cachedGeo(`cone${r},${h},${s}`, () => new THR
 function geoCyl(rt, rb, h, s) { return cachedGeo(`cyl${rt},${rb},${h},${s}`, () => new THREE.CylinderGeometry(rt, rb, h, s)); }
 function geoSphere(r, s) { return cachedGeo(`sph${r},${s}`, () => new THREE.SphereGeometry(r, s, s)); }
 function geoOct(r) { return cachedGeo(`oct${r}`, () => new THREE.OctahedronGeometry(r)); }
+// organic "leaf blob": an icosphere with randomly nudged vertices, so
+// canopies read as foliage clumps instead of perfect gem shapes
+function geoBlob(r, seed) {
+  return cachedGeo(`blob${r},${seed}`, () => {
+    const gg = new THREE.IcosahedronGeometry(r, 1);
+    const pos = gg.attributes.position;
+    const rng = mulberry32(seed || 1);
+    for (let i = 0; i < pos.count; i++) {
+      const k = 0.78 + rng() * 0.42;
+      pos.setXYZ(i, pos.getX(i) * k, pos.getY(i) * (0.7 + rng() * 0.4), pos.getZ(i) * k);
+    }
+    gg.computeVertexNormals();
+    return gg;
+  });
+}
 
 function mesh(geo, mat, x, y, z) { const m = new THREE.Mesh(geo, mat); if (x !== undefined) m.position.set(x, y, z); return m; }
 function shadowify(obj, cast, receive) {
@@ -686,6 +701,44 @@ function paintPlanks(g, S) {
   }
 }
 
+function paintFabric(g, S) {
+  // neutral woven-cloth weave; material color supplies the garment tint
+  g.fillStyle = '#b8b8b8'; g.fillRect(0, 0, S, S);
+  const rng = mulberry32(606);
+  for (let y = 0; y < S; y += 3) {
+    g.fillStyle = y % 6 ? 'rgba(0,0,0,0.10)' : 'rgba(255,255,255,0.08)';
+    g.fillRect(0, y, S, 1.5);
+  }
+  for (let x = 0; x < S; x += 3) {
+    g.fillStyle = x % 6 ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.06)';
+    g.fillRect(x, 0, 1.5, S);
+  }
+  // wear and rumple
+  for (let i = 0; i < 220; i++) {
+    g.fillStyle = rng() < 0.5 ? 'rgba(0,0,0,0.10)' : 'rgba(255,255,255,0.07)';
+    g.fillRect(rng() * S, rng() * S, 1 + rng() * 3, 1 + rng() * 3);
+  }
+}
+
+function paintGrassTuft(g, S) {
+  // sprite for cross-plane grass tufts: transparent background,
+  // a fan of tapering blades
+  g.clearRect(0, 0, S, S);
+  const rng = mulberry32(808);
+  const blades = ['#3f6636', '#4c7a3c', '#587f3a', '#2f5228'];
+  for (let i = 0; i < 15; i++) {
+    const bx = S * 0.5 + (rng() - 0.5) * S * 0.55;
+    const lean = (rng() - 0.5) * S * 0.4;
+    const h = S * (0.45 + rng() * 0.5);
+    g.strokeStyle = blades[Math.floor(rng() * blades.length)];
+    g.lineWidth = 1.5 + rng() * 2;
+    g.beginPath();
+    g.moveTo(bx, S);
+    g.quadraticCurveTo(bx + lean * 0.3, S - h * 0.6, bx + lean, S - h);
+    g.stroke();
+  }
+}
+
 const TEX = {
   grass: makeCanvasTexture(256, paintGrass, 22),
   dirt: makeCanvasTexture(256, paintDirt, 3),
@@ -695,6 +748,8 @@ const TEX = {
   leafAncient: makeCanvasTexture(128, (g, S) => paintLeaves(g, S, '#2b5230', '#427a48', '#1a3a20'), 1.5),
   stone: makeCanvasTexture(128, paintStone, 1),
   planks: makeCanvasTexture(128, paintPlanks, 1),
+  fabric: makeCanvasTexture(64, paintFabric, 1),
+  grassTuft: makeCanvasTexture(64, paintGrassTuft, 1),
 };
 function texMat(texKey, opts) {
   const key = 'T' + texKey + JSON.stringify(opts || {});
@@ -719,19 +774,54 @@ clearingMesh.rotation.x = -Math.PI / 2;
 clearingMesh.receiveShadow = true;
 scene.add(clearingMesh);
 
-// boundary cliff ring
+// boundary cliff ring — textured stone, staggered heights for a natural rim
 {
   const ringGroup = new THREE.Group();
   const segs = 40;
+  const rrng = mulberry32(3131);
   for (let i = 0; i < segs; i++) {
     const a = (i / segs) * Math.PI * 2;
     const x = Math.cos(a) * (BOUNDARY_RADIUS - 0.6), z = Math.sin(a) * (BOUNDARY_RADIUS - 0.6);
-    const seg = mesh(geoBox(3.2, 3, 1.6), matL(0x241a10), x, -0.4, z);
-    seg.rotation.y = -a;
+    const h = 2.6 + rrng() * 1.6;
+    const seg = mesh(geoBox(3.2, 3, 1.6), texMat('stone', { color: 0x8a8270 }), x, -1.9 + h / 2, z);
+    seg.scale.y = h / 3;
+    seg.rotation.y = -a + (rrng() - 0.5) * 0.1;
     seg.receiveShadow = true;
     ringGroup.add(seg);
   }
   scene.add(ringGroup);
+}
+
+// drifting clouds — soft white puff clusters that fade out at night
+const cloudGroup = new THREE.Group();
+scene.add(cloudGroup);
+const cloudPuffMat = new THREE.MeshLambertMaterial({ color: 0xf4f6fa, transparent: true, opacity: 0.85, fog: false });
+{
+  const crng = mulberry32(7272);
+  for (let c = 0; c < 7; c++) {
+    const cluster = new THREE.Group();
+    const puffs = 4 + Math.floor(crng() * 4);
+    for (let p = 0; p < puffs; p++) {
+      const puff = mesh(geoSphere(1.6 + crng() * 1.8, 8), cloudPuffMat,
+        (crng() - 0.5) * 7, (crng() - 0.5) * 1.2, (crng() - 0.5) * 3.5);
+      puff.scale.y = 0.5;
+      cluster.add(puff);
+    }
+    const ca = crng() * Math.PI * 2, cr = 14 + crng() * 26;
+    cluster.position.set(Math.cos(ca) * cr, 15 + crng() * 6, Math.sin(ca) * cr);
+    cluster.userData.driftSpeed = 0.002 + crng() * 0.003;
+    cloudGroup.add(cluster);
+  }
+}
+function syncClouds(ndt) {
+  const isNight = dayNightPhase === 'night';
+  const targetOpacity = ((gameState === 'PLAYING' || gameState === 'MENU') && !isNight) ? 0.82 : 0;
+  cloudPuffMat.opacity += (targetOpacity - cloudPuffMat.opacity) * 0.02 * ndt;
+  cloudGroup.visible = cloudPuffMat.opacity > 0.03;
+  cloudGroup.children.forEach(c => {
+    c.position.x += c.userData.driftSpeed * ndt;
+    if (c.position.x > 48) c.position.x = -48;
+  });
 }
 
 // wall of dark fog at the current explorable edge; recedes on camp upgrades
@@ -780,29 +870,72 @@ const moonGlow = makeGlowSprite(0xc9cbde, 11, 0.55); moonGlow.material.fog = fal
 // ===================== CHARACTER BUILDERS =====================
 function makeHumanoid(spec) {
   const g = new THREE.Group();
-  const mBody = matL(spec.body), mHead = matL(spec.head), mLimb = matL(spec.limbs);
-  const legGeo = cachedGeo('leg', () => { const gg = new THREE.BoxGeometry(0.14, 0.3, 0.16); gg.translate(0, -0.15, 0); return gg; });
-  const legL = mesh(legGeo, mLimb, -0.11, 0.3, 0), legR = mesh(legGeo, mLimb, 0.11, 0.3, 0);
+  // clothing uses the woven-fabric texture tinted by each spec's colors;
+  // skin stays matte
+  const mBody = texMat('fabric', { color: spec.body });
+  const mHead = matL(spec.head);
+  const mLimb = texMat('fabric', { color: spec.limbs });
+  const mShoe = matL(spec.shoes !== undefined ? spec.shoes : 0x241d16);
+  const mSkin = matL(spec.head);
+
+  // legs with shoes at the bottom (pivot at the hip)
+  const legGeo = cachedGeo('leg', () => { const gg = new THREE.BoxGeometry(0.14, 0.26, 0.16); gg.translate(0, -0.13, 0); return gg; });
+  const shoeGeo = cachedGeo('shoe', () => { const gg = new THREE.BoxGeometry(0.15, 0.09, 0.21); gg.translate(0, -0.305, 0.02); return gg; });
+  const legL = new THREE.Group(), legR = new THREE.Group();
+  legL.add(mesh(legGeo, mLimb, 0, 0, 0), mesh(shoeGeo, mShoe, 0, 0, 0));
+  legR.add(mesh(legGeo, mLimb, 0, 0, 0), mesh(shoeGeo, mShoe, 0, 0, 0));
+  legL.position.set(-0.11, 0.35, 0); legR.position.set(0.11, 0.35, 0);
   g.add(legL, legR);
-  const body = mesh(geoBox(0.44, 0.42, 0.26), mBody, 0, 0.51, 0);
+
+  // torso with a belt line
+  const body = mesh(geoBox(0.44, 0.4, 0.26), mBody, 0, 0.56, 0);
   g.add(body);
-  const armGeo = cachedGeo('arm', () => { const gg = new THREE.BoxGeometry(0.11, 0.34, 0.13); gg.translate(0, -0.14, 0); return gg; });
-  const armL = mesh(armGeo, mLimb, -0.28, 0.68, 0), armR = mesh(armGeo, mLimb, 0.28, 0.68, 0);
+  g.add(mesh(geoBox(0.45, 0.05, 0.27), matL(0x3a2a18), 0, 0.38, 0));
+
+  // arms with skin-tone hands (pivot at the shoulder)
+  const armGeo = cachedGeo('arm', () => { const gg = new THREE.BoxGeometry(0.11, 0.28, 0.13); gg.translate(0, -0.11, 0); return gg; });
+  const handGeo = cachedGeo('hand', () => { const gg = new THREE.BoxGeometry(0.10, 0.09, 0.11); gg.translate(0, -0.29, 0); return gg; });
+  const armL = new THREE.Group(), armR = new THREE.Group();
+  armL.add(mesh(armGeo, mLimb, 0, 0, 0), mesh(handGeo, mSkin, 0, 0, 0));
+  armR.add(mesh(armGeo, mLimb, 0, 0, 0), mesh(handGeo, mSkin, 0, 0, 0));
+  armL.position.set(-0.28, 0.72, 0); armR.position.set(0.28, 0.72, 0);
   g.add(armL, armR);
-  const head = mesh(geoBox(0.3, 0.27, 0.27), spec.hood ? matL(spec.hood) : mHead, 0, 0.88, 0);
+
+  // head: face, hair cap wrapping the top and back, brows and mouth
+  const head = mesh(geoBox(0.3, 0.27, 0.27), spec.hood ? matL(spec.hood) : mHead, 0, 0.93, 0);
   g.add(head);
-  if (spec.hood) g.add(mesh(geoBox(0.2, 0.17, 0.05), mHead, 0, 0.86, 0.145));
+  if (spec.hood) {
+    g.add(mesh(geoBox(0.2, 0.17, 0.05), mHead, 0, 0.91, 0.145));
+  } else {
+    const mHair = matL(spec.hair !== undefined ? spec.hair : 0x3a2a1a);
+    g.add(mesh(geoBox(0.32, 0.09, 0.29), mHair, 0, 1.075, 0));       // cap
+    g.add(mesh(geoBox(0.32, 0.16, 0.08), mHair, 0, 0.97, -0.115));   // back
+    g.add(mesh(geoBox(0.055, 0.02, 0.02), mHair, -0.07, 1.0, 0.14)); // brows
+    g.add(mesh(geoBox(0.055, 0.02, 0.02), mHair, 0.07, 1.0, 0.14));
+    g.add(mesh(geoBox(0.07, 0.018, 0.02), matL(0x8a5a4a), 0, 0.845, 0.14)); // mouth
+  }
   const eyeMat = spec.glowEyes ? matB(spec.eyes) : matL(spec.eyes);
-  g.add(mesh(geoBox(0.05, 0.05, 0.03), eyeMat, -0.07, 0.9, 0.145));
-  g.add(mesh(geoBox(0.05, 0.05, 0.03), eyeMat, 0.07, 0.9, 0.145));
+  g.add(mesh(geoBox(0.05, 0.05, 0.03), eyeMat, -0.07, 0.945, 0.14));
+  g.add(mesh(geoBox(0.05, 0.05, 0.03), eyeMat, 0.07, 0.945, 0.14));
+
+  // survivalist backpack with shoulder straps (player only)
+  if (spec.backpack) {
+    const mPack = texMat('fabric', { color: 0x6b4f2e });
+    g.add(mesh(geoBox(0.34, 0.32, 0.14), mPack, 0, 0.6, -0.2));
+    g.add(mesh(geoBox(0.3, 0.08, 0.15), mPack, 0, 0.79, -0.19));    // top flap
+    g.add(mesh(geoBox(0.05, 0.3, 0.02), matL(0x4a3520), -0.13, 0.6, 0.135)); // straps
+    g.add(mesh(geoBox(0.05, 0.3, 0.02), matL(0x4a3520), 0.13, 0.6, 0.135));
+    g.add(mesh(geoBox(0.1, 0.12, 0.05), matL(0x8a8f9a), 0.09, 0.53, -0.29)); // tin cup
+  }
+
   g.scale.setScalar(spec.scale);
   g.userData.anim = { legL, legR, armL, armR };
   return shadowify(g, true, false);
 }
 
 const CHAR_SPECS = {
-  player: { body: 0x3d7fd9, head: 0xf2c396, limbs: 0x2e2e3a, eyes: 0x14100c, scale: 1 },
-  walker: { body: 0x6b6b7a, head: 0xa8cf8a, limbs: 0x45454f, eyes: 0xff5544, glowEyes: true, scale: 1 },
+  player: { body: 0x3d7fd9, head: 0xf2c396, limbs: 0x2e2e3a, eyes: 0x14100c, hair: 0x2e2015, backpack: true, scale: 1 },
+  walker: { body: 0x6b6b7a, head: 0xa8cf8a, limbs: 0x45454f, eyes: 0xff5544, glowEyes: true, hair: 0x1e2418, shoes: 0x2a2a30, scale: 1 },
 };
 function makeWalker() { return makeHumanoid(CHAR_SPECS.walker); }
 function makePlayerMesh() { return makeHumanoid(CHAR_SPECS.player); }
@@ -924,8 +1057,8 @@ function makeBroadleaf() {
   const g = new THREE.Group();
   g.add(mesh(geoCyl(0.09, 0.13, 0.75, 6), texMat('bark'), 0, 0.375, 0));
   const canopyMat = texMat('leafBroad');
-  [[0, 1.05, 0.42], [0.28, 0.95, 0.34], [-0.26, 0.9, 0.3]].forEach(([x, y, r]) => {
-    g.add(mesh(geoOct(r), canopyMat, x, y, 0));
+  [[0, 1.05, 0.42], [0.28, 0.95, 0.34], [-0.26, 0.9, 0.3]].forEach(([x, y, r], i) => {
+    g.add(mesh(geoBlob(r, 11 + i), canopyMat, x, y, 0));
   });
   return shadowify(g, true, false);
 }
@@ -939,7 +1072,7 @@ function makeConifer() {
 function makeBush() {
   const g = new THREE.Group();
   const bushMat = matL(0x2b4a26);
-  [[0, 0.18, 0.22], [0.14, 0.14, 0.16], [-0.13, 0.15, 0.17]].forEach(([x, y, r]) => g.add(mesh(geoOct(r), bushMat, x, y, 0)));
+  [[0, 0.18, 0.22], [0.14, 0.14, 0.16], [-0.13, 0.15, 0.17]].forEach(([x, y, r], i) => g.add(mesh(geoBlob(r, 21 + i), bushMat, x, y, 0)));
   const rng = mulberry32(Math.floor(Math.random() * 99999));
   for (let i = 0; i < 5; i++) {
     g.add(mesh(geoSphere(0.028, 6), matB(0xd23434), (rng() - 0.5) * 0.32, 0.14 + rng() * 0.12, (rng() - 0.5) * 0.28));
@@ -962,7 +1095,7 @@ function makeAncientTree() {
   g.add(mesh(geoCyl(0.16, 0.24, 1.05, 8), texMat('bark'), 0, 0.525, 0));
   const canopyMat = texMat('leafAncient'), canopyMat2 = texMat('leafConifer');
   [[0, 1.7, 0.62], [0.4, 1.5, 0.5], [-0.38, 1.45, 0.48], [0, 2.1, 0.42]].forEach(([x, y, r], i) => {
-    g.add(mesh(geoOct(r), i % 2 ? canopyMat2 : canopyMat, x, y, 0));
+    g.add(mesh(geoBlob(r, 31 + i), i % 2 ? canopyMat2 : canopyMat, x, y, 0));
   });
   // gnarled root flare at the base
   for (let i = 0; i < 4; i++) {
@@ -1536,6 +1669,18 @@ function syncPlayerWeapon() {
   viewmodel.position.y += bobv;
 }
 
+// cross-plane grass tufts: two intersecting alpha-cut planes
+function makeGrassTuftMesh() {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshLambertMaterial({ map: TEX.grassTuft, transparent: true, alphaTest: 0.35, side: THREE.DoubleSide });
+  const geo = cachedGeo('tuftPlane', () => { const gg = new THREE.PlaneGeometry(0.5, 0.4); gg.translate(0, 0.2, 0); return gg; });
+  const p1 = new THREE.Mesh(geo, mat);
+  const p2 = new THREE.Mesh(geo, mat);
+  p2.rotation.y = Math.PI / 2;
+  g.add(p1, p2);
+  return g;
+}
+
 const SCENERY_BUILDERS = [makeFern, makeMushroomCluster, makeFallenLog, makeFlowerPatch];
 
 function generateWorld() {
@@ -1596,6 +1741,15 @@ function generateWorld() {
     meshObj.rotation.y = rng() * Math.PI * 2;
     meshObj.scale.setScalar(0.8 + rng() * 0.5);
     worldGroup.add(meshObj);
+  }
+  // grass tufts scattered densely across the whole floor
+  for (let i = 0; i < 130; i++) {
+    const p = randomRingPoint(2.5, WORLD_RADIUS - 1);
+    const tuft = makeGrassTuftMesh();
+    tuft.position.set(p.x, 0, p.z);
+    tuft.rotation.y = rng() * Math.PI;
+    tuft.scale.setScalar(0.7 + rng() * 0.7);
+    worldGroup.add(tuft);
   }
   for (let i = 0; i < 8; i++) {
     const p = randomRingPoint(9, WORLD_RADIUS - 3);
@@ -2750,6 +2904,7 @@ function sync3D() {
   syncProjectiles();
   syncCampfire();
   syncFogWall(1);
+  syncClouds(1);
   updateSkyAndLight();
   updateCamera(1);
   if (gameState === 'PLAYING') updateHud();
