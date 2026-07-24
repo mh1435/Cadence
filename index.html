@@ -380,6 +380,8 @@
   .shelf { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 10px; }
   .shelf .item { background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; padding: 10px; text-align: center; }
   .shelf .item.locked { opacity: .5; }
+  .shelf .item.owned { border-color: color-mix(in srgb, var(--good) 40%, var(--line)); }
+  .shelf .item button[disabled] { opacity: .5; cursor: default; }
   .shelf .item .nm { font-size: 12px; font-weight: 700; margin-top: 4px; }
   .shelf .item .th { font-size: 10.5px; color: var(--txt-faint); }
   .grow-plant { transition: none; }
@@ -811,6 +813,22 @@ function ring(pct, color, size=54){
       stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${off}"
       transform="rotate(-90 ${size/2} ${size/2})"/>
     <text x="50%" y="50%" text-anchor="middle" dominant-baseline="central" fill="var(--txt)" font-size="${size*0.24}" font-weight="800">${Math.round(pct*100)}</text>
+  </svg>`;
+}
+// Donut chart from [{value,color}]; centerLabel optional.
+function donutSVG(segs, size=150, centerLabel=""){
+  const total = segs.reduce((a,s)=>a+s.value,0) || 1;
+  const cx=size/2, cy=size/2, r=(size-22)/2, c=2*Math.PI*r;
+  let acc=0, out="";
+  segs.forEach(s=>{
+    const frac=s.value/total, len=c*frac, gap=c-len, off=c*(1-acc/total);
+    out += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${s.color}" stroke-width="16" stroke-dasharray="${len.toFixed(2)} ${gap.toFixed(2)}" stroke-dashoffset="${off.toFixed(2)}" transform="rotate(-90 ${cx} ${cy})"/>`;
+    acc += s.value;
+  });
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="flex-shrink:0">
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--bg-3)" stroke-width="16"/>
+    ${out}
+    ${centerLabel?`<text x="50%" y="50%" text-anchor="middle" dominant-baseline="central" fill="var(--txt)" font-size="${size*0.14}" font-weight="800">${centerLabel}</text>`:''}
   </svg>`;
 }
 
@@ -1252,6 +1270,32 @@ renderers.analytics = () => {
     <div class="stat"><div class="label">Daily average</div><div class="value">${fmtDur(series.reduce((a,s)=>a+s.val,0)/days)}</div><div class="trend">over 14 days</div></div>
   </div>`;
 
+  // subject / habit time distribution (donut) — last 30 days
+  const dist = {};
+  state.habits.forEach(h=>{
+    if (h.type!=="time") return;
+    let mins=0; for(let i=0;i<30;i++) mins += dayTotal(h, todayISO(addDays(new Date(),-i)));
+    if (mins<=0) return;
+    const key = h.subject && h.subject.trim() ? h.subject.trim() : h.name;
+    dist[key] = (dist[key]||0) + mins;
+  });
+  const distEntries = Object.entries(dist).sort((a,b)=>b[1]-a[1]);
+  if (distEntries.length){
+    const distTotal = distEntries.reduce((a,e)=>a+e[1],0);
+    html += `<div class="section-title">Where your focus went (30 days)</div>
+      <div class="card flex" style="gap:22px;align-items:center;flex-wrap:wrap">
+        ${donutSVG(distEntries.map((e,i)=>({value:e[1], color:COLORS[i%COLORS.length]})), 150, fmtDur(distTotal))}
+        <div style="flex:1;min-width:180px">${distEntries.map((e,i)=>`
+          <div class="flex" style="padding:6px 0;${i?'border-top:1px solid var(--line)':''}">
+            <span style="width:11px;height:11px;border-radius:3px;background:${COLORS[i%COLORS.length]}"></span>
+            <b style="font-size:13.5px">${esc(e[0])}</b>
+            <span class="spacer" style="flex:1"></span>
+            <span class="muted" style="font-size:13px">${fmtDur(e[1])}</span>
+            <span class="faint" style="width:44px;text-align:right;font-size:12px">${Math.round(e[1]/distTotal*100)}%</span>
+          </div>`).join("")}</div>
+      </div>`;
+  }
+
   // per-habit consistency + pace prediction
   html += `<div class="section-title">Per-habit insight</div><div class="grid cols-2">`;
   state.habits.forEach(h=>{
@@ -1557,7 +1601,7 @@ renderers.settings = () => {
     <div class="stat"><div class="label">Total time</div><div class="value" style="font-size:22px">${fmtDur(totalMinutesAll())}</div></div>
     <div class="stat"><div class="label">Tracking since</div><div class="value" style="font-size:16px">${state.created}</div></div>
   </div>
-  <div class="faint center" style="margin-top:30px;font-size:12px">Cadence · offline study organizer · v1.7 · icon UI · ambient focus sounds · Forest-style focus · no accounts, no AI, no tracking</div>`;
+  <div class="faint center" style="margin-top:30px;font-size:12px">Cadence · offline study organizer · v1.8 · plant store · focus stats · ambient sounds · no accounts, no AI, no tracking</div>`;
   view.innerHTML = html;
 
   renderSwatches(document.getElementById("setAccent"), s.accent, c=>{ s.accent=c; document.documentElement.style.setProperty("--accent",c); save(); });
@@ -1838,7 +1882,7 @@ function completeFocus(){
   state.garden.sun += mins;
   state.garden.active=null;
   if (a.habitId){ const h=habitById(a.habitId); if(h && h.type==="time") addSession(a.habitId, mins); }
-  unlockSpecies(); save(); checkBadges(); stopFocusTick(); releaseWakeLock(); exitFullscreen(); Ambient.stop();
+  save(); checkBadges(); stopFocusTick(); releaseWakeLock(); exitFullscreen(); Ambient.stop();
   notify("Bloomed!", `Your ${speciesById(a.species).name} bloomed. +${mins} Sunlight.`);
   toast(`Your ${speciesById(a.species).name} bloomed — +${mins} Sunlight`);
   confettiBurst();
@@ -1859,7 +1903,17 @@ function giveUpFocus(){
   toast("Plant wilted — you ended early. A shorter session next time?");
   if (currentView==="grow") renderers.grow();
 }
-function unlockSpecies(){ SPECIES.forEach(sp=>{ if(state.garden.sun>=sp.sun && !state.garden.unlocked.includes(sp.id)){ state.garden.unlocked.push(sp.id); toast(`New species unlocked: ${sp.name}!`); } }); }
+function speciesPrice(sp){ return sp.sun; }  // Sunlight cost in the store
+function buySpecies(id){
+  const sp=speciesById(id); if(!sp) return;
+  if (state.garden.unlocked.includes(id)) return;
+  const price=speciesPrice(sp);
+  if (state.garden.sun < price){ toast(`Need ${price} Sunlight — you have ${state.garden.sun}.`); return; }
+  state.garden.sun -= price; state.garden.unlocked.push(id); chosenSpecies=id;
+  save(); checkBadges(); confettiBurst();
+  toast(`Unlocked ${sp.name}!`);
+  if (currentView==="grow") renderers.grow();
+}
 function ensureFocusTick(){ if(focusTick) return; focusTick=setInterval(focusHeartbeat,1000); }
 function stopFocusTick(){ if(focusTick){ clearInterval(focusTick); focusTick=null; } }
 function focusHeartbeat(){ const a=state.garden.active; if(!a){ stopFocusTick(); return; } if(focusRemainingSec()<=0){ completeFocus(); return; } if(currentView==="grow") updateFocusUI(); }
@@ -1928,8 +1982,13 @@ renderers.grow = () => {
   }
   html += `</div>`;
 
-  html += `<div class="card"><div class="flex" style="margin-bottom:12px"><b>Species collection</b><span class="spacer" style="flex:1"></span><span class="faint" style="font-size:12px">${g.unlocked.length}/${SPECIES.length}</span></div>
-    <div class="shelf">`+SPECIES.map(s=>{ const on=g.unlocked.includes(s.id); return `<div class="item ${on?'':'locked'}">${plantSVG(s,1,54)}<div class="nm">${on?s.name:'???'}</div><div class="th">${on?'Unlocked':s.sun+' Sunlight'}</div></div>`; }).join("")+`</div></div>`;
+  html += `<div class="card"><div class="flex" style="margin-bottom:12px"><b>Store &amp; collection</b><span class="spacer" style="flex:1"></span><span class="sun-pill" style="font-size:13px"><span style="color:var(--warn)">${ic("sun",14)}</span> ${g.sun}</span></div>
+    <div class="shelf">`+SPECIES.map(s=>{ const on=g.unlocked.includes(s.id); const price=speciesPrice(s); const afford=g.sun>=price;
+      return `<div class="item ${on?'owned':''}">${plantSVG(s,1,54)}<div class="nm">${s.name}</div>`
+        + (on ? `<div class="th" style="color:var(--good)">Owned</div>`
+              : `<button class="btn small ${afford?'primary':''}" data-buy="${s.id}" ${afford?'':'disabled'} style="margin-top:5px;width:100%">${ic("sun",12)} ${price}</button>`)
+        + `</div>`; }).join("")+`</div>
+    <div class="faint" style="font-size:11.5px;margin-top:10px">Earn Sunlight by finishing focus sessions, then buy new plants here.</div></div>`;
 
   html += `<div class="card"><div class="flex" style="margin-bottom:12px"><b>Ambient sound</b><span class="spacer" style="flex:1"></span><span class="faint" style="font-size:12px">plays while focusing</span></div>
     <div class="amb-picker" id="ambPicker">`+AMBIENTS.map(a=>`<button class="${state.garden.ambient===a.id?'on':''}" data-amb="${a.id}">${ic(a.icon,20)}${a.name}</button>`).join("")+`</div></div>`;
@@ -1950,9 +2009,10 @@ renderers.grow = () => {
     chosenHabit=hb; startFocus(dur, chosenSpecies, hb);
   };
   view.querySelectorAll("#durPicker [data-dur]").forEach(b=> b.onclick=()=>{ chosenDur=parseInt(b.dataset.dur); const c=document.getElementById("durCustom"); if(c)c.value=""; renderers.grow(); });
-  view.querySelectorAll("#speciesPick .sp").forEach(el=> el.onclick=()=>{ if(el.classList.contains("locked")){ toast("Earn more Sunlight to unlock this one"); return; } chosenSpecies=el.dataset.sp; renderers.grow(); });
+  view.querySelectorAll("#speciesPick .sp").forEach(el=> el.onclick=()=>{ if(el.classList.contains("locked")){ toast("Buy this plant in the Store below."); return; } chosenSpecies=el.dataset.sp; renderers.grow(); });
   const st=document.getElementById("strictToggle"); if(st) st.onclick=()=>{ state.garden.strict=!state.garden.strict; save(); renderers.grow(); toast(state.garden.strict?"Strict mode on":"Strict mode off"); };
   view.querySelectorAll("#ambPicker [data-amb]").forEach(b=> b.onclick=()=> setAmbient(b.dataset.amb));
+  view.querySelectorAll("[data-buy]").forEach(b=> b.onclick=()=> buySpecies(b.dataset.buy));
 };
 
 /* ============================= Command palette ============================= */
