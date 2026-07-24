@@ -111,6 +111,38 @@
   .cols-2 { grid-template-columns: repeat(2, 1fr); }
   @media (max-width: 920px){ .cols-3,.cols-4{grid-template-columns:repeat(2,1fr);} }
 
+  /* hamburger + drawer scrim (hidden on desktop) */
+  .hamb { display: none; background: transparent; border: 0; color: var(--txt); font-size: 22px; line-height: 1; padding: 2px 6px; margin-right: 2px; }
+  .scrim { display: none; position: fixed; inset: 0; background: rgba(4,6,10,.6); z-index: 80; }
+  .scrim.show { display: block; }
+
+  /* ---------- Mobile ---------- */
+  @media (max-width: 760px) {
+    body { overflow: auto; }
+    .app { grid-template-columns: 1fr; height: auto; min-height: 100vh; }
+    .side {
+      position: fixed; top: 0; left: 0; bottom: 0; width: 264px; max-width: 84vw;
+      transform: translateX(-100%); transition: transform .22s ease; z-index: 90;
+      box-shadow: var(--shadow);
+    }
+    .side.open { transform: translateX(0); }
+    .main { overflow: visible; }
+    .hamb { display: inline-flex; }
+    .topbar { padding: 12px 14px; gap: 10px; }
+    .topbar h2 { font-size: 17px; }
+    .topbar .sub { font-size: 12px; }
+    #cmdBtn { display: none; }
+    #addBtn { padding: 8px 12px; font-size: 12.5px; }
+    .view { padding: 16px 14px 80px; }
+    .cols-2, .cols-3, .cols-4 { grid-template-columns: 1fr; }
+    .section-title { margin-top: 20px; }
+    .row { flex-direction: column; }
+    .modal-foot { flex-wrap: wrap; }
+    .sched-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    #schedGrid { min-width: 600px; }
+    .barchart .b > span { font-size: 9px; }
+  }
+
   .section-title { font-size: 13px; text-transform: uppercase; letter-spacing: .8px; color: var(--txt-faint); font-weight: 700; margin: 26px 2px 12px; }
   .section-title:first-child { margin-top: 4px; }
 
@@ -185,7 +217,7 @@
   .seg button.on { background: var(--bg-3); color: var(--txt); }
 
   /* Schedule grid */
-  .sched { display: grid; grid-template-columns: 56px repeat(7, 1fr); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--bg-2); }
+  .sched { position: relative; display: grid; grid-template-columns: 56px repeat(7, 1fr); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--bg-2); }
   .sched .cell { border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); min-height: 30px; position: relative; }
   .sched .cell:hover { background: var(--bg-3); cursor: pointer; }
   .sched .head { background: var(--bg-3); text-align: center; font-size: 12px; font-weight: 700; padding: 8px 0; color: var(--txt-dim); border-bottom: 1px solid var(--line-2); min-height: 0; }
@@ -278,6 +310,7 @@
 
   <main class="main">
     <div class="topbar">
+      <button class="hamb no-print" id="hamb" aria-label="Menu">☰</button>
       <div>
         <h2 id="viewTitle">Dashboard</h2>
         <div class="sub" id="viewSub">—</div>
@@ -288,6 +321,7 @@
     </div>
     <div class="view" id="view"></div>
   </main>
+  <div class="scrim no-print" id="scrim"></div>
 </div>
 
 <!-- Habit modal -->
@@ -808,7 +842,7 @@ renderers.schedule = () => {
   let html = `<div class="flex" style="margin-bottom:14px"><span class="muted">Click a slot to add a study block. Drag not needed — set start/end in the dialog.</span><span class="spacer" style="flex:1"></span>
     <button class="btn small" id="clearWeek">Clear week</button>
     <button class="btn small no-print" onclick="window.print()">🖨 Print</button></div>`;
-  html += `<div class="sched" id="schedGrid">`;
+  html += `<div class="sched-scroll"><div class="sched" id="schedGrid">`;
   html += `<div class="head"></div>` + DAYS.map(d=>`<div class="head">${d}</div>`).join("");
   for (let hr=h0; hr<=h1; hr++){
     html += `<div class="cell hourlbl">${String(hr).padStart(2,'0')}:00</div>`;
@@ -816,7 +850,7 @@ renderers.schedule = () => {
       html += `<div class="cell" data-day="${DAY_KEYS[di]}" data-hour="${hr}"></div>`;
     }
   }
-  html += `</div>`;
+  html += `</div></div>`;
   // weekly total
   const total = state.blocks.reduce((a,b)=> a + (toMin(b.end)-toMin(b.start)), 0);
   html += `<div class="flex" style="margin-top:14px"><span class="pill">Planned this week: ${fmtDur(total)}</span></div>`;
@@ -1245,7 +1279,7 @@ document.getElementById("cmdBtn").onclick = openCmd;
 document.addEventListener("keydown", e=>{
   const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
   if ((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==="k"){ e.preventDefault(); openCmd(); return; }
-  if (e.key==="Escape"){ document.querySelectorAll(".overlay.show").forEach(o=>o.classList.remove("show")); closeCmd(); return; }
+  if (e.key==="Escape"){ document.querySelectorAll(".overlay.show").forEach(o=>o.classList.remove("show")); closeCmd(); closeDrawer(); return; }
   if (typing) return;
   if (e.key==="?"){ showShortcuts(); return; }
   if (e.key==="n"){ openHabitModal(); return; }
@@ -1257,8 +1291,15 @@ function showShortcuts(){
 }
 
 /* ============================= Wire up ============================= */
-document.querySelectorAll(".nav-btn").forEach(b=> b.onclick=()=> setView(b.dataset.view));
+document.querySelectorAll(".nav-btn").forEach(b=> b.onclick=()=>{ setView(b.dataset.view); closeDrawer(); });
 document.getElementById("addBtn").onclick = ()=> openHabitModal();
+
+// Mobile drawer
+const sideEl = document.querySelector(".side"), scrimEl = document.getElementById("scrim");
+function openDrawer(){ sideEl.classList.add("open"); scrimEl.classList.add("show"); }
+function closeDrawer(){ sideEl.classList.remove("open"); scrimEl.classList.remove("show"); }
+document.getElementById("hamb").onclick = ()=> sideEl.classList.contains("open") ? closeDrawer() : openDrawer();
+scrimEl.onclick = closeDrawer;
 
 // seed a tiny demo the very first run so the app isn't empty
 if (!localStorage.getItem(STORE_KEY) && !state.habits.length){
