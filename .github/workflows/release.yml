@@ -2,12 +2,17 @@ name: Release
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'manifest.webmanifest'
+      - 'sw.js'
+      - 'icon.svg'
+      - '.github/workflows/release.yml'
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Version tag for the release (e.g. v1.3.0)'
+        description: 'Version tag for a pinned release (e.g. v1.3.0)'
         required: true
         default: 'v1.3.0'
 
@@ -27,7 +32,7 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "tag=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
           else
-            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+            echo "tag=latest" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Package downloadable app
@@ -42,9 +47,11 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
-          name: Cadence ${{ steps.tag.outputs.tag }}
+          name: Cadence (${{ steps.tag.outputs.tag }})
           body: |
             **Cadence** — a free, offline study time & habit organizer with a Focus Garden, voice control, and real-time reminders. No AI, no backend, no accounts, no tracking — your data stays in your browser.
+
+            This release is rebuilt automatically from the latest `main`.
 
             ### Download & run
             - **`cadence.html`** — the entire app in one file. Download it and open it in any browser (phone or computer). It works completely offline. On a phone you can also open it and choose **"Add to Home screen"** to use it like an installed app.
