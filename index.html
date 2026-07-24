@@ -360,6 +360,14 @@
   .amb-picker button { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 11px 4px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--bg); color: var(--txt-dim); font-size: 11.5px; font-weight: 600; }
   .amb-picker button.on { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--bg)); }
 
+  /* Today's forest strip */
+  .forest-card { background: linear-gradient(180deg, color-mix(in srgb, var(--good) 10%, var(--bg-2)), var(--bg-2)); }
+  .forest-strip { display: flex; align-items: flex-end; gap: 2px; overflow-x: auto; min-height: 74px; padding-top: 4px; }
+  .fs-tree { flex: 0 0 auto; line-height: 0; }
+  .fs-tree.withered { opacity: .42; }
+  .forest-ground { height: 7px; border-radius: 4px; background: linear-gradient(90deg, color-mix(in srgb, var(--good) 45%, var(--bg-3)), color-mix(in srgb, var(--good) 22%, var(--bg-3))); margin-top: -2px; }
+  .forest-empty { color: var(--txt-dim); font-size: 13px; align-self: center; padding: 20px 4px; }
+
   /* Immersive focus screen (Forest-style green focus mode) */
   .focus-screen { display: none; position: fixed; inset: 0; z-index: 130; padding: 26px 22px calc(26px + env(safe-area-inset-bottom,0px));
     background: linear-gradient(165deg, #0d3d2f 0%, #155e49 46%, #1f7f60 100%);
@@ -1481,6 +1489,12 @@ const SPECIES = [
   { id:"bonsai",    name:"Bonsai",    stem:"#7c5b3f", leaf:"#22c55e", bloom:"#86efac", shape:"tree",      sun:800  },
   { id:"lotus",     name:"Lotus",     stem:"#22c55e", leaf:"#16a34a", bloom:"#f472b6", shape:"lotus",     sun:1200 },
   { id:"starbloom", name:"Starbloom", stem:"#60a5fa", leaf:"#38bdf8", bloom:"#c4b5fd", shape:"star",      sun:2000 },
+  // ---- Magical species (glow) ----
+  { id:"emberoak",  name:"Ember Oak",  stem:"#92400e", leaf:"#fb923c", bloom:"#fbbf24", shape:"ember",    sun:2600, glow:"#fb923c" },
+  { id:"moonwillow",name:"Moonwillow", stem:"#0e7490", leaf:"#67e8f9", bloom:"#a5f3fc", shape:"willow",   sun:3200, glow:"#67e8f9" },
+  { id:"crystal",   name:"Crystal Pine",stem:"#1e3a8a",leaf:"#60a5fa", bloom:"#bfdbfe", shape:"crystal",  sun:4000, glow:"#93c5fd" },
+  { id:"glowcap",   name:"Glowcap",    stem:"#a16207", leaf:"#f59e0b", bloom:"#f87171", shape:"mushroom", sun:5000, glow:"#fca5a5" },
+  { id:"auraspiral",name:"Aura Spiral",stem:"#a16207", leaf:"#c084fc", bloom:"#f0abfc", shape:"spiral",   sun:6500, glow:"#e879f9" },
 ];
 const BADGES = [
   { id:"first", icon:"leaf", name:"First Steps", desc:"Log your first session", test:()=> anySessions() },
@@ -1644,7 +1658,7 @@ renderers.settings = () => {
     <div class="stat"><div class="label">Total time</div><div class="value" style="font-size:22px">${fmtDur(totalMinutesAll())}</div></div>
     <div class="stat"><div class="label">Tracking since</div><div class="value" style="font-size:16px">${state.created}</div></div>
   </div>
-  <div class="faint center" style="margin-top:30px;font-size:12px">Cadence · offline study organizer · v2.0 · lusher plant art · immersive focus · store · no accounts, no AI, no tracking</div>`;
+  <div class="faint center" style="margin-top:30px;font-size:12px">Cadence · offline study organizer · v2.1 · magical species · today's forest · immersive focus · no accounts, no AI, no tracking</div>`;
   view.innerHTML = html;
 
   renderSwatches(document.getElementById("setAccent"), s.accent, c=>{ s.accent=c; document.documentElement.style.setProperty("--accent",c); save(); });
@@ -1798,6 +1812,10 @@ function plantSVG(sp, p, size=180){
     <radialGradient id="${id('leaf')}" cx="0.4" cy="0.3" r="0.85"><stop offset="0" stop-color="${hexAdj(sp.leaf,20)}"/><stop offset="1" stop-color="${hexAdj(sp.leaf,-16)}"/></radialGradient>
   </defs>`;
   s += `<ellipse cx="50" cy="113.5" rx="23" ry="4" fill="rgba(0,0,0,.20)"/>`;
+  if (sp.glow && bloomP>0){
+    s += `<defs><radialGradient id="${id('aura')}" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="${sp.glow}" stop-opacity="${(0.5*bloomP).toFixed(2)}"/><stop offset="1" stop-color="${sp.glow}" stop-opacity="0"/></radialGradient></defs>`;
+    s += `<circle cx="50" cy="${(stemTop+4).toFixed(1)}" r="${(34*bloomP).toFixed(1)}" fill="url(#${id('aura')})"/>`;
+  }
   if (p>0.03){
     s += `<path d="M50 100 C ${(50+7*Math.sin(p*4)).toFixed(1)} ${((100+stemTop)/2).toFixed(1)}, ${(48).toFixed(1)} ${(stemTop+13).toFixed(1)}, 50 ${stemTop.toFixed(1)}" fill="none" stroke="url(#${id('stem')})" stroke-width="${sw.toFixed(1)}" stroke-linecap="round"/>`;
     if (leafP>0){
@@ -1873,6 +1891,64 @@ function bloomShape(sp, x, y, r, p, id){
   if (sp.shape==="star"){
     let pts="",pin=""; for(let i=0;i<10;i++){ const a=i/10*Math.PI*2 - Math.PI/2; const rr=i%2?r*0.42:r; pts+=`${F(x+Math.cos(a)*rr)},${F(y+Math.sin(a)*rr)} `; const rr2=i%2?r*0.22:r*0.55; pin+=`${F(x+Math.cos(a)*rr2)},${F(y+Math.sin(a)*rr2)} `; }
     return `<circle cx="${F(x)}" cy="${F(y)}" r="${F(r*1.5)}" fill="${c}" opacity="0.18"/><circle cx="${F(x)}" cy="${F(y)}" r="${F(r*1.1)}" fill="${cl}" opacity="0.25"/><polygon points="${pts.trim()}" fill="${grad}"/><polygon points="${pin.trim()}" fill="${cl}" opacity=".6"/><circle cx="${F(x)}" cy="${F(y)}" r="${F(r*0.2)}" fill="#fff"/>`;
+  }
+  if (sp.shape==="ember"){
+    // fiery canopy: stacked flame-lobes with hot core + floating embers
+    let o=`<circle cx="${F(x)}" cy="${F(y)}" r="${F(r*1.5)}" fill="${c}" opacity=".16"/>`;
+    const lobes=[[-.65,.3,.8],[.68,.25,.8],[-.2,-.2,.95],[.3,-.55,.7],[-.55,-.45,.6]];
+    o+=lobes.map(([bx,by,br])=>`<circle cx="${F(x+r*bx)}" cy="${F(y+r*by)}" r="${F(r*br)}" fill="${lg}"/>`).join("");
+    o+=`<path d="M${F(x)} ${F(y-r*1.5)} Q ${F(x+r*.5)} ${F(y-r*.4)} ${F(x)} ${F(y+r*.5)} Q ${F(x-r*.5)} ${F(y-r*.4)} ${F(x)} ${F(y-r*1.5)} Z" fill="${grad}"/>`;
+    o+=`<circle cx="${F(x)}" cy="${F(y-r*.1)}" r="${F(r*.42)}" fill="${cl}" opacity=".9"/>`;
+    for(let i=0;i<4;i++){ const a=i/4*Math.PI*2; o+=`<circle cx="${F(x+Math.cos(a)*r*1.15)}" cy="${F(y+Math.sin(a)*r*1.15-r*.3)}" r="${F(r*.13)}" fill="${cl}"/>`; }
+    return o;
+  }
+  if (sp.shape==="willow"){
+    // weeping willow: dome + long drooping strands with light beads
+    let o=`<circle cx="${F(x)}" cy="${F(y)}" r="${F(r*1.45)}" fill="${c}" opacity=".14"/>`;
+    o+=`<ellipse cx="${F(x)}" cy="${F(y-r*.25)}" rx="${F(r*1.25)}" ry="${F(r*.85)}" fill="${lg}"/>`;
+    for(let i=0;i<7;i++){
+      const t=(i/6-0.5), sx=x+t*r*2.1, drop=r*(1.9-Math.abs(t)*1.5);
+      o+=`<path d="M${F(sx)} ${F(y-r*.2)} Q ${F(sx+r*.18)} ${F(y+drop*.5)} ${F(sx-r*.1)} ${F(y+drop)}" fill="none" stroke="${grad}" stroke-width="${F(r*.22)}" stroke-linecap="round"/>`;
+      o+=`<circle cx="${F(sx-r*.1)}" cy="${F(y+drop)}" r="${F(r*.15)}" fill="${cl}"/>`;
+    }
+    o+=`<ellipse cx="${F(x-r*.35)}" cy="${F(y-r*.5)}" rx="${F(r*.45)}" ry="${F(r*.3)}" fill="rgba(255,255,255,.3)"/>`;
+    return o;
+  }
+  if (sp.shape==="crystal"){
+    // crystal pine: stacked faceted shards, light + dark faces
+    let o=`<circle cx="${F(x)}" cy="${F(y)}" r="${F(r*1.6)}" fill="${c}" opacity=".16"/>`;
+    for(let i=0;i<3;i++){
+      const ty=y+r*.75-i*r*.85, w=r*(1.15-i*0.26), h=r*1.0;
+      o+=`<polygon points="${F(x)},${F(ty-h)} ${F(x+w)},${F(ty)} ${F(x)},${F(ty+h*.25)} ${F(x-w)},${F(ty)}" fill="${cd}"/>`;
+      o+=`<polygon points="${F(x)},${F(ty-h)} ${F(x+w)},${F(ty)} ${F(x)},${F(ty+h*.25)}" fill="${grad}"/>`;
+      o+=`<polygon points="${F(x)},${F(ty-h)} ${F(x-w*.45)},${F(ty-h*.15)} ${F(x)},${F(ty+h*.1)}" fill="${cl}" opacity=".75"/>`;
+    }
+    o+=`<circle cx="${F(x)}" cy="${F(y-r*1.55)}" r="${F(r*.2)}" fill="#fff"/>`;
+    return o;
+  }
+  if (sp.shape==="mushroom"){
+    // cluster of glowing caps with gills and spots
+    const cap=(mx,my,mr)=>`<path d="M${F(mx-mr)} ${F(my)} A ${F(mr)} ${F(mr*0.95)} 0 0 1 ${F(mx+mr)} ${F(my)} Z" fill="${grad}"/>`
+      + `<ellipse cx="${F(mx)}" cy="${F(my)}" rx="${F(mr)}" ry="${F(mr*.18)}" fill="${cd}"/>`
+      + `<rect x="${F(mx-mr*.22)}" y="${F(my)}" width="${F(mr*.44)}" height="${F(mr*1.1)}" rx="${F(mr*.2)}" fill="#f5e6c8"/>`
+      + `<circle cx="${F(mx-mr*.35)}" cy="${F(my-mr*.42)}" r="${F(mr*.16)}" fill="rgba(255,255,255,.75)"/>`
+      + `<circle cx="${F(mx+mr*.3)}" cy="${F(my-mr*.3)}" r="${F(mr*.12)}" fill="rgba(255,255,255,.6)"/>`;
+    let o=`<circle cx="${F(x)}" cy="${F(y+r*.3)}" r="${F(r*1.6)}" fill="${c}" opacity=".16"/>`;
+    o+=cap(x-r*.75,y+r*.55,r*.62)+cap(x+r*.7,y+r*.35,r*.55)+cap(x,y-r*.35,r*.95);
+    return o;
+  }
+  if (sp.shape==="spiral"){
+    // swirl-canopy: rotating spiral arms with orb tips
+    let o=`<circle cx="${F(x)}" cy="${F(y)}" r="${F(r*1.5)}" fill="${c}" opacity=".16"/>`;
+    o+=`<circle cx="${F(x)}" cy="${F(y)}" r="${F(r*1.05)}" fill="${lg}"/>`;
+    for(let i=0;i<5;i++){
+      const a=i/5*Math.PI*2, ex=x+Math.cos(a)*r*1.0, ey=y+Math.sin(a)*r*1.0;
+      const mx=x+Math.cos(a+0.8)*r*0.75, my=y+Math.sin(a+0.8)*r*0.75;
+      o+=`<path d="M${F(x)} ${F(y)} Q ${F(mx)} ${F(my)} ${F(ex)} ${F(ey)}" fill="none" stroke="${grad}" stroke-width="${F(r*.34)}" stroke-linecap="round"/>`;
+      o+=`<circle cx="${F(ex)}" cy="${F(ey)}" r="${F(r*.26)}" fill="${cl}"/>`;
+    }
+    o+=`<circle cx="${F(x)}" cy="${F(y)}" r="${F(r*.3)}" fill="#fff" opacity=".9"/>`;
+    return o;
   }
   // default flower — two-tone layered petals
   let o="";
@@ -2071,7 +2147,21 @@ renderers.grow = () => {
 
   // RIGHT: garden + collection
   html += `<div style="display:flex;flex-direction:column;gap:16px">`;
-  html += `<div class="card"><div class="flex" style="margin-bottom:12px"><b>Your garden</b><span class="spacer" style="flex:1"></span><span class="faint" style="font-size:12px">${g.plants.length} planted</span></div>`;
+  // "Today's forest" — plants grown today, standing on a ground line
+  const todayPlants = g.plants.filter(pl=> todayISO(new Date(pl.ts))===todayISO());
+  const todayMin = todayPlants.filter(pl=>!pl.withered).reduce((a,pl)=>a+pl.minutes,0);
+  html += `<div class="card forest-card">
+    <div class="flex" style="margin-bottom:6px"><b>Today's forest</b><span class="spacer" style="flex:1"></span><span class="faint" style="font-size:12px">${fmtDur(todayMin)} focused</span></div>
+    <div class="forest-strip">${
+      todayPlants.length
+        ? todayPlants.slice(-14).map(pl=>{ const sp=speciesById(pl.species);
+            return `<span class="fs-tree ${pl.withered?'withered':''}" title="${sp.name} · ${fmtDur(pl.minutes)}">${plantSVG(sp, pl.withered?0.5:1, 58)}</span>`; }).join("")
+        : `<span class="forest-empty">No trees yet today — plant one and watch your forest grow.</span>`
+    }</div>
+    <div class="forest-ground"></div>
+  </div>`;
+
+  html += `<div class="card"><div class="flex" style="margin-bottom:12px"><b>All-time garden</b><span class="spacer" style="flex:1"></span><span class="faint" style="font-size:12px">${g.plants.length} planted</span></div>`;
   if (!g.plants.length){ html += `<div class="muted center" style="padding:20px 0">Empty plot. Plant your first focus session.</div>`; }
   else {
     const recent=g.plants.slice(-48).reverse();
