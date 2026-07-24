@@ -21,14 +21,36 @@
     --txt-faint: #5c6678;
     --accent: #6ea8fe;
     --accent-2: #8b7bff;
+    --accent-ink: #06101f;
     --good: #4ade80;
     --warn: #fbbf24;
     --bad: #f87171;
+    --topbar-bg: rgba(13,15,20,.82);
+    --scrim: rgba(4,6,10,.6);
     --radius: 14px;
     --radius-sm: 9px;
     --shadow: 0 10px 30px rgba(0,0,0,.35);
     --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
     --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, system-ui, sans-serif;
+  }
+  :root[data-theme="light"] {
+    --bg: #f5f7fb;
+    --bg-2: #ffffff;
+    --bg-3: #eceff5;
+    --line: #e3e8f0;
+    --line-2: #d3dae6;
+    --txt: #131722;
+    --txt-dim: #566173;
+    --txt-faint: #8b95a7;
+    --accent: #3b74e6;
+    --accent-2: #7c5cf0;
+    --accent-ink: #ffffff;
+    --good: #16a34a;
+    --warn: #d97706;
+    --bad: #dc2626;
+    --topbar-bg: rgba(245,247,251,.86);
+    --scrim: rgba(30,40,60,.4);
+    --shadow: 0 10px 30px rgba(30,45,80,.14);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { height: 100%; }
@@ -43,7 +65,7 @@
   }
   button { font-family: inherit; cursor: pointer; color: inherit; }
   input, select, textarea { font-family: inherit; font-size: 14px; }
-  ::selection { background: var(--accent); color: #06101f; }
+  ::selection { background: var(--accent); color: var(--accent-ink); }
 
   .app { display: grid; grid-template-columns: 232px 1fr; height: 100vh; }
 
@@ -59,7 +81,7 @@
   .brand .logo {
     width: 30px; height: 30px; border-radius: 9px;
     background: linear-gradient(135deg, var(--accent), var(--accent-2));
-    display: grid; place-items: center; font-weight: 800; color: #06101f; font-size: 17px;
+    display: grid; place-items: center; font-weight: 800; color: var(--accent-ink); font-size: 17px;
     box-shadow: 0 4px 14px rgba(110,168,254,.35);
   }
   .brand h1 { font-size: 16px; font-weight: 700; letter-spacing: -.2px; }
@@ -85,7 +107,7 @@
   .main { overflow-y: auto; overflow-x: hidden; }
   .topbar {
     position: sticky; top: 0; z-index: 20;
-    background: rgba(13,15,20,.82); backdrop-filter: blur(12px);
+    background: var(--topbar-bg); backdrop-filter: blur(12px);
     border-bottom: 1px solid var(--line);
     display: flex; align-items: center; gap: 14px;
     padding: 14px 26px;
@@ -103,7 +125,7 @@
   }
   .btn:hover { border-color: var(--accent); }
   .btn:active { transform: translateY(1px); }
-  .btn.primary { background: linear-gradient(135deg, var(--accent), var(--accent-2)); border: 0; color: #06101f; }
+  .btn.primary { background: linear-gradient(135deg, var(--accent), var(--accent-2)); border: 0; color: var(--accent-ink); }
   .btn.primary:hover { filter: brightness(1.06); }
   .btn.ghost { background: transparent; }
   .btn.small { padding: 5px 10px; font-size: 12.5px; }
@@ -121,7 +143,7 @@
 
   /* hamburger + drawer scrim (hidden on desktop) */
   .hamb { display: none; background: transparent; border: 0; color: var(--txt); font-size: 22px; line-height: 1; padding: 2px 6px; margin-right: 2px; }
-  .scrim { display: none; position: fixed; inset: 0; background: rgba(4,6,10,.6); z-index: 80; }
+  .scrim { display: none; position: fixed; inset: 0; background: var(--scrim); z-index: 80; }
   .scrim.show { display: block; }
 
   /* ---------- Mobile ---------- */
@@ -310,7 +332,7 @@
   .focus-controls { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
   .dur-picker { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
   .dur-chip { padding: 8px 14px; border-radius: 20px; border: 1px solid var(--line-2); background: var(--bg-3); font-weight: 700; font-size: 13px; color: var(--txt-dim); }
-  .dur-chip.on { background: var(--accent); color: #06101f; border-color: var(--accent); }
+  .dur-chip.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
   .species-pick { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
   .species-pick .sp { width: 52px; height: 60px; border-radius: 10px; border: 1px solid var(--line-2); background: var(--bg-3); display: grid; place-items: center; position: relative; }
   .species-pick .sp.on { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb,var(--accent) 40%, transparent); }
@@ -332,6 +354,15 @@
   .swaying { transform-origin: 50% 100%; animation: sway 3.5s ease-in-out infinite; }
   .bloom-pop { animation: pop .5s ease; }
   @keyframes pop { 0%{ transform: scale(.6); opacity:.4;} 60%{ transform: scale(1.08);} 100%{ transform: scale(1);} }
+
+  /* Reduced motion — OS preference or manual toggle */
+  @media (prefers-reduced-motion: reduce){ *, *::before, *::after { animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important; } }
+  :root[data-motion="off"] *, :root[data-motion="off"] *::before, :root[data-motion="off"] *::after { animation:none !important; transition:none !important; }
+
+  /* Focus visibility for keyboard users */
+  a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, .nav-btn:focus-visible, [tabindex]:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px;
+  }
 
   @media print {
     body { overflow: visible; background: #fff; color: #000; }
@@ -385,6 +416,7 @@
       </div>
       <div class="spacer"></div>
       <div class="clock no-print" id="clock" title="Live clock"></div>
+      <button class="btn ghost small no-print" id="themeBtn" title="Toggle light / dark" aria-label="Toggle theme">🌙</button>
       <button class="btn ghost small no-print" id="micBtn" title="Voice command" aria-label="Voice command">🎤</button>
       <button class="btn ghost small no-print" id="cmdBtn">⌘ Quick <span class="kbd">K</span></button>
       <button class="btn primary no-print" id="addBtn">+ New Habit</button>
@@ -512,6 +544,33 @@
   </div>
 </div>
 
+<!-- Onboarding -->
+<div class="overlay" id="onboardModal">
+  <div class="modal" style="max-width:520px">
+    <div class="modal-head"><h3>Welcome to Cadence 🌱</h3></div>
+    <div class="modal-body">
+      <p class="muted" style="font-size:14px;line-height:1.6">A free, private study companion — track time &amp; habits, plan your week, and <b>grow a garden by focusing</b>. Everything stays on your device. No account, no ads, no AI.</p>
+      <div class="field">
+        <label>Quick-start with a habit</label>
+        <div class="hint">Tap any to add it — you can edit later.</div>
+        <div class="flex wrap" id="onboardTemplates" style="margin-top:6px"></div>
+      </div>
+      <div class="field">
+        <label>Appearance</label>
+        <div class="seg" id="onboardTheme">
+          <button data-th="dark" class="on">🌙 Dark</button>
+          <button data-th="light">☀️ Light</button>
+          <button data-th="auto">Auto</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" id="onboardSamples" style="margin-right:auto">Explore with sample data</button>
+      <button class="btn primary" id="onboardFresh">Start fresh →</button>
+    </div>
+  </div>
+</div>
+
 <!-- Command palette -->
 <div class="cmd" id="cmd">
   <div class="box">
@@ -535,7 +594,7 @@ const DEFAULT_STATE = {
   habits: [],
   materials: [],
   blocks: [],           // {id, day:'mon', start:'09:00', end:'10:30', subject, color}
-  settings: { accent: "#6ea8fe", weekStartMon: true, dayStart: 6, dayEnd: 23, notify: false },
+  settings: { accent: "#6ea8fe", weekStartMon: true, dayStart: 6, dayEnd: 23, notify: false, theme: "dark", motion: "on", onboarded: false },
   garden: { plants: [], sun: 0, unlocked: ["sprout","fern"], strict: false, active: null },
   created: todayISO()
 };
@@ -897,7 +956,7 @@ function openHabitMenu(e, id){
     ["Edit", ()=> openHabitModal(h)],
     ["Log time", ()=> openLog(id)],
     ["Reset today", ()=>{ h.sessions = h.sessions.filter(s=> todayISO(new Date(s.ts))!==todayISO()); save(); toast("Today reset"); rerender(); }],
-    ["Delete", ()=>{ if(confirm(`Delete "${h.name}" and its history?`)){ state.habits=state.habits.filter(x=>x.id!==id); save(); toast("Deleted"); rerender(); } }]
+    ["Delete", ()=> deleteHabitWithUndo(id)]
   ]);
 }
 function quickMenu(anchor, items){
@@ -1154,7 +1213,7 @@ renderers.materials = () => {
   const open=()=>{ document.getElementById("mTitle").value=""; document.getElementById("mUrl").value=""; document.getElementById("mSubject").value=""; document.getElementById("mNote").value=""; showModal("matModal"); };
   document.getElementById("addMat")?.addEventListener("click", open);
   document.getElementById("addMat2")?.addEventListener("click", open);
-  view.querySelectorAll("[data-delmat]").forEach(b=> b.onclick=()=>{ state.materials=state.materials.filter(x=>x.id!==b.dataset.delmat); save(); rerender(); });
+  view.querySelectorAll("[data-delmat]").forEach(b=> b.onclick=()=> deleteMaterialWithUndo(b.dataset.delmat));
 };
 document.getElementById("saveMat").onclick = () => {
   const title = document.getElementById("mTitle").value.trim();
@@ -1308,7 +1367,18 @@ renderers.settings = () => {
   let html = `
   <div class="section-title">Appearance</div>
   <div class="card">
+    <div class="field"><label>Theme</label>
+      <div class="seg" id="setTheme">
+        <button data-th="dark" class="${(s.theme||'dark')==='dark'?'on':''}">🌙 Dark</button>
+        <button data-th="light" class="${s.theme==='light'?'on':''}">☀️ Light</button>
+        <button data-th="auto" class="${s.theme==='auto'?'on':''}">Auto</button>
+      </div>
+    </div>
+    <div class="divider" style="margin:16px 0"></div>
     <div class="field"><label>Accent color</label><div class="swatches" id="setAccent"></div></div>
+    <div class="divider" style="margin:16px 0"></div>
+    <div class="flex" style="justify-content:space-between"><div><b style="font-size:13.5px">Reduce motion</b><div class="muted" style="font-size:12px">Turn off animations (growth, pulses, sway).</div></div>
+      <button class="btn ${s.motion==='off'?'primary':''}" id="motionToggle">${s.motion==='off'?'On':'Off'}</button></div>
     <div class="divider" style="margin:16px 0"></div>
     <div class="field"><label>Schedule day range</label>
       <div class="row" style="max-width:320px">
@@ -1380,10 +1450,12 @@ renderers.settings = () => {
     <div class="stat"><div class="label">Total time</div><div class="value" style="font-size:22px">${fmtDur(totalMinutesAll())}</div></div>
     <div class="stat"><div class="label">Tracking since</div><div class="value" style="font-size:16px">${state.created}</div></div>
   </div>
-  <div class="faint center" style="margin-top:30px;font-size:12px">Cadence · offline study organizer · v1.3 · Focus Garden · voice · real-time reminders · no accounts, no AI, no tracking</div>`;
+  <div class="faint center" style="margin-top:30px;font-size:12px">Cadence · offline study organizer · v1.4 · themes · Focus Garden · voice · reminders · no accounts, no AI, no tracking</div>`;
   view.innerHTML = html;
 
   renderSwatches(document.getElementById("setAccent"), s.accent, c=>{ s.accent=c; document.documentElement.style.setProperty("--accent",c); save(); });
+  { const seg=document.getElementById("setTheme"); seg.querySelectorAll("button").forEach(b=> b.onclick=()=>{ seg.querySelectorAll("button").forEach(x=>x.classList.remove("on")); b.classList.add("on"); s.theme=b.dataset.th; save(); applyTheme(); }); }
+  document.getElementById("motionToggle").onclick=()=>{ s.motion = s.motion==="off"?"on":"off"; save(); applyTheme(); rerender(); };
   document.getElementById("setStart").onchange = e=>{ s.dayStart=parseInt(e.target.value); save(); };
   document.getElementById("setEnd").onchange = e=>{ s.dayEnd=parseInt(e.target.value); save(); };
   document.getElementById("exportBtn").onclick = exportData;
@@ -1459,6 +1531,28 @@ function toast(msg){
   document.getElementById("toasts").appendChild(t);
   setTimeout(()=>{ t.style.transition="opacity .3s,transform .3s"; t.style.opacity="0"; t.style.transform="translateY(8px)"; setTimeout(()=>t.remove(),300); }, 2200);
 }
+function toastAction(msg, label, fn){
+  const t=document.createElement("div"); t.className="toast";
+  const span=document.createElement("span"); span.textContent=msg;
+  const btn=document.createElement("button"); btn.textContent=label; btn.className="btn small primary"; btn.style.marginLeft="10px";
+  let gone=false;
+  btn.onclick=()=>{ if(gone) return; gone=true; fn(); t.remove(); };
+  t.appendChild(span); t.appendChild(btn);
+  document.getElementById("toasts").appendChild(t);
+  setTimeout(()=>{ if(gone) return; t.style.transition="opacity .3s,transform .3s"; t.style.opacity="0"; t.style.transform="translateY(8px)"; setTimeout(()=>t.remove(),300); }, 5200);
+}
+function deleteHabitWithUndo(id){
+  const idx=state.habits.findIndex(h=>h.id===id); if(idx<0) return;
+  const [removed]=state.habits.splice(idx,1);
+  save(); rerender();
+  toastAction(`Deleted “${removed.name}”`, "Undo", ()=>{ state.habits.splice(Math.min(idx,state.habits.length),0,removed); save(); rerender(); toast("Restored"); });
+}
+function deleteMaterialWithUndo(id){
+  const idx=state.materials.findIndex(m=>m.id===id); if(idx<0) return;
+  const [removed]=state.materials.splice(idx,1);
+  save(); rerender();
+  toastAction(`Removed “${removed.title}”`, "Undo", ()=>{ state.materials.splice(Math.min(idx,state.materials.length),0,removed); save(); rerender(); toast("Restored"); });
+}
 function esc(s){ return String(s??"").replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m])); }
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
 function rerender(){ renderers[currentView](); }
@@ -1523,6 +1617,13 @@ function completeFocus(){
   notify("🌸 Bloomed!", `Your ${speciesById(a.species).name} bloomed. +${mins} Sunlight.`);
   toast(`🌸 Your ${speciesById(a.species).name} bloomed! +${mins} ☀`);
   if (currentView==="grow") renderers.grow(); else if (currentView==="dashboard") rerender();
+  toastAction("Nice work — take a 5-min break?", "Start break", ()=> startBreak(5));
+}
+let breakTimer=null;
+function startBreak(mins=5){
+  if (breakTimer) clearTimeout(breakTimer);
+  toast(`☕ Break started — ${mins} min. Rest your eyes.`);
+  breakTimer=setTimeout(()=>{ breakTimer=null; notify("⏰ Break over", "Ready to grow another? 🌱"); toast("Break over — plant another session! 🌱"); }, mins*60000);
 }
 function giveUpFocus(){
   const a=state.garden.active; if(!a) return;
@@ -1697,9 +1798,31 @@ function closeDrawer(){ sideEl.classList.remove("open"); scrimEl.classList.remov
 document.getElementById("hamb").onclick = ()=> sideEl.classList.contains("open") ? closeDrawer() : openDrawer();
 scrimEl.onclick = closeDrawer;
 
-// seed a tiny demo the very first run so the app isn't empty
-if (!localStorage.getItem(STORE_KEY) && !state.habits.length){
-  seedDemo();
+// First run detection (no saved data yet)
+const IS_FIRST_RUN = !localStorage.getItem(STORE_KEY);
+
+/* ============================= Onboarding ============================= */
+const TEMPLATES = [
+  { name:"Reading", subject:"", type:"time", target:30, unit:"min", period:"daily" },
+  { name:"Revision", subject:"", type:"time", target:45, unit:"min", period:"daily" },
+  { name:"Coding practice", subject:"", type:"time", target:60, unit:"min", period:"daily" },
+  { name:"Flashcards", subject:"", type:"count", target:30, unit:"cards", period:"daily" },
+  { name:"Math problems", subject:"", type:"count", target:20, unit:"problems", period:"daily" },
+];
+function addTemplate(t){
+  const h=Object.assign({ id:uid(), reminder:"", color:COLORS[state.habits.length%COLORS.length], created:todayISO(), sessions:[] }, t);
+  state.habits.push(h); save();
+}
+function finishOnboarding(){ state.settings.onboarded=true; save(); hideModal("onboardModal"); applyTheme(); setView("dashboard"); }
+function showOnboarding(){
+  const wrap=document.getElementById("onboardTemplates");
+  wrap.innerHTML = TEMPLATES.map((t,i)=>`<button class="btn small" data-tpl="${i}">+ ${esc(t.name)}</button>`).join("");
+  wrap.querySelectorAll("[data-tpl]").forEach(b=> b.onclick=()=>{ addTemplate(TEMPLATES[parseInt(b.dataset.tpl)]); b.classList.add("primary"); b.textContent="✓ "+TEMPLATES[parseInt(b.dataset.tpl)].name; toast("Added"); });
+  const seg=document.getElementById("onboardTheme");
+  seg.querySelectorAll("button").forEach(b=> b.onclick=()=>{ seg.querySelectorAll("button").forEach(x=>x.classList.remove("on")); b.classList.add("on"); state.settings.theme=b.dataset.th; applyTheme(); });
+  document.getElementById("onboardSamples").onclick=()=>{ seedDemo(); finishOnboarding(); toast("Loaded sample data — explore away!"); };
+  document.getElementById("onboardFresh").onclick=()=> finishOnboarding();
+  showModal("onboardModal");
 }
 function seedDemo(){
   const mk=(name,subject,type,target,unit,period,color)=>({id:uid(),name,subject,type,target,unit,period,color,reminder:"",created:todayISO(),sessions:[]});
@@ -1938,7 +2061,25 @@ document.addEventListener("visibilitychange", ()=>{
   if (a && a.strict && document.hidden){ giveUpFocus(); }
 });
 
+/* ============================= Theme & motion ============================= */
+function resolveTheme(){
+  const t=state.settings.theme||"dark";
+  if (t==="auto"){ try { return (window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches) ? "light" : "dark"; } catch { return "dark"; } }
+  return t==="light" ? "light" : "dark";
+}
+function applyTheme(){
+  const r=resolveTheme();
+  document.documentElement.dataset.theme = r;
+  document.documentElement.dataset.motion = state.settings.motion==="off" ? "off" : "on";
+  const meta=document.querySelector('meta[name="theme-color"]'); if(meta) meta.setAttribute("content", r==="light" ? "#f5f7fb" : "#0d0f14");
+  const tb=document.getElementById("themeBtn"); if(tb) tb.textContent = r==="light" ? "☀️" : "🌙";
+}
+function cycleTheme(){ state.settings.theme = resolveTheme()==="light" ? "dark" : "light"; save(); applyTheme(); toast(resolveTheme()==="light"?"Light theme":"Dark theme"); }
+try { if (window.matchMedia){ matchMedia("(prefers-color-scheme: light)").addEventListener?.("change", ()=>{ if(state.settings.theme==="auto") applyTheme(); }); } } catch {}
+{ const tb=document.getElementById("themeBtn"); if(tb) tb.onclick=cycleTheme; }
+
 /* ============================= Boot ============================= */
+applyTheme();
 document.documentElement.style.setProperty("--accent", state.settings.accent||COLORS[0]);
 knownBadges = new Set(BADGES.filter(b=>b.test()).map(b=>b.id));
 // Resume or finish a focus session that was running before reload
@@ -1950,4 +2091,9 @@ setView("dashboard");
 updateClock();
 handleUrlCommands();
 setInterval(heartbeat, 1000);
+// First-time welcome (skips for anyone who already has data)
+if (IS_FIRST_RUN && !state.settings.onboarded){
+  document.getElementById("onboardModal").addEventListener("click", e=>{ if(e.target.id==="onboardModal") finishOnboarding(); });
+  showOnboarding();
+}
 </script>

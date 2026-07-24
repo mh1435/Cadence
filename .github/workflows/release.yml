@@ -12,16 +12,18 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Version tag for a pinned release (e.g. v1.3.0)'
+        description: 'Version tag for a pinned release (e.g. v1.4.0)'
         required: true
-        default: 'v1.3.0'
+        default: 'v1.4.0'
 
 permissions:
   contents: write
 
 jobs:
-  release:
+  web:
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
     steps:
       - name: Check out
         uses: actions/checkout@v4
@@ -38,29 +40,93 @@ jobs:
       - name: Package downloadable app
         run: |
           mkdir -p dist
-          # Single self-contained file — download and open in any browser, fully offline.
           cp index.html "dist/cadence.html"
-          # Full PWA bundle (html + manifest + service worker + icon) for self-hosting / installing.
           zip -j "dist/cadence-pwa.zip" index.html manifest.webmanifest sw.js icon.svg
 
-      - name: Publish release
+      - name: Publish release (web assets)
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
           name: Cadence (${{ steps.tag.outputs.tag }})
           body: |
-            **Cadence** — a free, offline study time & habit organizer with a Focus Garden, voice control, and real-time reminders. No AI, no backend, no accounts, no tracking — your data stays in your browser.
+            **Cadence** — a free, offline study time & habit organizer with a Focus Garden, voice control, real-time reminders, and light/dark themes. No AI, no backend, no accounts, no tracking — your data stays on your device.
 
             This release is rebuilt automatically from the latest `main`.
 
-            ### Download & run
-            - **`cadence.html`** — the entire app in one file. Download it and open it in any browser (phone or computer). It works completely offline. On a phone you can also open it and choose **"Add to Home screen"** to use it like an installed app.
-            - **`cadence-pwa.zip`** — all four files (HTML + web manifest + service worker + icon) if you'd rather self-host it as a full installable PWA.
+            ### Download
+            - **`cadence.apk`** — install on Android. Download it, then open it (allow "install from unknown sources" when prompted). The whole app is bundled inside, so it runs fully offline.
+            - **`cadence.html`** — the entire app in one file for any browser (phone or computer). Works offline; on a phone you can also "Add to Home screen".
+            - **`cadence-pwa.zip`** — all web files if you'd rather self-host it as an installable PWA.
 
             ### Highlights
             - Time-based habit tracking with live timer, streaks, and analytics
             - **Focus Garden** — plant a session and grow it by focusing; collect species with Sunlight
             - Voice & natural-language commands; real-time reminders; weekly schedule planner
+            - Light / dark / auto themes, reduced-motion mode, and a friendly first-run setup
           files: |
             dist/cadence.html
             dist/cadence-pwa.zip
+
+  apk:
+    needs: web
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android platform & build-tools
+        run: |
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" >/dev/null
+
+      - name: Build APK with Capacitor
+        run: |
+          set -e
+          # Web assets that get bundled inside the app
+          mkdir -p www
+          cp index.html manifest.webmanifest sw.js icon.svg www/
+
+          # Minimal Capacitor project
+          npm init -y >/dev/null 2>&1
+          npm install --no-audit --no-fund @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6
+          npx --yes cap init Cadence com.cadence.app --web-dir www
+          npx --yes cap add android
+          npx --yes cap sync android
+
+          # Ensure Gradle finds the SDK
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
+
+          cd android
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+          cd ..
+          cp android/app/build/outputs/apk/debug/app-debug.apk cadence.apk
+          ls -la cadence.apk
+
+      - name: Determine tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=latest" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload APK to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ steps.tag.outputs.tag }}" cadence.apk --clobber --repo "${{ github.repository }}"
