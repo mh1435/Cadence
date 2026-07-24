@@ -1,0 +1,21 @@
+{
+  "name": "Cadence — Study Time & Habits",
+  "short_name": "Cadence",
+  "description": "Offline study time & habit organizer with voice control and real-time reminders.",
+  "start_url": "./?utm_source=pwa",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0d0f14",
+  "theme_color": "#0d0f14",
+  "categories": ["productivity", "education", "lifestyle"],
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "New habit", "short_name": "Add", "url": "./?new=1", "description": "Create a new habit" },
+    { "name": "Habits", "short_name": "Habits", "url": "./?go=habits", "description": "Open habits" },
+    { "name": "Analytics", "short_name": "Stats", "url": "./?go=analytics", "description": "See your insights" }
+  ]
+}

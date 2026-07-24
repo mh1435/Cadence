@@ -1,6 +1,14 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Cadence — Study Time & Habit Organizer</title>
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="theme-color" content="#0d0f14" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Cadence" />
+<link rel="apple-touch-icon" href="icon.svg" />
+<link rel="icon" href="icon.svg" type="image/svg+xml" />
 <style>
   :root {
     --bg: #0d0f14;
@@ -266,6 +274,27 @@
   .wrap { flex-wrap: wrap; }
   .pill { font-size: 11.5px; padding: 3px 10px; border-radius: 20px; background: var(--bg-3); border: 1px solid var(--line-2); color: var(--txt-dim); font-weight: 600; }
 
+  /* live clock + voice */
+  .clock { font-family: var(--mono); font-size: 13px; color: var(--txt-dim); font-weight: 600; text-align: right; line-height: 1.2; white-space: nowrap; }
+  .clock b { color: var(--txt); font-size: 15px; display: block; }
+  .clock small { font-size: 10.5px; color: var(--txt-faint); }
+  #micBtn.listening { color: var(--bad); border-color: var(--bad); animation: pulse 1.2s infinite; }
+  @media (max-width: 760px){ .clock{ display:none; } }
+
+  /* greeting + now banner */
+  .greet { display: flex; align-items: baseline; gap: 10px; margin: 2px 2px 16px; flex-wrap: wrap; }
+  .greet h3 { font-size: 22px; font-weight: 800; letter-spacing: -.4px; }
+  .greet .g-time { color: var(--txt-dim); font-size: 13.5px; font-family: var(--mono); }
+  .now-banner {
+    display: flex; align-items: center; gap: 13px; padding: 14px 16px; border-radius: var(--radius);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 22%, var(--bg-2)), var(--bg-2));
+    border: 1px solid var(--line-2); margin-bottom: 18px;
+  }
+  .now-banner .pulse { width: 10px; height: 10px; border-radius: 50%; background: var(--good); animation: pulse 1.4s infinite; flex-shrink: 0; }
+  .now-banner .nb-txt { flex: 1; min-width: 0; }
+  .now-banner .nb-txt b { font-size: 15px; }
+  .now-banner .nb-txt div { font-size: 12.5px; color: var(--txt-dim); }
+
   @media print {
     body { overflow: visible; background: #fff; color: #000; }
     .side, .topbar, .no-print { display: none !important; }
@@ -316,6 +345,8 @@
         <div class="sub" id="viewSub">—</div>
       </div>
       <div class="spacer"></div>
+      <div class="clock no-print" id="clock" title="Live clock"></div>
+      <button class="btn ghost small no-print" id="micBtn" title="Voice command" aria-label="Voice command">🎤</button>
       <button class="btn ghost small no-print" id="cmdBtn">⌘ Quick <span class="kbd">K</span></button>
       <button class="btn primary no-print" id="addBtn">+ New Habit</button>
     </div>
@@ -445,7 +476,7 @@
 <!-- Command palette -->
 <div class="cmd" id="cmd">
   <div class="box">
-    <input id="cmdInput" placeholder="Jump to… or type a command (log, add, export)" autocomplete="off" />
+    <input id="cmdInput" placeholder="Jump to… or type a command, e.g. “add habit reading 30 min daily”, “log 25 to coding”" autocomplete="off" />
     <div class="results" id="cmdResults"></div>
   </div>
 </div>
@@ -465,7 +496,7 @@ const DEFAULT_STATE = {
   habits: [],
   materials: [],
   blocks: [],           // {id, day:'mon', start:'09:00', end:'10:30', subject, color}
-  settings: { accent: "#6ea8fe", weekStartMon: true, dayStart: 6, dayEnd: 23 },
+  settings: { accent: "#6ea8fe", weekStartMon: true, dayStart: 6, dayEnd: 23, notify: false },
   created: todayISO()
 };
 
@@ -596,7 +627,23 @@ renderers.dashboard = () => {
   const bestStreakNow = active.reduce((m,h)=> Math.max(m, currentStreak(h)), 0);
   const avgProg = active.length ? Math.round(active.reduce((a,h)=>a+periodProgress(h),0)/active.length*100) : 0;
 
+  const now = new Date();
+  const nowBlock = currentBlock(now);
   let html = `
+  <div class="greet">
+    <h3>${greetingText(now)}</h3>
+    <span class="g-time">${now.toLocaleDateString([], {weekday:'long', month:'long', day:'numeric'})}</span>
+  </div>`;
+  if (nowBlock){
+    const running = state.habits.some(h=>activeTimers[h.id]);
+    const matched = matchHabit(nowBlock.subject);
+    html += `<div class="now-banner">
+      <span class="pulse"></span>
+      <div class="nb-txt"><b>Happening now — ${esc(nowBlock.subject)}</b><div>Scheduled ${nowBlock.start}–${nowBlock.end} · ${fmtDur(toMin(nowBlock.end)-(now.getHours()*60+now.getMinutes()))} left</div></div>
+      ${(matched && matched.type==="time" && !activeTimers[matched.id]) ? `<button class="btn small primary" data-startnow="${matched.id}">▶ Start</button>` : (running?`<span class="pill" style="color:var(--good);border-color:var(--good)">timer on</span>`:'')}
+    </div>`;
+  }
+  html += `
   <div class="grid cols-4">
     <div class="stat"><div class="label">Time today</div><div class="value">${fmtDur(timeToday)}</div><div class="trend">${sparkText()}</div></div>
     <div class="stat"><div class="label">Habits done</div><div class="value">${doneToday}<small> / ${active.length}</small></div><div class="trend">${active.length?Math.round(doneToday/active.length*100):0}% of today</div></div>
@@ -612,7 +659,7 @@ renderers.dashboard = () => {
   }
 
   // Upcoming today from schedule
-  const now = new Date(); const todayKey = DAY_KEYS[dowMon(now)];
+  const todayKey = DAY_KEYS[dowMon(now)];
   const todays = state.blocks.filter(b=>b.day===todayKey).sort((a,b)=>a.start.localeCompare(b.start));
   html += `<div class="section-title">Today's schedule</div>`;
   if (!todays.length){
@@ -634,8 +681,38 @@ renderers.dashboard = () => {
   }
   view.innerHTML = html;
   wireHabitCards();
+  view.querySelectorAll("[data-startnow]").forEach(b=> b.onclick=()=> startTimer(b.dataset.startnow));
   const a2 = document.getElementById("addBtn2"); if (a2) a2.onclick = openHabitModal;
 };
+
+/* ---------- Time-aware helpers ---------- */
+function greetingText(d=new Date()){
+  const h = d.getHours();
+  return h<5 ? "Still up? 🌙" : h<12 ? "Good morning ☀️" : h<17 ? "Good afternoon 👋" : h<22 ? "Good evening 🌆" : "Winding down 🌙";
+}
+function currentBlock(now=new Date()){
+  const key = DAY_KEYS[dowMon(now)];
+  const nowM = now.getHours()*60+now.getMinutes();
+  return state.blocks.filter(b=>b.day===key).find(b=> toMin(b.start)<=nowM && nowM<toMin(b.end)) || null;
+}
+// fuzzy-match a spoken/typed name to an existing habit
+function matchHabit(q){
+  if (!q) return null;
+  q = q.toLowerCase().trim();
+  let h = state.habits.find(x=> x.name.toLowerCase()===q);
+  if (h) return h;
+  h = state.habits.find(x=> x.name.toLowerCase().includes(q) || q.includes(x.name.toLowerCase()));
+  if (h) return h;
+  // word overlap
+  const qw = new Set(q.split(/\s+/));
+  let best=null, bestScore=0;
+  state.habits.forEach(x=>{
+    const xw = x.name.toLowerCase().split(/\s+/);
+    const score = xw.filter(w=>qw.has(w)).length;
+    if (score>bestScore){ bestScore=score; best=x; }
+  });
+  return bestScore>0 ? best : null;
+}
 
 function sparkText(){
   const days = [...Array(7)].map((_,i)=>{
@@ -1170,6 +1247,49 @@ renderers.settings = () => {
     </div>
   </div>
 
+  <div class="section-title">Reminders &amp; notifications</div>
+  <div class="card">
+    <div class="flex" style="justify-content:space-between">
+      <div style="flex:1">
+        <b style="font-size:14px">Real-time reminders</b>
+        <div class="muted" style="font-size:12.5px;margin-top:3px">Fires a notification at each habit's reminder time while Cadence is open. Set a time per habit when creating or editing it.</div>
+      </div>
+      <button class="btn ${s.notify?'primary':''}" id="notifToggle">${s.notify?'On':'Enable'}</button>
+    </div>
+    <div class="faint" style="font-size:11.5px;margin-top:10px" id="notifState"></div>
+  </div>
+
+  <div class="section-title">Voice &amp; commands</div>
+  <div class="card">
+    <p class="muted" style="font-size:13.5px;margin-bottom:12px">Tap the 🎤 in the header (or press <span class="kbd">⌘K</span> and type) and speak naturally. No AI — just pattern matching. Examples:</p>
+    <div class="flex wrap" style="gap:7px;margin-bottom:12px">
+      <span class="pill">add habit reading 30 minutes daily</span>
+      <span class="pill">track coding 2 hours daily</span>
+      <span class="pill">log 25 minutes to coding</span>
+      <span class="pill">read 20 pages</span>
+      <span class="pill">start reading</span>
+      <span class="pill">stop coding</span>
+      <span class="pill">remind me to study at 7:30 pm</span>
+      <span class="pill">go to analytics</span>
+    </div>
+    <div class="flex wrap">
+      <button class="btn" id="tryVoice">🎤 Try voice</button>
+      <label class="flex" style="gap:7px;font-size:13px"><input type="checkbox" id="voiceSpeakChk" ${voiceSpeak?'checked':''}> Speak results back</label>
+    </div>
+    <div class="faint" style="font-size:11.5px;margin-top:10px">${voiceSupported()?'Voice input is available in this browser. 🎙':'Voice input needs Chrome (Android/desktop). Typed commands work everywhere.'}</div>
+  </div>
+
+  <div class="section-title">Install &amp; Google Assistant</div>
+  <div class="card">
+    <p class="muted" style="font-size:13.5px;margin-bottom:12px">Install Cadence to your home screen for a full-screen app with offline support and long-press shortcuts.</p>
+    <button class="btn primary" id="installBtn" style="display:none;margin-bottom:14px">⬇ Install Cadence</button>
+    <div class="divider" style="margin:6px 0 14px"></div>
+    <b style="font-size:14px">Hands-free via Google Assistant</b>
+    <p class="muted" style="font-size:13px;margin:6px 0 12px">A static app can't be controlled by Assistant directly, but Assistant <i>can</i> open a link. Create a Google Assistant <b>Routine</b> (or an Android home-screen shortcut) that opens one of these URLs, and Cadence runs the command on open:</p>
+    <div id="urlExamples" style="display:flex;flex-direction:column;gap:8px"></div>
+    <div class="faint" style="font-size:11.5px;margin-top:12px">Tip: in the Google Home app → Routines → add action → “Open app / website”, paste a URL below. Say your routine phrase and it fires.</div>
+  </div>
+
   <div class="section-title">Data</div>
   <div class="card">
     <p class="muted" style="font-size:13.5px;margin-bottom:14px">Everything lives in your browser (localStorage). Nothing is sent anywhere. Back it up or move devices with export/import.</p>
@@ -1189,7 +1309,7 @@ renderers.settings = () => {
     <div class="stat"><div class="label">Total time</div><div class="value" style="font-size:22px">${fmtDur(totalMinutesAll())}</div></div>
     <div class="stat"><div class="label">Tracking since</div><div class="value" style="font-size:16px">${state.created}</div></div>
   </div>
-  <div class="faint center" style="margin-top:30px;font-size:12px">Cadence · offline study organizer · v1.0 · no accounts, no AI, no tracking</div>`;
+  <div class="faint center" style="margin-top:30px;font-size:12px">Cadence · offline study organizer · v1.2 · voice + real-time reminders · no accounts, no AI, no tracking</div>`;
   view.innerHTML = html;
 
   renderSwatches(document.getElementById("setAccent"), s.accent, c=>{ s.accent=c; document.documentElement.style.setProperty("--accent",c); save(); });
@@ -1199,6 +1319,47 @@ renderers.settings = () => {
   document.getElementById("importBtn").onclick = ()=> document.getElementById("importFile").click();
   document.getElementById("importFile").onchange = importData;
   document.getElementById("wipeBtn").onclick = ()=>{ if(confirm("Delete ALL habits, schedule and materials? This cannot be undone.")){ localStorage.removeItem(STORE_KEY); state=structuredClone(DEFAULT_STATE); state.created=todayISO(); save(); toast("All data cleared"); setView("dashboard"); } };
+
+  // Notifications toggle
+  const notifState = document.getElementById("notifState");
+  function refreshNotifState(){
+    if (!notifAvailable()){ notifState.textContent="This browser doesn't support notifications; reminders show as in-app popups."; return; }
+    notifState.textContent = `Browser permission: ${Notification.permission}. Reminders fire only while Cadence is open in a tab.`;
+  }
+  refreshNotifState();
+  document.getElementById("notifToggle").onclick = async ()=>{
+    if (state.settings.notify){ state.settings.notify=false; save(); rerender(); toast("Reminders off"); return; }
+    if (notifAvailable() && Notification.permission!=="granted"){
+      try { const perm = await Notification.requestPermission(); if(perm!=="granted"){ toast("Permission denied — reminders will show in-app only"); } } catch {}
+    }
+    state.settings.notify=true; save(); rerender(); toast("Reminders on");
+  };
+
+  // Voice
+  document.getElementById("tryVoice").onclick = startVoice;
+  document.getElementById("voiceSpeakChk").onchange = e=>{ voiceSpeak = e.target.checked; };
+
+  // Install
+  const installBtn = document.getElementById("installBtn");
+  if (deferredInstall) installBtn.style.display="";
+  installBtn.onclick = async ()=>{ if(!deferredInstall){ toast("Use your browser menu → “Add to Home screen”."); return; } deferredInstall.prompt(); try{ await deferredInstall.userChoice; }catch{} deferredInstall=null; installBtn.style.display="none"; };
+
+  // URL command examples (Google Assistant / shortcuts)
+  const base = location.origin + location.pathname;
+  const sample = state.habits[0] ? state.habits[0].name : "Reading";
+  const ex = [
+    ["Log 30 min", `${base}?log=${encodeURIComponent(sample)}|30`],
+    ["Start timer", `${base}?start=${encodeURIComponent(sample)}`],
+    ["Add habit", `${base}?add=${encodeURIComponent("Revision")}|45|min|daily`],
+    ["Any command", `${base}?do=${encodeURIComponent("log 20 minutes to "+sample)}`],
+  ];
+  document.getElementById("urlExamples").innerHTML = ex.map(([lbl,u])=>`
+    <div class="flex" style="gap:8px;background:var(--bg);border:1px solid var(--line-2);border-radius:9px;padding:8px 10px">
+      <span class="pill" style="flex-shrink:0">${lbl}</span>
+      <code style="font-family:var(--mono);font-size:11.5px;color:var(--txt-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">${esc(u)}</code>
+      <button class="btn small" data-copy="${esc(u)}">Copy</button>
+    </div>`).join("");
+  document.querySelectorAll("[data-copy]").forEach(b=> b.onclick=()=>{ navigator.clipboard?.writeText(b.dataset.copy).then(()=>toast("Copied"),()=>toast("Copy failed")); });
 };
 function exportData(){
   const blob = new Blob([JSON.stringify(state,null,2)], {type:"application/json"});
@@ -1268,7 +1429,10 @@ document.getElementById("cmdInput").onkeydown = e=>{
   const items = document.querySelectorAll("#cmdResults .res[data-i]");
   if (e.key==="ArrowDown"){ e.preventDefault(); cmdSel=Math.min(items.length-1,cmdSel+1); }
   else if (e.key==="ArrowUp"){ e.preventDefault(); cmdSel=Math.max(0,cmdSel-1); }
-  else if (e.key==="Enter"){ e.preventDefault(); if(cmdFiltered[cmdSel]){ closeCmd(); cmdFiltered[cmdSel].run(); } return; }
+  else if (e.key==="Enter"){ e.preventDefault(); const q=e.target.value.trim();
+    if (cmdFiltered.length && cmdFiltered[cmdSel]){ closeCmd(); cmdFiltered[cmdSel].run(); }
+    else if (q){ closeCmd(); speakResult(runCommand(q)); }
+    return; }
   else return;
   items.forEach((it,i)=> it.classList.toggle("on", i===cmdSel));
 };
@@ -1336,8 +1500,200 @@ function seedDemo(){
   save();
 }
 
+/* ============================= Natural-language command engine ============================= */
+// Rule-based (no AI). Returns a spoken/toastable result string.
+const NUM_WORDS = {a:1,an:1,one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,fifteen:15,twenty:20,thirty:30,forty:40,fifty:50,sixty:60,ninety:90,"a hundred":100,hundred:100};
+function wordToNum(w){ if(w==null) return null; w=String(w).toLowerCase().trim(); if(w in NUM_WORDS) return NUM_WORDS[w]; const n=parseFloat(w); return isNaN(n)?null:n; }
+function parseTimeToken(str){
+  // matches 7, 7:30, 7am, 7:30pm, 19:00
+  const m = str.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b/i);
+  if (!m) return null;
+  let h = parseInt(m[1]); const min = m[2]?parseInt(m[2]):0; const ap = m[3]?m[3].toLowerCase():null;
+  if (ap==="pm" && h<12) h+=12; if (ap==="am" && h===12) h=0;
+  if (h>23||min>59) return null;
+  return String(h).padStart(2,'0')+":"+String(min).padStart(2,'0');
+}
+function runCommand(raw){
+  if (!raw) return "Say a command like “add habit reading 30 minutes daily”.";
+  let t = raw.toLowerCase().trim().replace(/[.!]+$/,"");
+  // NAVIGATION
+  let m = t.match(/^(?:go to|open|show|navigate to)\s+(dashboard|home|habits?|schedule|analytics|materials?|planner|achievements?|settings)/);
+  if (m){ const map={home:"dashboard",habit:"habits",habits:"habits",material:"materials",materials:"materials",achievement:"achievements",achievements:"achievements"}; const v=map[m[1]]||m[1]; setView(v); closeCmd(); return "Opened "+v+"."; }
+
+  // START / STOP TIMER  — "start timer reading" / "start reading" / "stop coding"
+  m = t.match(/^(start|stop|pause|begin)\s+(?:the\s+)?(?:timer\s+(?:for\s+)?|tracking\s+)?(.+)$/);
+  if (m && (m[1]==="stop"||m[1]==="pause"|| /timer|track|study|start/.test(t) || matchHabit(m[2]))){
+    const h = matchHabit(m[2].replace(/\btimer\b|\bfor\b/g,"").trim());
+    if (!h) return `Couldn't find a habit like “${m[2]}”.`;
+    if (h.type!=="time") return `“${h.name}” is a count habit — try “log 10 to ${h.name}”.`;
+    if (m[1]==="stop"||m[1]==="pause"){ if(!activeTimers[h.id]) return `No timer running for ${h.name}.`; stopTimer(h.id); return `Stopped ${h.name}.`; }
+    if (activeTimers[h.id]) return `Timer already running for ${h.name}.`;
+    startTimer(h.id); return `Started timing ${h.name}.`;
+  }
+
+  // LOG  — "log 30 minutes to reading" / "log 45 min reading" / "add 20 pages to biology" / "read 15 pages"
+  m = t.match(/^(log|add|record|did|read|studied?|do)\s+(\d+(?:\.\d+)?|\w+)\s*(minutes?|mins?|hours?|hrs?|pages?|reps?|units?)?\s*(?:of|on|to|for|toward|towards)?\s*(.+)?$/);
+  if (m && !/^add\s+(?:a\s+)?(?:new\s+)?habit/.test(t)){
+    const verb=m[1]; let amt = wordToNum(m[2]); const unitTok=(m[3]||"").toLowerCase(); let nameTok=(m[4]||"").trim();
+    if (amt!=null){
+      // if no target named, and the verb itself hints a habit (read/study), use that
+      if (!nameTok && /^(read|study|studied)$/.test(verb)) nameTok = verb;
+      const h = matchHabit(nameTok);
+      if (h){
+        let val = amt;
+        if (h.type==="time" && /hour|hr/.test(unitTok)) val*=60;
+        addSession(h.id, val); if(currentView) rerender();
+        const u = h.type==="time"?"min":(h.unit||"units");
+        return `Logged ${h.type==="time"?fmtDur(val):val+" "+u} to ${h.name}.`;
+      }
+      if (nameTok) return `Couldn't find a habit like “${nameTok}”.`;
+    }
+  }
+
+  // REMINDER  — "remind me to study at 7:30 pm" / "set reminder for reading at 8am"
+  m = t.match(/^(?:remind me to|set (?:a )?reminder (?:for|to)?)\s+(.+?)\s+at\s+(.+)$/);
+  if (m){
+    const time = parseTimeToken(m[2]); if(!time) return "I couldn't read that time.";
+    const h = matchHabit(m[1].replace(/\bstudy\b/,"").trim()) || matchHabit(m[1]);
+    if (!h) return `Couldn't find a habit like “${m[1]}”.`;
+    h.reminder = time; save(); if(currentView==="settings"||currentView==="habits") rerender();
+    return `Reminder set for ${h.name} at ${time}.`;
+  }
+
+  // CREATE HABIT — "add habit reading 30 minutes daily" / "track coding 2 hours daily" / "new habit 200 pages weekly reading"
+  m = t.match(/^(?:add|create|new|track|make)\s+(?:a\s+)?(?:new\s+)?(?:habit\s+(?:called\s+|named\s+)?)?(.+)$/);
+  if (m){
+    let body = m[1];
+    const period = /\bweekly\b|\bper week\b|\ba week\b/.test(body) ? "weekly" : /\bmonthly\b|\bper month\b|\ba month\b/.test(body) ? "monthly" : "daily";
+    body = body.replace(/\b(daily|every day|per day|a day|weekly|per week|a week|monthly|per month|a month)\b/g,"").trim();
+    const nm = body.match(/(\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|fifteen|twenty|thirty|forty|fifty|sixty|ninety|hundred)\s*([a-z]+)?/);
+    let target=null, type="time", unit="min";
+    if (nm){
+      target = wordToNum(nm[1]); const u=(nm[2]||"").toLowerCase();
+      const stop = /^(to|for|of|a|an|the|and|called|named)$/.test(u);
+      if (/^(hours?|hrs?|h)$/.test(u)){ target*=60; type="time"; unit="min"; }
+      else if (!u || stop || /^(minutes?|mins?|m)$/.test(u)){ type="time"; unit="min"; }
+      else { type="count"; unit=u; }                    // any other word after the number is the unit
+      // remove the matched "number [unit]" from the body, but keep a trailing stop-word connector out of the name
+      body = (body.slice(0, nm.index) + body.slice(nm.index + nm[0].length)).replace(/\s{2,}/g," ").trim();
+    }
+    let name = body.replace(/^\s*(to|for|of|called|named)\s+/,"").replace(/\s+(to|for)\s*$/,"").trim();
+    name = name.replace(/\s{2,}/g," ");
+    if (!name) return "What should the habit be called?";
+    name = name.split(" ").map(w=>w?w[0].toUpperCase()+w.slice(1):w).join(" ");
+    if (matchHabit(name) && state.habits.find(h=>h.name.toLowerCase()===name.toLowerCase())) return `“${name}” already exists.`;
+    const habit = { id:uid(), name, subject:"", type, target: target||(type==="time"?60:20), unit, period, reminder:"", color: COLORS[state.habits.length % COLORS.length], created: todayISO(), sessions:[] };
+    state.habits.push(habit); save(); checkBadges(); if(["dashboard","habits"].includes(currentView)) rerender();
+    return `Created “${name}” — ${type==="time"?fmtDur(habit.target):habit.target+" "+unit} ${period}.`;
+  }
+  return `Sorry, I didn't understand “${raw}”. Try: “add habit reading 30 minutes daily”, “log 25 minutes to coding”, or “start reading”.`;
+}
+function speakResult(msg){
+  toast(msg);
+  try { if ("speechSynthesis" in window && voiceSpeak){ const u=new SpeechSynthesisUtterance(msg.replace(/[“”]/g,'')); u.rate=1.05; speechSynthesis.cancel(); speechSynthesis.speak(u); } } catch {}
+}
+
+/* ============================= Voice input (Web Speech API) ============================= */
+let recog = null, voiceSpeak = true;
+function voiceSupported(){ return ("webkitSpeechRecognition" in window) || ("SpeechRecognition" in window); }
+function startVoice(){
+  if (!voiceSupported()){ toast("Voice input isn't supported in this browser. Try Chrome on Android."); return; }
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  try { recog = new SR(); } catch { toast("Couldn't start the microphone."); return; }
+  recog.lang = navigator.language || "en-US"; recog.interimResults=false; recog.maxAlternatives=1;
+  const btn = document.getElementById("micBtn"); btn.classList.add("listening");
+  toast("Listening… say a command");
+  recog.onresult = e=>{ const said = e.results[0][0].transcript; toast(`Heard: “${said}”`); const res = runCommand(said); speakResult(res); };
+  recog.onerror = e=>{ btn.classList.remove("listening"); if(e.error!=="aborted") toast("Voice error: "+e.error); };
+  recog.onend = ()=> btn.classList.remove("listening");
+  try { recog.start(); } catch { btn.classList.remove("listening"); }
+}
+function stopVoice(){ try{ recog && recog.stop(); }catch{} }
+document.getElementById("micBtn").onclick = ()=> document.getElementById("micBtn").classList.contains("listening") ? stopVoice() : startVoice();
+
+/* ============================= URL command bridge (for Google Assistant / shortcuts) ============================= */
+// Examples:  ?add=Reading|30|min|daily   ?log=Reading|30   ?start=Reading   ?stop=Reading   ?do=log 30 minutes to reading   ?go=analytics
+function handleUrlCommands(){
+  const p = new URLSearchParams(location.search);
+  if (![...p.keys()].length) return;
+  let acted=false, msg="";
+  const dec = s => decodeURIComponent(String(s||"")).replace(/\+/g," ");
+  try {
+    if (p.has("new")){ setTimeout(openHabitModal, 300); history.replaceState(null,"",location.pathname); return; }
+    if (p.has("do")){ msg = runCommand(dec(p.get("do"))); acted=true; }
+    else if (p.has("go")){ msg = runCommand("go to "+dec(p.get("go"))); acted=true; }
+    else if (p.has("add")){ const [name,amt,unit,period]=dec(p.get("add")).split("|"); msg = runCommand(`add habit ${name} ${amt||60} ${unit||"minutes"} ${period||"daily"}`); acted=true; }
+    else if (p.has("log")){ const [name,amt]=dec(p.get("log")).split("|"); msg = runCommand(`log ${amt||1} to ${name}`); acted=true; }
+    else if (p.has("start")){ msg = runCommand("start "+dec(p.get("start"))); acted=true; }
+    else if (p.has("stop")){ msg = runCommand("stop "+dec(p.get("stop"))); acted=true; }
+  } catch(err){ msg="Command failed."; acted=true; }
+  if (acted){
+    // clean the URL so a refresh doesn't repeat the action
+    history.replaceState(null,"",location.pathname);
+    setTimeout(()=> speakResult(msg), 400);
+  }
+}
+
+/* ============================= Real-time engine ============================= */
+let currentDayISO = todayISO();
+let lastMinute = -1;
+let firedReminders = new Set();   // "habitId@HH:MM" fired today
+function updateClock(){
+  const el = document.getElementById("clock"); if(!el) return;
+  const now = new Date();
+  el.innerHTML = `<b>${now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</b><small>${now.toLocaleDateString([], {weekday:'short', day:'numeric', month:'short'})}</small>`;
+}
+function checkReminders(now){
+  if (!state.settings.notify) return;
+  const hhmm = String(now.getHours()).padStart(2,'0')+":"+String(now.getMinutes()).padStart(2,'0');
+  state.habits.forEach(h=>{
+    if (!h.reminder) return;
+    const keyf = h.id+"@"+h.reminder;
+    if (h.reminder===hhmm && !firedReminders.has(keyf)){
+      firedReminders.add(keyf);
+      if (metOn(h, todayISO(now))) return; // already done today, skip
+      const body = `Time for ${h.name} — ${h.type==="time"?fmtDur(h.target):h.target+" "+(h.unit||"")} ${h.period}.`;
+      notify("⏰ Cadence reminder", body);
+    }
+  });
+}
+function notifAvailable(){ return typeof Notification !== "undefined" && !!Notification; }
+function notify(title, body){
+  try {
+    if (notifAvailable() && Notification.permission==="granted"){
+      new Notification(title, { body, icon:"icon.svg", tag:"cadence" });
+    } else { toast(title.replace(/^⏰\s*/,"")+": "+body); }
+  } catch { toast(body); }
+}
+function heartbeat(){
+  const now = new Date();
+  updateClock();
+  // day rollover
+  const dISO = todayISO(now);
+  if (dISO !== currentDayISO){ currentDayISO = dISO; firedReminders.clear(); rerender(); }
+  // minute tick: reminders + refresh dashboard "now" state
+  const min = now.getHours()*60+now.getMinutes();
+  if (min !== lastMinute){
+    lastMinute = min;
+    checkReminders(now);
+    const busy = document.querySelector(".overlay.show") || document.getElementById("cmd").classList.contains("show") || sideEl.classList.contains("open");
+    if (currentView==="dashboard" && !busy) rerender();
+  }
+}
+
+/* ============================= PWA registration ============================= */
+if ("serviceWorker" in navigator){
+  window.addEventListener("load", ()=>{ navigator.serviceWorker.register("sw.js").catch(()=>{}); });
+}
+// Install prompt handling
+let deferredInstall = null;
+window.addEventListener("beforeinstallprompt", e=>{ e.preventDefault(); deferredInstall = e; const b=document.getElementById("installBtn"); if(b) b.style.display=""; });
+
 /* ============================= Boot ============================= */
 document.documentElement.style.setProperty("--accent", state.settings.accent||COLORS[0]);
 knownBadges = new Set(BADGES.filter(b=>b.test()).map(b=>b.id));
 setView("dashboard");
+updateClock();
+handleUrlCommands();
+setInterval(heartbeat, 1000);
 </script>
