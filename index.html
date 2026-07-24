@@ -391,17 +391,17 @@
         <small>study time &amp; habits</small>
       </div>
     </div>
-    <button class="nav-btn active" data-view="dashboard"><span class="ico">◎</span> Dashboard <span class="key">1</span></button>
+    <button class="nav-btn active" data-view="dashboard"><span class="ico">🏠</span> Dashboard <span class="key">1</span></button>
     <button class="nav-btn" data-view="grow"><span class="ico">🌱</span> Focus Garden <span class="key">8</span></button>
-    <button class="nav-btn" data-view="habits"><span class="ico">◈</span> Habits <span class="key">2</span></button>
-    <button class="nav-btn" data-view="schedule"><span class="ico">▦</span> Schedule <span class="key">3</span></button>
-    <button class="nav-btn" data-view="analytics"><span class="ico">◔</span> Analytics <span class="key">4</span></button>
-    <button class="nav-btn" data-view="materials"><span class="ico">▤</span> Materials <span class="key">5</span></button>
-    <button class="nav-btn" data-view="planner"><span class="ico">◇</span> Planner <span class="key">6</span></button>
-    <button class="nav-btn" data-view="achievements"><span class="ico">✦</span> Achievements <span class="key">7</span></button>
+    <button class="nav-btn" data-view="habits"><span class="ico">✅</span> Habits <span class="key">2</span></button>
+    <button class="nav-btn" data-view="schedule"><span class="ico">📅</span> Schedule <span class="key">3</span></button>
+    <button class="nav-btn" data-view="analytics"><span class="ico">📊</span> Analytics <span class="key">4</span></button>
+    <button class="nav-btn" data-view="materials"><span class="ico">📚</span> Materials <span class="key">5</span></button>
+    <button class="nav-btn" data-view="planner"><span class="ico">🧭</span> Planner <span class="key">6</span></button>
+    <button class="nav-btn" data-view="achievements"><span class="ico">🏆</span> Achievements <span class="key">7</span></button>
     <div class="side-foot">
       <div class="divider"></div>
-      <button class="nav-btn" data-view="settings"><span class="ico">⚙</span> Settings</button>
+      <button class="nav-btn" data-view="settings"><span class="ico">⚙️</span> Settings</button>
       <div class="mini">Press <span class="kbd">?</span> for shortcuts</div>
       <div class="mini" id="saveState">Saved locally</div>
     </div>
@@ -745,10 +745,10 @@ renderers.dashboard = () => {
   }
   html += `
   <div class="grid cols-4">
-    <div class="stat"><div class="label">Time today</div><div class="value">${fmtDur(timeToday)}</div><div class="trend">${sparkText()}</div></div>
-    <div class="stat"><div class="label">Habits done</div><div class="value">${doneToday}<small> / ${active.length}</small></div><div class="trend">${active.length?Math.round(doneToday/active.length*100):0}% of today</div></div>
-    <div class="stat"><div class="label">Best streak</div><div class="value">${bestStreakNow}<small> days</small></div><div class="trend">keep it alive 🔥</div></div>
-    <div class="stat"><div class="label">Avg progress</div><div class="value">${avgProg}<small>%</small></div><div class="trend">this ${active[0]?active[0].period.replace('ly',''):'day'}</div></div>
+    <div class="stat"><div class="label">⏱️ Time today</div><div class="value">${fmtDur(timeToday)}</div><div class="trend">${sparkText()}</div></div>
+    <div class="stat"><div class="label">✅ Habits done</div><div class="value">${doneToday}<small> / ${active.length}</small></div><div class="trend">${active.length?Math.round(doneToday/active.length*100):0}% of today</div></div>
+    <div class="stat"><div class="label">🔥 Best streak</div><div class="value">${bestStreakNow}<small> days</small></div><div class="trend">keep it alive</div></div>
+    <div class="stat"><div class="label">📈 Avg progress</div><div class="value">${avgProg}<small>%</small></div><div class="trend">this ${active[0]?active[0].period.replace('ly',''):'day'}</div></div>
   </div>`;
 
   // Focus Garden quick strip
@@ -1450,7 +1450,7 @@ renderers.settings = () => {
     <div class="stat"><div class="label">Total time</div><div class="value" style="font-size:22px">${fmtDur(totalMinutesAll())}</div></div>
     <div class="stat"><div class="label">Tracking since</div><div class="value" style="font-size:16px">${state.created}</div></div>
   </div>
-  <div class="faint center" style="margin-top:30px;font-size:12px">Cadence · offline study organizer · v1.4 · themes · Focus Garden · voice · reminders · no accounts, no AI, no tracking</div>`;
+  <div class="faint center" style="margin-top:30px;font-size:12px">Cadence · offline study organizer · v1.5 · prettier garden · themes · voice · reminders · no accounts, no AI, no tracking</div>`;
   view.innerHTML = html;
 
   renderSwatches(document.getElementById("setAccent"), s.accent, c=>{ s.accent=c; document.documentElement.style.setProperty("--accent",c); save(); });
@@ -1519,7 +1519,7 @@ function importData(e){
 
 /* ============================= Shared UI ============================= */
 function emptyState(title, msg, btnLabel, btnId){
-  return `<div class="empty"><div class="big">◎</div><h3>${title}</h3><p>${msg}</p><br><button class="btn primary" id="${btnId}">${btnLabel}</button></div>`;
+  return `<div class="empty"><div class="big">🌱</div><h3>${title}</h3><p>${msg}</p><br><button class="btn primary" id="${btnId}">${btnLabel}</button></div>`;
 }
 function showModal(id){ document.getElementById(id).classList.add("show"); }
 function hideModal(id){ document.getElementById(id).classList.remove("show"); }
@@ -1561,36 +1561,90 @@ function rerender(){ renderers[currentView](); }
 function speciesById(id){ return SPECIES.find(s=>s.id===id) || SPECIES[0]; }
 function gsun(){ return state.garden.sun; }
 
-// Parametric plant art. p in 0..1.
+// ----- color helpers for shading -----
+function hexAdj(hex, amt){
+  hex=String(hex||"#4ade80").replace('#',''); if(hex.length===3) hex=hex.split('').map(c=>c+c).join('');
+  let r=parseInt(hex.slice(0,2),16), g=parseInt(hex.slice(2,4),16), b=parseInt(hex.slice(4,6),16);
+  const f=amt/100, adj=v=> Math.max(0, Math.min(255, Math.round(f<0 ? v*(1+f) : v+(255-v)*f)));
+  return '#'+[adj(r),adj(g),adj(b)].map(v=>v.toString(16).padStart(2,'0')).join('');
+}
+// Parametric plant art with gradients & shading. p in 0..1.
+let PLANT_N = 0;
 function plantSVG(sp, p, size=180){
   p = Math.max(0, Math.min(1, p));
-  const stemTop = 100 - 60*Math.min(1, p/0.9);
-  const leafP = Math.max(0, Math.min(1,(p-0.3)/0.4));
-  const bloomP = Math.max(0, Math.min(1,(p-0.72)/0.28));
-  let s = `<svg class="grow-plant ${p>=1?'swaying':''}" width="${size}" height="${size*1.15}" viewBox="0 0 100 120" xmlns="http://www.w3.org/2000/svg">`;
-  s += `<ellipse cx="50" cy="115" rx="24" ry="4" fill="rgba(0,0,0,.22)"/>`;
-  s += `<path d="M33 100 L67 100 L62 115 L38 115 Z" fill="#a4623d"/><rect x="31" y="95" width="38" height="7" rx="2" fill="#bf7550"/>`;
-  s += `<ellipse cx="50" cy="97" rx="16" ry="3.5" fill="#3f2d20"/>`;
-  if (p<=0.03){ s += `<circle cx="50" cy="95" r="2.6" fill="#6b4a34"/>`; return s+`</svg>`; }
-  s += `<path d="M50 98 Q ${50+5*Math.sin(p*5)} ${(98+stemTop)/2} 50 ${stemTop}" stroke="${sp.stem}" stroke-width="${3+2*Math.min(1,p/0.9)}" fill="none" stroke-linecap="round"/>`;
-  if (leafP>0){
-    const ly=(98+stemTop)/2;
-    s += `<path d="M50 ${ly} q -${18*leafP} -3 -${24*leafP} 7 q ${9*leafP} 3 ${24*leafP} -7 Z" fill="${sp.leaf}"/>`;
-    s += `<path d="M50 ${ly-9} q ${18*leafP} -3 ${24*leafP} 7 q -${9*leafP} 3 -${24*leafP} -7 Z" fill="${sp.leaf}"/>`;
+  const n = ++PLANT_N, id = x=>`p${n}${x}`;
+  const grow = Math.min(1, p/0.9);
+  const stemTop = 100 - 62*grow;
+  const leafP = Math.max(0, Math.min(1,(p-0.28)/0.4));
+  const bloomP = Math.max(0, Math.min(1,(p-0.7)/0.3));
+  const sw = 2.6 + 2.4*grow;
+  let s = `<svg class="grow-plant ${p>=1?'swaying':''}" width="${size}" height="${(size*1.15).toFixed(0)}" viewBox="0 0 100 120" xmlns="http://www.w3.org/2000/svg">`;
+  s += `<defs>
+    <linearGradient id="${id('pot')}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d68a5c"/><stop offset="1" stop-color="#9c5433"/></linearGradient>
+    <linearGradient id="${id('rim')}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e0a074"/><stop offset="1" stop-color="#b06a45"/></linearGradient>
+    <linearGradient id="${id('stem')}" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${hexAdj(sp.stem,-20)}"/><stop offset="0.5" stop-color="${sp.stem}"/><stop offset="1" stop-color="${hexAdj(sp.stem,-28)}"/></linearGradient>
+    <radialGradient id="${id('soil')}" cx="0.5" cy="0.35" r="0.75"><stop offset="0" stop-color="#5a3e2c"/><stop offset="1" stop-color="#38271b"/></radialGradient>
+    <radialGradient id="${id('bloom')}" cx="0.4" cy="0.33" r="0.8"><stop offset="0" stop-color="${hexAdj(sp.bloom,32)}"/><stop offset="0.75" stop-color="${sp.bloom}"/><stop offset="1" stop-color="${hexAdj(sp.bloom,-16)}"/></radialGradient>
+    <radialGradient id="${id('leaf')}" cx="0.4" cy="0.3" r="0.85"><stop offset="0" stop-color="${hexAdj(sp.leaf,20)}"/><stop offset="1" stop-color="${hexAdj(sp.leaf,-16)}"/></radialGradient>
+  </defs>`;
+  s += `<ellipse cx="50" cy="113.5" rx="23" ry="4" fill="rgba(0,0,0,.20)"/>`;
+  if (p>0.03){
+    s += `<path d="M50 100 C ${(50+7*Math.sin(p*4)).toFixed(1)} ${((100+stemTop)/2).toFixed(1)}, ${(48).toFixed(1)} ${(stemTop+13).toFixed(1)}, 50 ${stemTop.toFixed(1)}" fill="none" stroke="url(#${id('stem')})" stroke-width="${sw.toFixed(1)}" stroke-linecap="round"/>`;
+    if (leafP>0){
+      const ly=((100+stemTop)/2)+3;
+      s += plantLeaf(50, ly, -1, leafP, id);
+      s += plantLeaf(50, ly-11, 1, leafP*0.92, id);
+    }
+    if (bloomP>0) s += bloomShape(sp, 50, stemTop, 11*bloomP, bloomP, id);
   }
-  if (bloomP>0) s += bloomShape(sp, 50, stemTop, 11*bloomP, bloomP);
+  // pot in front so the plant looks rooted
+  s += `<path d="M34.5 99.5 L65.5 99.5 L60.5 113.5 L39.5 113.5 Z" fill="url(#${id('pot')})"/>`;
+  s += `<path d="M40 106 L60 106 L59 108.5 L41 108.5 Z" fill="rgba(0,0,0,.10)"/>`;
+  s += `<ellipse cx="50" cy="99.5" rx="16" ry="3.6" fill="url(#${id('soil')})"/>`;
+  s += `<rect x="31.5" y="94.5" width="37" height="6" rx="3" fill="url(#${id('rim')})"/>`;
+  s += `<rect x="33" y="95.4" width="34" height="1.6" rx="0.8" fill="rgba(255,255,255,.22)"/>`;
+  if (p<=0.03) s += `<path d="M50 96 q -3 -4 0 -7 q 3 3 0 7 Z" fill="${sp.leaf}"/>`;
   return s+`</svg>`;
 }
-function bloomShape(sp, x, y, r, p){
-  const c=sp.bloom;
-  if (sp.shape==="sunflower"){ let o=""; for(let i=0;i<12;i++){ const a=i/12*Math.PI*2; const px=x+Math.cos(a)*r, py=y+Math.sin(a)*r; o+=`<ellipse cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" rx="${(r*0.5).toFixed(1)}" ry="${(r*0.26).toFixed(1)}" transform="rotate(${(a*180/Math.PI).toFixed(1)} ${px.toFixed(1)} ${py.toFixed(1)})" fill="${c}"/>`; } return o+`<circle cx="${x}" cy="${y}" r="${(r*0.55).toFixed(1)}" fill="#7c4a1e"/>`; }
-  if (sp.shape==="tulip"){ return `<path d="M${x-r} ${y+r} Q ${x-r} ${y-r} ${x} ${y-r*0.3} Q ${x+r} ${y-r} ${x+r} ${y+r} Q ${x} ${y+r*0.6} ${x-r} ${y+r} Z" fill="${c}"/>`; }
-  if (sp.shape==="spike"){ let o=""; for(let i=0;i<5;i++){ o+=`<circle cx="${x}" cy="${(y - i*r*0.55).toFixed(1)}" r="${(r*0.5*(1-i*0.12)).toFixed(1)}" fill="${c}"/>`; } return o; }
-  if (sp.shape==="cactus"){ return `<rect x="${(x-r*0.7).toFixed(1)}" y="${(y-r*0.6).toFixed(1)}" width="${(r*1.4).toFixed(1)}" height="${(r*2.2).toFixed(1)}" rx="${(r*0.7).toFixed(1)}" fill="${sp.stem}"/><circle cx="${x}" cy="${(y-r*0.5).toFixed(1)}" r="${(r*0.4).toFixed(1)}" fill="${c}"/>`; }
-  if (sp.shape==="tree"){ return `<circle cx="${(x-r*0.6).toFixed(1)}" cy="${y}" r="${r.toFixed(1)}" fill="${sp.leaf}"/><circle cx="${(x+r*0.6).toFixed(1)}" cy="${y}" r="${r.toFixed(1)}" fill="${sp.leaf}"/><circle cx="${x}" cy="${(y-r*0.7).toFixed(1)}" r="${r.toFixed(1)}" fill="${sp.leaf}"/>`; }
-  if (sp.shape==="lotus"){ let o=""; for(let i=0;i<6;i++){ const a=(i/6)*Math.PI - Math.PI/2; o+=`<ellipse cx="${x}" cy="${y}" rx="${(r*0.35).toFixed(1)}" ry="${r.toFixed(1)}" transform="rotate(${(a*180/Math.PI).toFixed(1)} ${x} ${y})" fill="${c}"/>`; } return o+`<circle cx="${x}" cy="${y}" r="${(r*0.4).toFixed(1)}" fill="#fde68a"/>`; }
-  if (sp.shape==="star"){ let pts=""; for(let i=0;i<10;i++){ const a=i/10*Math.PI*2 - Math.PI/2; const rr=i%2?r*0.45:r; pts+=`${(x+Math.cos(a)*rr).toFixed(1)},${(y+Math.sin(a)*rr).toFixed(1)} `; } return `<polygon points="${pts.trim()}" fill="${c}"/><circle cx="${x}" cy="${y}" r="${(r*0.3).toFixed(1)}" fill="#fef9c3"/>`; }
-  let o=""; for(let i=0;i<6;i++){ const a=i/6*Math.PI*2; o+=`<circle cx="${(x+Math.cos(a)*r*0.7).toFixed(1)}" cy="${(y+Math.sin(a)*r*0.7).toFixed(1)}" r="${(r*0.5).toFixed(1)}" fill="${c}"/>`; } return o+`<circle cx="${x}" cy="${y}" r="${(r*0.5).toFixed(1)}" fill="#fde68a"/>`;
+function plantLeaf(x,y,dir,scale,id){
+  const w=23*scale, h=9.5*scale, ex=x+dir*w, ey=y-3.5;
+  return `<path d="M${x} ${y} Q ${(x+dir*w*0.5).toFixed(1)} ${(y-h).toFixed(1)} ${ex.toFixed(1)} ${ey.toFixed(1)} Q ${(x+dir*w*0.45).toFixed(1)} ${(y+h*0.35).toFixed(1)} ${x} ${y} Z" fill="url(#${id('leaf')})"/>`
+    + `<path d="M${x} ${y} Q ${(x+dir*w*0.5).toFixed(1)} ${(y-h*0.35).toFixed(1)} ${ex.toFixed(1)} ${ey.toFixed(1)}" fill="none" stroke="rgba(255,255,255,.28)" stroke-width="${(0.7*scale).toFixed(2)}" stroke-linecap="round"/>`;
+}
+function bloomShape(sp, x, y, r, p, id){
+  const grad=`url(#${id('bloom')})`, c=sp.bloom, cd=hexAdj(c,-18), cl=hexAdj(c,34);
+  const F=(v)=>Number(v).toFixed(1);
+  if (sp.shape==="sunflower"){
+    let o=""; for(let i=0;i<14;i++){ const a=i/14*Math.PI*2; const px=x+Math.cos(a)*r, py=y+Math.sin(a)*r; o+=`<ellipse cx="${F(px)}" cy="${F(py)}" rx="${F(r*0.52)}" ry="${F(r*0.24)}" transform="rotate(${F(a*180/Math.PI)} ${F(px)} ${F(py)})" fill="${grad}"/>`; }
+    return o+`<circle cx="${F(x)}" cy="${F(y)}" r="${F(r*0.6)}" fill="#6e4423"/><circle cx="${F(x-r*0.15)}" cy="${F(y-r*0.15)}" r="${F(r*0.32)}" fill="#8a5a2c"/>`;
+  }
+  if (sp.shape==="tulip"){
+    return `<path d="M${F(x-r)} ${F(y+r*0.9)} Q ${F(x-r)} ${F(y-r)} ${F(x)} ${F(y-r*0.35)} Q ${F(x+r)} ${F(y-r)} ${F(x+r)} ${F(y+r*0.9)} Q ${F(x)} ${F(y+r*0.55)} ${F(x-r)} ${F(y+r*0.9)} Z" fill="${grad}"/>`
+      + `<path d="M${F(x)} ${F(y-r*0.35)} L ${F(x)} ${F(y+r*0.55)}" stroke="${cd}" stroke-width="0.8" opacity="0.5"/>`;
+  }
+  if (sp.shape==="spike"){
+    let o=""; for(let i=0;i<6;i++){ const yy=y-i*r*0.5, rr=r*0.52*(1-i*0.11), dx=(i%2?1:-1)*r*0.18; o+=`<circle cx="${F(x+dx)}" cy="${F(yy)}" r="${F(rr)}" fill="${grad}"/>`; } return o;
+  }
+  if (sp.shape==="cactus"){
+    return `<rect x="${F(x-r*0.6)}" y="${F(y-r*0.4)}" width="${F(r*1.2)}" height="${F(r*2.3)}" rx="${F(r*0.6)}" fill="url(#${id('leaf')})"/>`
+      + `<rect x="${F(x+r*0.3)}" y="${F(y+r*0.2)}" width="${F(r*0.5)}" height="${F(r*1)}" rx="${F(r*0.25)}" fill="url(#${id('leaf')})"/>`
+      + `<circle cx="${F(x)}" cy="${F(y-r*0.4)}" r="${F(r*0.42)}" fill="${grad}"/>`;
+  }
+  if (sp.shape==="tree"){
+    return `<circle cx="${F(x-r*0.55)}" cy="${F(y+r*0.1)}" r="${F(r*0.95)}" fill="url(#${id('leaf')})"/>`
+      + `<circle cx="${F(x+r*0.6)}" cy="${F(y)}" r="${F(r*0.95)}" fill="url(#${id('leaf')})"/>`
+      + `<circle cx="${F(x)}" cy="${F(y-r*0.7)}" r="${F(r)}" fill="url(#${id('leaf')})"/>`
+      + `<circle cx="${F(x-r*0.2)}" cy="${F(y-r*0.5)}" r="${F(r*0.4)}" fill="rgba(255,255,255,.18)"/>`;
+  }
+  if (sp.shape==="lotus"){
+    let o=""; for(let i=0;i<7;i++){ const a=((i/6)-0.5)*Math.PI; o+=`<ellipse cx="${F(x)}" cy="${F(y)}" rx="${F(r*0.34)}" ry="${F(r)}" transform="rotate(${F(a*180/Math.PI)} ${F(x)} ${F(y)})" fill="${grad}"/>`; } return o+`<circle cx="${F(x)}" cy="${F(y)}" r="${F(r*0.34)}" fill="#fde68a"/>`;
+  }
+  if (sp.shape==="star"){
+    let pts=""; for(let i=0;i<10;i++){ const a=i/10*Math.PI*2 - Math.PI/2; const rr=i%2?r*0.42:r; pts+=`${F(x+Math.cos(a)*rr)},${F(y+Math.sin(a)*rr)} `; }
+    return `<circle cx="${F(x)}" cy="${F(y)}" r="${F(r*1.25)}" fill="${c}" opacity="0.22"/><polygon points="${pts.trim()}" fill="${grad}"/><circle cx="${F(x)}" cy="${F(y)}" r="${F(r*0.28)}" fill="#fef9c3"/>`;
+  }
+  // default flower
+  let o=""; for(let i=0;i<6;i++){ const a=i/6*Math.PI*2; o+=`<circle cx="${F(x+Math.cos(a)*r*0.62)}" cy="${F(y+Math.sin(a)*r*0.62)}" r="${F(r*0.52)}" fill="${grad}"/>`; } return o+`<circle cx="${F(x)}" cy="${F(y)}" r="${F(r*0.5)}" fill="#fde68a"/>`;
 }
 
 // Session lifecycle
@@ -1598,11 +1652,17 @@ let focusTick=null, chosenDur=25, chosenSpecies=null, chosenHabit="";
 function focusProgress(){ const a=state.garden.active; if(!a) return 0; return Math.max(0, Math.min(1,(Date.now()-a.startedAt)/60000/a.durationMin)); }
 function focusRemainingSec(){ const a=state.garden.active; if(!a) return 0; return Math.max(0, Math.round(a.durationMin*60 - (Date.now()-a.startedAt)/1000)); }
 function phaseText(p){ return p<0.05?"Seed planted…":p<0.3?"Sprouting 🌱":p<0.6?"Growing leaves 🍃":p<0.82?"Budding 🌿":p<1?"About to bloom ✨":"Bloomed! 🌸"; }
+// Keep the screen awake during a focus session (best-effort; not supported everywhere)
+let wakeLock=null;
+async function requestWakeLock(){ try { if("wakeLock" in navigator){ wakeLock = await navigator.wakeLock.request("screen"); } } catch {} }
+function releaseWakeLock(){ try { wakeLock && wakeLock.release && wakeLock.release(); } catch {} wakeLock=null; }
+function enterFullscreen(){ try { const el=document.documentElement; (el.requestFullscreen||el.webkitRequestFullscreen||(()=>{})).call(el); } catch {} }
+function exitFullscreen(){ try { if(document.fullscreenElement) (document.exitFullscreen||document.webkitExitFullscreen||(()=>{})).call(document); } catch {} }
 function startFocus(durationMin, speciesId, habitId){
   if (state.garden.active) return toast("A session is already growing.");
   if (!state.garden.unlocked.includes(speciesId)) speciesId = state.garden.unlocked[0]||"sprout";
   state.garden.active = { startedAt: Date.now(), durationMin, species: speciesId, habitId: habitId||null, strict: !!state.garden.strict };
-  save(); ensureFocusTick();
+  save(); ensureFocusTick(); requestWakeLock();
   toast(`🌱 Planted a ${speciesById(speciesId).name}. Stay focused for ${durationMin} min!`);
   if (currentView==="grow") renderers.grow();
 }
@@ -1613,7 +1673,7 @@ function completeFocus(){
   state.garden.sun += mins;
   state.garden.active=null;
   if (a.habitId){ const h=habitById(a.habitId); if(h && h.type==="time") addSession(a.habitId, mins); }
-  unlockSpecies(); save(); checkBadges(); stopFocusTick();
+  unlockSpecies(); save(); checkBadges(); stopFocusTick(); releaseWakeLock(); exitFullscreen();
   notify("🌸 Bloomed!", `Your ${speciesById(a.species).name} bloomed. +${mins} Sunlight.`);
   toast(`🌸 Your ${speciesById(a.species).name} bloomed! +${mins} ☀`);
   if (currentView==="grow") renderers.grow(); else if (currentView==="dashboard") rerender();
@@ -1629,7 +1689,7 @@ function giveUpFocus(){
   const a=state.garden.active; if(!a) return;
   const p=focusProgress();
   state.garden.plants.push({ id:uid(), species:a.species, ts:new Date().toISOString(), minutes:Math.round(a.durationMin*p), habitId:a.habitId, withered:true });
-  state.garden.active=null; save(); stopFocusTick();
+  state.garden.active=null; save(); stopFocusTick(); releaseWakeLock(); exitFullscreen();
   toast("🥀 Plant wilted — you ended early. A shorter session next time?");
   if (currentView==="grow") renderers.grow();
 }
@@ -1671,7 +1731,7 @@ renderers.grow = () => {
       <div class="pot-area" id="plantHolder">${plantSVG(sp,p,190)}</div>
       <div class="count" id="focusCount">${String(Math.floor(sec/60)).padStart(2,'0')}:${String(sec%60).padStart(2,'0')}</div>
       <div class="phase" id="focusPhase">${phaseText(p)}</div>
-      <div class="focus-controls"><button class="btn danger" id="giveUp">Give up 🥀</button></div>
+      <div class="focus-controls"><button class="btn" id="fsFocus">⛶ Fullscreen</button><button class="btn danger" id="giveUp">Give up 🥀</button></div>
       ${g.active.strict?`<div class="faint" style="font-size:11.5px">Strict mode on — leaving Cadence wilts the plant.</div>`:``}`;
   } else {
     if (!chosenSpecies || !g.unlocked.includes(chosenSpecies)) chosenSpecies=g.unlocked[g.unlocked.length-1]||"sprout";
@@ -1705,7 +1765,7 @@ renderers.grow = () => {
   html += `<div class="card"><div class="flex" style="margin-bottom:12px"><b>Species collection</b><span class="spacer" style="flex:1"></span><span class="faint" style="font-size:12px">${g.unlocked.length}/${SPECIES.length}</span></div>
     <div class="shelf">`+SPECIES.map(s=>{ const on=g.unlocked.includes(s.id); return `<div class="item ${on?'':'locked'}">${plantSVG(s,1,54)}<div class="nm">${on?s.name:'???'}</div><div class="th">${on?'Unlocked':'☀ '+s.sun}</div></div>`; }).join("")+`</div></div>`;
 
-  html += `<div class="card flex" style="justify-content:space-between"><div><b style="font-size:14px">Strict mode</b><div class="muted" style="font-size:12.5px">Leaving Cadence mid-session wilts the plant. Real stakes, real focus.</div></div>
+  html += `<div class="card flex" style="justify-content:space-between"><div><b style="font-size:14px">🔒 Focus Lock (Strict mode)</b><div class="muted" style="font-size:12.5px">Leaving Cadence mid-session wilts the plant, and the screen stays awake while you focus. Real stakes, real focus.</div></div>
     <button class="btn ${g.strict?'primary':''}" id="strictToggle">${g.strict?'On':'Off'}</button></div>`;
 
   html += `</div></div>`;
@@ -1713,6 +1773,7 @@ renderers.grow = () => {
 
   // wire
   const gu=document.getElementById("giveUp"); if(gu) gu.onclick=()=>{ if(confirm("Give up this session? The plant will wilt.")) giveUpFocus(); };
+  const fsf=document.getElementById("fsFocus"); if(fsf) fsf.onclick=()=> document.fullscreenElement?exitFullscreen():enterFullscreen();
   const pb=document.getElementById("plantBtn"); if(pb) pb.onclick=()=>{
     const custom=parseInt((document.getElementById("durCustom")||{}).value);
     const dur=custom>0?custom:chosenDur;
@@ -1726,19 +1787,19 @@ renderers.grow = () => {
 
 /* ============================= Command palette ============================= */
 const CMDS = [
-  { label:"Go to Dashboard", ico:"◎", run:()=>setView("dashboard") },
+  { label:"Go to Dashboard", ico:"🏠", run:()=>setView("dashboard") },
   { label:"Focus Garden — plant a session", ico:"🌱", run:()=>setView("grow") },
-  { label:"Go to Habits", ico:"◈", run:()=>setView("habits") },
-  { label:"Go to Schedule", ico:"▦", run:()=>setView("schedule") },
-  { label:"Go to Analytics", ico:"◔", run:()=>setView("analytics") },
-  { label:"Go to Materials", ico:"▤", run:()=>setView("materials") },
-  { label:"Go to Planner", ico:"◇", run:()=>setView("planner") },
-  { label:"Go to Achievements", ico:"✦", run:()=>setView("achievements") },
-  { label:"New habit", ico:"＋", run:()=>openHabitModal() },
-  { label:"Add material", ico:"▤", run:()=>{ setView("materials"); setTimeout(()=>document.getElementById("addMat")?.click(),60); } },
-  { label:"Export data", ico:"⬇", run:exportData },
-  { label:"Settings", ico:"⚙", run:()=>setView("settings") },
-  { label:"Print report", ico:"🖨", run:()=>window.print() },
+  { label:"Go to Habits", ico:"✅", run:()=>setView("habits") },
+  { label:"Go to Schedule", ico:"📅", run:()=>setView("schedule") },
+  { label:"Go to Analytics", ico:"📊", run:()=>setView("analytics") },
+  { label:"Go to Materials", ico:"📚", run:()=>setView("materials") },
+  { label:"Go to Planner", ico:"🧭", run:()=>setView("planner") },
+  { label:"Go to Achievements", ico:"🏆", run:()=>setView("achievements") },
+  { label:"New habit", ico:"➕", run:()=>openHabitModal() },
+  { label:"Add material", ico:"📚", run:()=>{ setView("materials"); setTimeout(()=>document.getElementById("addMat")?.click(),60); } },
+  { label:"Export data", ico:"⬇️", run:exportData },
+  { label:"Settings", ico:"⚙️", run:()=>setView("settings") },
+  { label:"Print report", ico:"🖨️", run:()=>window.print() },
 ];
 let cmdSel=0, cmdFiltered=CMDS;
 function openCmd(){ document.getElementById("cmd").classList.add("show"); const i=document.getElementById("cmdInput"); i.value=""; renderCmd(""); i.focus(); }
@@ -2058,7 +2119,8 @@ window.addEventListener("beforeinstallprompt", e=>{ e.preventDefault(); deferred
 // Strict-mode: leaving Cadence mid-session wilts the plant
 document.addEventListener("visibilitychange", ()=>{
   const a=state.garden.active;
-  if (a && a.strict && document.hidden){ giveUpFocus(); }
+  if (a && a.strict && document.hidden){ giveUpFocus(); return; }
+  if (a && !document.hidden) requestWakeLock();
 });
 
 /* ============================= Theme & motion ============================= */
