@@ -97,7 +97,9 @@
   .nav-btn:hover { background: var(--bg-3); color: var(--txt); }
   .nav-btn.active { background: var(--bg-3); color: var(--txt); }
   .nav-btn.active .ico { color: var(--accent); }
-  .nav-btn .ico { width: 18px; text-align: center; color: var(--txt-faint); font-size: 15px; }
+  .nav-btn .ico { width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; color: var(--txt-faint); }
+  .ic { display: inline-block; vertical-align: -3px; flex-shrink: 0; }
+  .stat .label .ic, .section-title .ic { vertical-align: -2px; margin-right: 5px; }
   .nav-btn .key { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--txt-faint); border: 1px solid var(--line-2); border-radius: 5px; padding: 1px 5px; }
 
   .side-foot { margin-top: auto; display: flex; flex-direction: column; gap: 6px; }
@@ -349,7 +351,14 @@
     border: 1px solid var(--line); border-radius: var(--radius); padding: 18px;
     display: flex; flex-direction: column; align-items: center; gap: 12px; min-height: 340px; justify-content: center; position: relative;
   }
-  .stage .pot-area { display: grid; place-items: center; height: 220px; }
+  .stage .pot-area { display: grid; place-items: center; height: 220px; position: relative; }
+  .pot-area.glow::before { content:""; position:absolute; left:50%; top:44%; width:190px; height:190px; transform:translate(-50%,-50%); border-radius:50%; background: radial-gradient(circle, color-mix(in srgb, var(--good) 42%, transparent) 0%, transparent 62%); filter: blur(5px); z-index:0; pointer-events:none; }
+  .pot-area.glow::after { content:""; position:absolute; left:50%; top:44%; width:158px; height:158px; transform:translate(-50%,-50%); border-radius:50%; border:2px dashed color-mix(in srgb, var(--good) 55%, transparent); animation: spin 9s linear infinite; z-index:0; pointer-events:none; }
+  @keyframes spin { to { transform: translate(-50%,-50%) rotate(360deg); } }
+  .pot-area.glow svg { position: relative; z-index: 1; }
+  .amb-picker { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .amb-picker button { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 11px 4px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--bg); color: var(--txt-dim); font-size: 11.5px; font-weight: 600; }
+  .amb-picker button.on { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--bg)); }
   .stage .count { font-family: var(--mono); font-size: 40px; font-weight: 800; letter-spacing: -1px; }
   .stage .phase { color: var(--txt-dim); font-size: 13px; min-height: 18px; text-align: center; }
   .stage .ring-wrap { position: absolute; top: 14px; right: 16px; }
@@ -415,17 +424,17 @@
         <small>study time &amp; habits</small>
       </div>
     </div>
-    <button class="nav-btn active" data-view="dashboard"><span class="ico">🏠</span> Dashboard <span class="key">1</span></button>
-    <button class="nav-btn" data-view="grow"><span class="ico">🌱</span> Focus Garden <span class="key">8</span></button>
-    <button class="nav-btn" data-view="habits"><span class="ico">✅</span> Habits <span class="key">2</span></button>
-    <button class="nav-btn" data-view="schedule"><span class="ico">📅</span> Schedule <span class="key">3</span></button>
-    <button class="nav-btn" data-view="analytics"><span class="ico">📊</span> Analytics <span class="key">4</span></button>
-    <button class="nav-btn" data-view="materials"><span class="ico">📚</span> Materials <span class="key">5</span></button>
-    <button class="nav-btn" data-view="planner"><span class="ico">🧭</span> Planner <span class="key">6</span></button>
-    <button class="nav-btn" data-view="achievements"><span class="ico">🏆</span> Achievements <span class="key">7</span></button>
+    <button class="nav-btn active" data-view="dashboard" data-icon="home"><span class="ico"></span> Dashboard <span class="key">1</span></button>
+    <button class="nav-btn" data-view="grow" data-icon="leaf"><span class="ico"></span> Focus Garden <span class="key">8</span></button>
+    <button class="nav-btn" data-view="habits" data-icon="check"><span class="ico"></span> Habits <span class="key">2</span></button>
+    <button class="nav-btn" data-view="schedule" data-icon="calendar"><span class="ico"></span> Schedule <span class="key">3</span></button>
+    <button class="nav-btn" data-view="analytics" data-icon="chart"><span class="ico"></span> Analytics <span class="key">4</span></button>
+    <button class="nav-btn" data-view="materials" data-icon="book"><span class="ico"></span> Materials <span class="key">5</span></button>
+    <button class="nav-btn" data-view="planner" data-icon="compass"><span class="ico"></span> Planner <span class="key">6</span></button>
+    <button class="nav-btn" data-view="achievements" data-icon="trophy"><span class="ico"></span> Achievements <span class="key">7</span></button>
     <div class="side-foot">
       <div class="divider"></div>
-      <button class="nav-btn" data-view="settings"><span class="ico">⚙️</span> Settings</button>
+      <button class="nav-btn" data-view="settings" data-icon="gear"><span class="ico"></span> Settings</button>
       <div class="mini">Press <span class="kbd">?</span> for shortcuts</div>
       <div class="mini" id="saveState">Saved locally</div>
     </div>
@@ -433,27 +442,27 @@
 
   <main class="main">
     <div class="topbar">
-      <button class="hamb no-print" id="hamb" aria-label="Menu">☰</button>
+      <button class="hamb no-print" id="hamb" aria-label="Menu" data-icon="menu"></button>
       <div>
         <h2 id="viewTitle">Dashboard</h2>
         <div class="sub" id="viewSub">—</div>
       </div>
       <div class="spacer"></div>
       <div class="clock no-print" id="clock" title="Live clock"></div>
-      <button class="btn ghost small no-print" id="themeBtn" title="Toggle light / dark" aria-label="Toggle theme">🌙</button>
-      <button class="btn ghost small no-print" id="micBtn" title="Voice command" aria-label="Voice command">🎤</button>
-      <button class="btn ghost small no-print" id="cmdBtn">⌘ Quick <span class="kbd">K</span></button>
-      <button class="btn primary no-print" id="addBtn">+ New Habit</button>
+      <button class="btn ghost small no-print icon-btn" id="themeBtn" title="Toggle light / dark" aria-label="Toggle theme"></button>
+      <button class="btn ghost small no-print icon-btn" id="micBtn" title="Voice command" aria-label="Voice command"></button>
+      <button class="btn ghost small no-print" id="cmdBtn"><span class="cmd-ic"></span> Quick <span class="kbd">K</span></button>
+      <button class="btn primary no-print" id="addBtn"><span class="add-ic"></span> New Habit</button>
     </div>
     <div class="view" id="view"></div>
   </main>
   <div class="scrim no-print" id="scrim"></div>
   <nav class="bottombar no-print" id="bottombar">
-    <button class="tabbtn active" data-view="dashboard"><span>🏠</span>Home</button>
-    <button class="tabbtn" data-view="grow"><span>🌱</span>Garden</button>
-    <button class="tabbtn" data-view="habits"><span>✅</span>Habits</button>
-    <button class="tabbtn" data-view="analytics"><span>📊</span>Stats</button>
-    <button class="tabbtn" data-view="__more"><span>☰</span>More</button>
+    <button class="tabbtn active" data-view="dashboard" data-icon="home"><span class="tabic"></span>Home</button>
+    <button class="tabbtn" data-view="grow" data-icon="leaf"><span class="tabic"></span>Garden</button>
+    <button class="tabbtn" data-view="habits" data-icon="check"><span class="tabic"></span>Habits</button>
+    <button class="tabbtn" data-view="analytics" data-icon="chart"><span class="tabic"></span>Stats</button>
+    <button class="tabbtn" data-view="__more" data-icon="menu"><span class="tabic"></span>More</button>
   </nav>
 </div>
 
@@ -582,7 +591,7 @@
 <!-- Onboarding -->
 <div class="overlay" id="onboardModal">
   <div class="modal" style="max-width:520px">
-    <div class="modal-head"><h3>Welcome to Cadence 🌱</h3></div>
+    <div class="modal-head"><h3>Welcome to Cadence</h3></div>
     <div class="modal-body">
       <p class="muted" style="font-size:14px;line-height:1.6">A free, private study companion — track time &amp; habits, plan your week, and <b>grow a garden by focusing</b>. Everything stays on your device. No account, no ads, no AI.</p>
       <div class="field">
@@ -593,8 +602,8 @@
       <div class="field">
         <label>Appearance</label>
         <div class="seg" id="onboardTheme">
-          <button data-th="dark" class="on">🌙 Dark</button>
-          <button data-th="light">☀️ Light</button>
+          <button data-th="dark" class="on">Dark</button>
+          <button data-th="light">Light</button>
           <button data-th="auto">Auto</button>
         </div>
       </div>
@@ -625,12 +634,63 @@ const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 const DAY_KEYS = ["mon","tue","wed","thu","fri","sat","sun"];
 const STORE_KEY = "cadence.v1";
 
+/* ===== Inline SVG icon set (stroke, currentColor) — no emojis ===== */
+const ICONS = {
+  home:'<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/>',
+  leaf:'<path d="M4 20C4 11 10 4 20 4c0 10-7 16-16 16Z"/><path d="M4 20c4-5 8-7 12-8"/>',
+  check:'<circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/>',
+  calendar:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 9h18M8 3v4M16 3v4"/>',
+  chart:'<path d="M4 4v16h16"/><rect x="7" y="12" width="3" height="5"/><rect x="12" y="8" width="3" height="9"/><rect x="17" y="14" width="3" height="3"/>',
+  book:'<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 19a2 2 0 0 1 2-2h13"/>',
+  compass:'<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2.2 5.3-5.3 2.2 2.2-5.3z"/>',
+  trophy:'<path d="M8 4h8v4a4 4 0 0 1-8 0z"/><path d="M8 5H5v2a3 3 0 0 0 3 3M16 5h3v2a3 3 0 0 1-3 3"/><path d="M10 13h4M9 20h6M12 15v5"/>',
+  gear:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>',
+  mic:'<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0 0 12 0M12 17v4"/>',
+  moon:'<path d="M20 14A8 8 0 1 1 10 4a6 6 0 0 0 10 10Z"/>',
+  sun:'<circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/>',
+  menu:'<path d="M3 6h18M3 12h18M3 18h18"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>',
+  download:'<path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/>',
+  upload:'<path d="M12 21V9M7 14l5-5 5 5"/><path d="M5 3h14"/>',
+  printer:'<path d="M6 9V3h12v6"/><rect x="4" y="9" width="16" height="8" rx="2"/><path d="M8 17h8v4H8z"/>',
+  play:'<path d="M7 4l13 8-13 8z"/>',
+  stop:'<rect x="6" y="6" width="12" height="12" rx="2"/>',
+  flame:'<path d="M12 3c3 4 5 6 5 10a5 5 0 0 1-10 0c0-2 1-3 2-4 0 2 1 3 2 3 1 0 1-2 1-3 0-2-1-3-2-6z"/>',
+  clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  target:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/>',
+  code:'<path d="M8 8l-4 4 4 4M16 8l4 4-4 4"/>',
+  calc:'<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15v4M8 19h4"/>',
+  brain:'<path d="M12 5a3 3 0 0 0-6 0 3 3 0 0 0-1 5 3 3 0 0 0 2 4 3 3 0 0 0 5 0Z"/><path d="M12 5a3 3 0 0 1 6 0 3 3 0 0 1 1 5 3 3 0 0 1-2 4 3 3 0 0 1-5 0Z"/>',
+  pen:'<path d="M4 20l4-1 10-10-3-3L5 16z"/><path d="M14 6l3 3"/>',
+  flask:'<path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-5-9V3"/><path d="M7.5 15h9"/>',
+  palette:'<path d="M12 3a9 9 0 1 0 0 18c1 0 1.5-1 1-2-.5-1 0-2 1-2h2a4 4 0 0 0 4-4c0-5-4-8-8-8Z"/><circle cx="8" cy="10" r=".8"/><circle cx="12" cy="7.6" r=".8"/><circle cx="16" cy="10" r=".8"/>',
+  music:'<path d="M9 18V5l10-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/>',
+  run:'<circle cx="13" cy="5" r="2"/><path d="M5 21l3-5 3 2 2-4M11 12L9 9l4-2 3 3 3 1M9 21l1-4"/>',
+  globe:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/>',
+  bulb:'<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10c1 1 1 2 1 3h6c0-1 0-2 1-3a6 6 0 0 0-4-10Z"/>',
+  star:'<path d="M12 3l2.6 6 6.4.5-5 4 1.6 6.5L12 17l-5.2 3 1.6-6.5-5-4 6.4-.5z"/>',
+  dumbbell:'<path d="M4 9v6M7 7v10M17 7v10M20 9v6M7 12h10"/>',
+  coffee:'<path d="M4 8h13v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5z"/><path d="M17 9h2a2 2 0 0 1 0 4h-2"/><path d="M7 3v2M11 3v2"/>',
+  rain:'<path d="M6 14a4 4 0 0 1 0-8 5 5 0 0 1 9.5-1A4 4 0 0 1 17 14"/><path d="M8 18l-1 2M12 18l-1 2M16 18l-1 2"/>',
+  waves:'<path d="M2 8c2-2 4-2 6 0s4 2 6 0 4-2 6 0M2 14c2-2 4-2 6 0s4 2 6 0 4-2 6 0"/>',
+  wind:'<path d="M3 8h10a3 3 0 1 0-3-3M3 16h13a3 3 0 1 1-3 3"/>',
+  trees:'<path d="M8 3l4 7H4zM8 8l4 6H4zM8 14v6"/><path d="M16 6l3 5h-6zM16 14v6"/>',
+  volumeX:'<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M17 9l4 6M21 9l-4 6"/>',
+  lock:'<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+  fullscreen:'<path d="M4 9V5a1 1 0 0 1 1-1h4M20 9V5a1 1 0 0 0-1-1h-4M4 15v4a1 1 0 0 0 1 1h4M20 15v4a1 1 0 0 1-1 1h-4"/>',
+  command:'<path d="M9 6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3z"/>',
+  trash:'<path d="M4 7h16M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M6 7l1 13h10l1-13"/>'
+};
+function ic(name, size=18, extra=""){ const p=ICONS[name]; if(!p) return ""; return `<svg class="ic" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ${extra}>${p}</svg>`; }
+const HABIT_ICONS = ["book","code","calc","brain","pen","flask","palette","music","run","globe","bulb","star","dumbbell","target","clock","leaf"];
+
 const DEFAULT_STATE = {
   habits: [],
   materials: [],
   blocks: [],           // {id, day:'mon', start:'09:00', end:'10:30', subject, color}
   settings: { accent: "#6ea8fe", weekStartMon: true, dayStart: 6, dayEnd: 23, notify: false, theme: "dark", motion: "on", onboarded: false },
-  garden: { plants: [], sun: 0, unlocked: ["sprout","fern"], strict: false, active: null },
+  garden: { plants: [], sun: 0, unlocked: ["sprout","fern"], strict: false, active: null,
+            ambient: "none", pomo: { on:false, focus:25, short:5, long:20, cycle:4 }, pomoCount: 0, onBreak: null },
   created: todayISO()
 };
 
@@ -776,15 +836,15 @@ renderers.dashboard = () => {
     html += `<div class="now-banner">
       <span class="pulse"></span>
       <div class="nb-txt"><b>Happening now — ${esc(nowBlock.subject)}</b><div>Scheduled ${nowBlock.start}–${nowBlock.end} · ${fmtDur(toMin(nowBlock.end)-(now.getHours()*60+now.getMinutes()))} left</div></div>
-      ${(matched && matched.type==="time" && !activeTimers[matched.id]) ? `<button class="btn small primary" data-startnow="${matched.id}">▶ Start</button>` : (running?`<span class="pill" style="color:var(--good);border-color:var(--good)">timer on</span>`:'')}
+      ${(matched && matched.type==="time" && !activeTimers[matched.id]) ? `<button class="btn small primary" data-startnow="${matched.id}">${ic("play",13)} Start</button>` : (running?`<span class="pill" style="color:var(--good);border-color:var(--good)">timer on</span>`:'')}
     </div>`;
   }
   html += `
   <div class="grid cols-4">
-    <div class="stat"><div class="label">⏱️ Time today</div><div class="value">${fmtDur(timeToday)}</div><div class="trend">${sparkText()}</div></div>
-    <div class="stat"><div class="label">✅ Habits done</div><div class="value">${doneToday}<small> / ${active.length}</small></div><div class="trend">${active.length?Math.round(doneToday/active.length*100):0}% of today</div></div>
-    <div class="stat"><div class="label">🔥 Best streak</div><div class="value">${bestStreakNow}<small> days</small></div><div class="trend">keep it alive</div></div>
-    <div class="stat"><div class="label">📈 Avg progress</div><div class="value">${avgProg}<small>%</small></div><div class="trend">this ${active[0]?active[0].period.replace('ly',''):'day'}</div></div>
+    <div class="stat"><div class="label">${ic("clock",13)} Time today</div><div class="value">${fmtDur(timeToday)}</div><div class="trend">${sparkText()}</div></div>
+    <div class="stat"><div class="label">${ic("check",13)} Habits done</div><div class="value">${doneToday}<small> / ${active.length}</small></div><div class="trend">${active.length?Math.round(doneToday/active.length*100):0}% of today</div></div>
+    <div class="stat"><div class="label">${ic("flame",13)} Best streak</div><div class="value">${bestStreakNow}<small> days</small></div><div class="trend">keep it alive</div></div>
+    <div class="stat"><div class="label">${ic("chart",13)} Avg progress</div><div class="value">${avgProg}<small>%</small></div><div class="trend">this ${active[0]?active[0].period.replace('ly',''):'day'}</div></div>
   </div>`;
 
   // Focus Garden quick strip
@@ -796,8 +856,8 @@ renderers.dashboard = () => {
       <div class="nb-txt"><b>Focus session growing — ${sp.name}</b><div>${Math.floor(focusRemainingSec()/60)}:${String(focusRemainingSec()%60).padStart(2,'0')} left · ${phaseText(focusProgress())}</div></div>
       <button class="btn small primary" data-goto="grow">Open</button></div>`;
   } else {
-    html += `<div class="now-banner" style="margin-top:18px"><span class="pulse" style="background:var(--good)"></span>
-      <div class="nb-txt"><b>Focus Garden 🌱</b><div>☀ ${g.sun} Sunlight · ${blooms} plants grown · plant a session to grow more</div></div>
+    html += `<div class="now-banner" style="margin-top:18px"><span style="color:var(--good);display:grid;place-items:center">${ic("leaf",22)}</span>
+      <div class="nb-txt"><b>Focus Garden</b><div>${g.sun} Sunlight · ${blooms} plants grown · plant a session to grow more</div></div>
       <button class="btn small primary" data-goto="grow">Plant &amp; focus</button></div>`;
   }
 
@@ -838,7 +898,7 @@ renderers.dashboard = () => {
 /* ---------- Time-aware helpers ---------- */
 function greetingText(d=new Date()){
   const h = d.getHours();
-  return h<5 ? "Still up? 🌙" : h<12 ? "Good morning ☀️" : h<17 ? "Good afternoon 👋" : h<22 ? "Good evening 🌆" : "Winding down 🌙";
+  return h<5 ? "Still up?" : h<12 ? "Good morning" : h<17 ? "Good afternoon" : h<22 ? "Good evening" : "Winding down";
 }
 function currentBlock(now=new Date()){
   const key = DAY_KEYS[dowMon(now)];
@@ -888,7 +948,7 @@ function habitCard(h, compact){
     <div class="h-head">
       <div>${ring(prog, h.color)}</div>
       <div class="h-info">
-        <div class="h-name">${h.emoji?`<span style="margin-right:5px">${h.emoji}</span>`:''}${esc(h.name)} ${streak>0?`<span class="streak-chip">🔥 ${streak}</span>`:''}</div>
+        <div class="h-name">${h.icon?`<span style="margin-right:5px;color:${h.color}">${ic(h.icon,16)}</span>`:''}${esc(h.name)} ${streak>0?`<span class="streak-chip">${ic("flame",13)} ${streak}</span>`:''}</div>
         <div class="h-sub">${esc(h.subject||"General")} · ${h.period}</div>
         <div class="h-target" style="margin-top:6px"><b>${curDisp}</b> / ${tgtDisp}</div>
       </div>
@@ -899,10 +959,10 @@ function habitCard(h, compact){
     <div class="h-actions">
       ${h.type==="time"
         ? (live
-            ? `<button class="btn small" data-stop="${h.id}">■ Stop</button>`
-            : `<button class="btn small primary" data-start="${h.id}">▶ Start</button>`)
+            ? `<button class="btn small" data-stop="${h.id}">${ic("stop",13)} Stop</button>`
+            : `<button class="btn small primary" data-start="${h.id}">${ic("play",13)} Start</button>`)
         : ``}
-      <button class="btn small" data-log="${h.id}">+ Log</button>
+      <button class="btn small" data-log="${h.id}">${ic("plus",13)} Log</button>
       ${h.type==="count" ? `<button class="btn small" data-inc="${h.id}">+1</button>`:''}
     </div>
   </div>`;
@@ -912,7 +972,7 @@ function wireHabitCards(){
   view.querySelectorAll("[data-start]").forEach(b=> b.onclick=()=>startTimer(b.dataset.start));
   view.querySelectorAll("[data-stop]").forEach(b=> b.onclick=()=>stopTimer(b.dataset.stop));
   view.querySelectorAll("[data-log]").forEach(b=> b.onclick=()=>openLog(b.dataset.log));
-  view.querySelectorAll("[data-inc]").forEach(b=> b.onclick=()=>{ const h=habitById(b.dataset.inc); const was=periodProgress(h)>=1; addSession(b.dataset.inc, 1); if(!was && periodProgress(h)>=1){ confettiBurst(); toast("🎉 Goal reached!"); } else toast("+1 logged"); rerender(); });
+  view.querySelectorAll("[data-inc]").forEach(b=> b.onclick=()=>{ const h=habitById(b.dataset.inc); const was=periodProgress(h)>=1; addSession(b.dataset.inc, 1); if(!was && periodProgress(h)>=1){ confettiBurst(); toast("Goal reached!"); } else toast("+1 logged"); rerender(); });
   view.querySelectorAll("[data-menu]").forEach(b=> b.onclick=(e)=>openHabitMenu(e, b.dataset.menu));
   view.querySelectorAll("[data-goto]").forEach(a=> a.onclick=(e)=>{ e.preventDefault(); setView(a.dataset.goto); });
 }
@@ -982,7 +1042,7 @@ document.getElementById("saveLog").onclick = () => {
   const h = habitById(logTargetId); const was = h ? periodProgress(h)>=1 : true;
   addSession(logTargetId, amt, date);
   hideModal("logModal");
-  if (h && !was && periodProgress(h)>=1){ confettiBurst(); toast("🎉 Goal reached!"); } else toast("Logged");
+  if (h && !was && periodProgress(h)>=1){ confettiBurst(); toast("Goal reached!"); } else toast("Logged");
   rerender();
 };
 
@@ -1021,16 +1081,15 @@ function quickMenu(anchor, items){
 }
 
 /* ---------- Habit modal ---------- */
-let modalColor = COLORS[0], modalEmoji = "";
-const HABIT_EMOJIS = ["📚","📖","✍️","💻","🧮","🔬","🧠","📝","🗣️","🎨","🎵","🏃","🧘","🌍","💡","⭐"];
+let modalColor = COLORS[0], modalIcon = "";
 function renderSwatches(container, sel, cb){
   container.innerHTML = COLORS.map(c=>`<div class="swatch ${c===sel?'sel':''}" data-c="${c}" style="background:${c}"></div>`).join("");
   container.querySelectorAll(".swatch").forEach(s=> s.onclick=()=>{ container.querySelectorAll(".swatch").forEach(x=>x.classList.remove("sel")); s.classList.add("sel"); cb(s.dataset.c); });
 }
-function renderEmojiPicks(sel){
+function renderIconPicks(sel){
   const c=document.getElementById("fEmojiPicks");
-  c.innerHTML = `<button data-e="" class="${!sel?'sel':''}" title="No icon">∅</button>` + HABIT_EMOJIS.map(e=>`<button data-e="${e}" class="${e===sel?'sel':''}">${e}</button>`).join("");
-  c.querySelectorAll("button").forEach(b=> b.onclick=()=>{ c.querySelectorAll("button").forEach(x=>x.classList.remove("sel")); b.classList.add("sel"); modalEmoji=b.dataset.e; });
+  c.innerHTML = `<button data-e="" class="${!sel?'sel':''}" title="No icon" style="font-size:13px;color:var(--txt-faint)">none</button>` + HABIT_ICONS.map(e=>`<button data-e="${e}" class="${e===sel?'sel':''}">${ic(e,17)}</button>`).join("");
+  c.querySelectorAll("button").forEach(b=> b.onclick=()=>{ c.querySelectorAll("button").forEach(x=>x.classList.remove("sel")); b.classList.add("sel"); modalIcon=b.dataset.e; });
 }
 function openHabitModal(h){
   editingId = h && h.id ? h.id : null;
@@ -1043,9 +1102,9 @@ function openHabitModal(h){
   document.getElementById("fPeriod").value = h?.period||"daily";
   document.getElementById("fReminder").value = h?.reminder||"";
   modalColor = h?.color||COLORS[0];
-  modalEmoji = h?.emoji||"";
+  modalIcon = h?.icon||"";
   renderSwatches(document.getElementById("fSwatches"), modalColor, c=> modalColor=c);
-  renderEmojiPicks(modalEmoji);
+  renderIconPicks(modalIcon);
   syncTypeUnit();
   showModal("habitModal");
   setTimeout(()=>document.getElementById("fName").focus(), 50);
@@ -1068,7 +1127,7 @@ document.getElementById("saveHabit").onclick = () => {
     period: document.getElementById("fPeriod").value,
     reminder: document.getElementById("fReminder").value,
     color: modalColor,
-    emoji: modalEmoji
+    icon: modalIcon
   };
   if (editingId){ Object.assign(habitById(editingId), data); toast("Updated"); }
   else { state.habits.push(Object.assign({ id: uid(), created: todayISO(), sessions: [] }, data)); toast("Habit created"); }
@@ -1080,7 +1139,7 @@ renderers.schedule = () => {
   const s = state.settings, h0 = s.dayStart, h1 = s.dayEnd;
   let html = `<div class="flex" style="margin-bottom:14px"><span class="muted">Click a slot to add a study block. Drag not needed — set start/end in the dialog.</span><span class="spacer" style="flex:1"></span>
     <button class="btn small" id="clearWeek">Clear week</button>
-    <button class="btn small no-print" onclick="window.print()">🖨 Print</button></div>`;
+    <button class="btn small no-print" onclick="window.print()">${ic("printer",13)} Print</button></div>`;
   html += `<div class="sched-scroll"><div class="sched" id="schedGrid">`;
   html += `<div class="head"></div>` + DAYS.map(d=>`<div class="head">${d}</div>`).join("");
   for (let hr=h0; hr<=h1; hr++){
@@ -1214,7 +1273,7 @@ renderers.analytics = () => {
         <div><div class="label faint" style="font-size:11px">PACE</div><div style="font-size:15px;font-weight:800;color:${onPace?'var(--good)':'var(--warn)'}">${onPace?'On track':'Behind'}</div></div>
       </div>
       <div class="progress-line" style="margin-top:12px"><span style="width:${prog*100}%;background:${h.color}"></span></div>
-      <div class="faint" style="font-size:12px;margin-top:8px">${remaining<=0?'✓ Target reached for this '+h.period:(daysToGoal===Infinity?'Log activity to project completion':`At current pace, target in ~${daysToGoal} active day${daysToGoal>1?'s':''}`)}</div>
+      <div class="faint" style="font-size:12px;margin-top:8px">${remaining<=0?'Target reached for this '+h.period:(daysToGoal===Infinity?'Log activity to project completion':`At current pace, target in ~${daysToGoal} active day${daysToGoal>1?'s':''}`)}</div>
     </div>`;
   });
   html += `</div>`;
@@ -1244,7 +1303,7 @@ renderers.materials = () => {
     for (const sub in bySub){
       html += `<div class="section-title">${esc(sub)}</div><div class="grid cols-2">`;
       html += bySub[sub].map(m=>{
-        const icon = m.url? (m.url.startsWith("http")?"🔗":"📁") : "📄";
+        const icon = m.url? (m.url.startsWith("http")?ic("globe",16):ic("book",16)) : ic("pen",16);
         const link = m.url ? `<a href="${esc(m.url)}" target="_blank" rel="noopener">${esc(m.title)}</a>` : `<span style="font-weight:600">${esc(m.title)}</span>`;
         return `<div class="material">
           <div class="fav">${icon}</div>
@@ -1295,7 +1354,7 @@ renderers.planner = () => {
     <div class="faint" style="font-size:12.5px;margin-top:8px">${
       weeklyTargets===0 ? "Add time-based habits to see capacity." :
       capPct<80 ? `You've scheduled ${capPct}% of your weekly target. Consider blocking ${fmtDur(weeklyTargets-planned)} more.` :
-      capPct>110 ? `⚠ You've scheduled ${capPct}% of your target — risk of overload. Trim or spread out blocks.` :
+      capPct>110 ? `Heads up: you've scheduled ${capPct}% of your target — risk of overload. Trim or spread out blocks.` :
       `Nicely balanced — ${capPct}% of your target is on the calendar.`
     }</div>
   </div>`;
@@ -1337,21 +1396,21 @@ const SPECIES = [
   { id:"starbloom", name:"Starbloom", stem:"#60a5fa", leaf:"#38bdf8", bloom:"#c4b5fd", shape:"star",      sun:2000 },
 ];
 const BADGES = [
-  { id:"first", emoji:"🌱", name:"First Steps", desc:"Log your first session", test:()=> anySessions() },
-  { id:"streak7", emoji:"🔥", name:"Week Warrior", desc:"7-day streak on any habit", test:()=> maxStreakAll()>=7 },
-  { id:"streak30", emoji:"⚡", name:"Unstoppable", desc:"30-day streak", test:()=> maxStreakAll()>=30 },
-  { id:"streak100", emoji:"💎", name:"Centurion", desc:"100-day streak", test:()=> maxStreakAll()>=100 },
-  { id:"h10", emoji:"⏳", name:"10 Hours In", desc:"10 total hours studied", test:()=> totalMinutesAll()>=600 },
-  { id:"h50", emoji:"🎓", name:"Scholar", desc:"50 total hours studied", test:()=> totalMinutesAll()>=3000 },
-  { id:"h100", emoji:"🏆", name:"Century of Hours", desc:"100 total hours studied", test:()=> totalMinutesAll()>=6000 },
-  { id:"habits5", emoji:"🧩", name:"Well-Rounded", desc:"Track 5 habits at once", test:()=> state.habits.length>=5 },
-  { id:"perfect", emoji:"✨", name:"Perfect Day", desc:"Complete every habit in a day", test:()=> perfectDay() },
-  { id:"planner", emoji:"📅", name:"Planner", desc:"Schedule 10h of blocks", test:()=> state.blocks.reduce((a,b)=>a+(toMin(b.end)-toMin(b.start)),0)>=600 },
-  { id:"firstbloom", emoji:"🌸", name:"First Bloom", desc:"Grow your first plant", test:()=> state.garden.plants.some(p=>!p.withered) },
-  { id:"greenthumb", emoji:"🌷", name:"Green Thumb", desc:"Grow 10 plants", test:()=> state.garden.plants.filter(p=>!p.withered).length>=10 },
-  { id:"botanist", emoji:"🪴", name:"Botanist", desc:"Unlock every species", test:()=> typeof SPECIES!=="undefined" && state.garden.unlocked.length>=SPECIES.length },
-  { id:"deepfocus", emoji:"🧘", name:"Deep Focus", desc:"Finish a 90-min session", test:()=> state.garden.plants.some(p=>!p.withered && p.minutes>=90) },
-  { id:"suncollector", emoji:"☀️", name:"Sun Collector", desc:"Earn 1000 Sunlight", test:()=> state.garden.sun>=1000 },
+  { id:"first", icon:"leaf", name:"First Steps", desc:"Log your first session", test:()=> anySessions() },
+  { id:"streak7", icon:"flame", name:"Week Warrior", desc:"7-day streak on any habit", test:()=> maxStreakAll()>=7 },
+  { id:"streak30", icon:"flame", name:"Unstoppable", desc:"30-day streak", test:()=> maxStreakAll()>=30 },
+  { id:"streak100", icon:"star", name:"Centurion", desc:"100-day streak", test:()=> maxStreakAll()>=100 },
+  { id:"h10", icon:"clock", name:"10 Hours In", desc:"10 total hours studied", test:()=> totalMinutesAll()>=600 },
+  { id:"h50", icon:"book", name:"Scholar", desc:"50 total hours studied", test:()=> totalMinutesAll()>=3000 },
+  { id:"h100", icon:"trophy", name:"Century of Hours", desc:"100 total hours studied", test:()=> totalMinutesAll()>=6000 },
+  { id:"habits5", icon:"check", name:"Well-Rounded", desc:"Track 5 habits at once", test:()=> state.habits.length>=5 },
+  { id:"perfect", icon:"star", name:"Perfect Day", desc:"Complete every habit in a day", test:()=> perfectDay() },
+  { id:"planner", icon:"calendar", name:"Planner", desc:"Schedule 10h of blocks", test:()=> state.blocks.reduce((a,b)=>a+(toMin(b.end)-toMin(b.start)),0)>=600 },
+  { id:"firstbloom", icon:"leaf", name:"First Bloom", desc:"Grow your first plant", test:()=> state.garden.plants.some(p=>!p.withered) },
+  { id:"greenthumb", icon:"leaf", name:"Green Thumb", desc:"Grow 10 plants", test:()=> state.garden.plants.filter(p=>!p.withered).length>=10 },
+  { id:"botanist", icon:"trees", name:"Botanist", desc:"Unlock every species", test:()=> typeof SPECIES!=="undefined" && state.garden.unlocked.length>=SPECIES.length },
+  { id:"deepfocus", icon:"target", name:"Deep Focus", desc:"Finish a 90-min session", test:()=> state.garden.plants.some(p=>!p.withered && p.minutes>=90) },
+  { id:"suncollector", icon:"sun", name:"Sun Collector", desc:"Earn 1000 Sunlight", test:()=> state.garden.sun>=1000 },
 ];
 function anySessions(){ return state.habits.some(h=>h.sessions.length); }
 function maxStreakAll(){ return state.habits.reduce((m,h)=>Math.max(m,bestStreak(h)),0); }
@@ -1386,7 +1445,7 @@ renderers.achievements = () => {
   html += `<div class="section-title">Badges · ${unlocked}/${BADGES.length}</div><div class="grid cols-3">`;
   html += BADGES.map(b=>{
     const on = b.test();
-    return `<div class="badge ${on?'':'locked'}"><span class="emoji">${b.emoji}</span><div><div class="b-name">${b.name} ${on?'':'🔒'}</div><div class="b-desc">${b.desc}</div></div></div>`;
+    return `<div class="badge ${on?'':'locked'}"><span class="emoji" style="color:${on?'var(--accent)':'var(--txt-faint)'}">${ic(b.icon,24)}</span><div><div class="b-name">${b.name} ${on?'':ic("lock",12)}</div><div class="b-desc">${b.desc}</div></div></div>`;
   }).join("");
   html += `</div>`;
 
@@ -1398,7 +1457,7 @@ renderers.achievements = () => {
       <span class="faint" style="width:22px">${i+1}</span>
       <span style="width:10px;height:10px;border-radius:50%;background:${h.color}"></span>
       <b>${esc(h.name)}</b><span class="spacer" style="flex:1"></span>
-      <span class="streak-chip">🔥 ${currentStreak(h)}</span><span class="faint" style="width:70px;text-align:right">best ${bestStreak(h)}</span>
+      <span class="streak-chip">${ic("flame",13)} ${currentStreak(h)}</span><span class="faint" style="width:70px;text-align:right">best ${bestStreak(h)}</span>
     </div>`).join("");
     html += `</div>`;
   }
@@ -1406,7 +1465,7 @@ renderers.achievements = () => {
 };
 let knownBadges = new Set(BADGES.filter(b=>b.test()).map(b=>b.id));
 function checkBadges(){
-  BADGES.forEach(b=>{ if (b.test() && !knownBadges.has(b.id)){ knownBadges.add(b.id); toast(`${b.emoji} Unlocked: ${b.name}`); } });
+  BADGES.forEach(b=>{ if (b.test() && !knownBadges.has(b.id)){ knownBadges.add(b.id); toast(`Achievement unlocked: ${b.name}`); } });
 }
 
 /* ---------- Settings ---------- */
@@ -1417,8 +1476,8 @@ renderers.settings = () => {
   <div class="card">
     <div class="field"><label>Theme</label>
       <div class="seg" id="setTheme">
-        <button data-th="dark" class="${(s.theme||'dark')==='dark'?'on':''}">🌙 Dark</button>
-        <button data-th="light" class="${s.theme==='light'?'on':''}">☀️ Light</button>
+        <button data-th="dark" class="${(s.theme||'dark')==='dark'?'on':''}">Dark</button>
+        <button data-th="light" class="${s.theme==='light'?'on':''}">Light</button>
         <button data-th="auto" class="${s.theme==='auto'?'on':''}">Auto</button>
       </div>
     </div>
@@ -1450,7 +1509,7 @@ renderers.settings = () => {
 
   <div class="section-title">Voice &amp; commands</div>
   <div class="card">
-    <p class="muted" style="font-size:13.5px;margin-bottom:12px">Tap the 🎤 in the header (or press <span class="kbd">⌘K</span> and type) and speak naturally. No AI — just pattern matching. Examples:</p>
+    <p class="muted" style="font-size:13.5px;margin-bottom:12px">Tap the mic button in the header (or press <span class="kbd">⌘K</span> and type) and speak naturally. No AI — just pattern matching. Examples:</p>
     <div class="flex wrap" style="gap:7px;margin-bottom:12px">
       <span class="pill">add habit reading 30 minutes daily</span>
       <span class="pill">track coding 2 hours daily</span>
@@ -1462,16 +1521,16 @@ renderers.settings = () => {
       <span class="pill">go to analytics</span>
     </div>
     <div class="flex wrap">
-      <button class="btn" id="tryVoice">🎤 Try voice</button>
+      <button class="btn" id="tryVoice">${ic("mic",14)} Try voice</button>
       <label class="flex" style="gap:7px;font-size:13px"><input type="checkbox" id="voiceSpeakChk" ${voiceSpeak?'checked':''}> Speak results back</label>
     </div>
-    <div class="faint" style="font-size:11.5px;margin-top:10px">${voiceSupported()?'Voice input is available in this browser. 🎙':'Voice input needs Chrome (Android/desktop). Typed commands work everywhere.'}</div>
+    <div class="faint" style="font-size:11.5px;margin-top:10px">${voiceSupported()?'Voice input is available in this browser.':'Voice input needs Chrome (Android/desktop). Typed commands work everywhere.'}</div>
   </div>
 
   <div class="section-title">Install &amp; Google Assistant</div>
   <div class="card">
     <p class="muted" style="font-size:13.5px;margin-bottom:12px">Install Cadence to your home screen for a full-screen app with offline support and long-press shortcuts.</p>
-    <button class="btn primary" id="installBtn" style="display:none;margin-bottom:14px">⬇ Install Cadence</button>
+    <button class="btn primary" id="installBtn" style="display:none;margin-bottom:14px">${ic("download",14)} Install Cadence</button>
     <div class="divider" style="margin:6px 0 14px"></div>
     <b style="font-size:14px">Hands-free via Google Assistant</b>
     <p class="muted" style="font-size:13px;margin:6px 0 12px">A static app can't be controlled by Assistant directly, but Assistant <i>can</i> open a link. Create a Google Assistant <b>Routine</b> (or an Android home-screen shortcut) that opens one of these URLs, and Cadence runs the command on open:</p>
@@ -1483,9 +1542,9 @@ renderers.settings = () => {
   <div class="card">
     <p class="muted" style="font-size:13.5px;margin-bottom:14px">Everything lives in your browser (localStorage). Nothing is sent anywhere. Back it up or move devices with export/import.</p>
     <div class="flex wrap">
-      <button class="btn" id="exportBtn">⬇ Export JSON</button>
-      <button class="btn" id="importBtn">⬆ Import JSON</button>
-      <button class="btn" onclick="window.print()">🖨 Print report</button>
+      <button class="btn" id="exportBtn">${ic("download",14)} Export JSON</button>
+      <button class="btn" id="importBtn">${ic("upload",14)} Import JSON</button>
+      <button class="btn" onclick="window.print()">${ic("printer",14)} Print report</button>
       <input type="file" id="importFile" accept="application/json" style="display:none">
       <button class="btn danger ghost" id="wipeBtn" style="margin-left:auto">Delete all data</button>
     </div>
@@ -1498,7 +1557,7 @@ renderers.settings = () => {
     <div class="stat"><div class="label">Total time</div><div class="value" style="font-size:22px">${fmtDur(totalMinutesAll())}</div></div>
     <div class="stat"><div class="label">Tracking since</div><div class="value" style="font-size:16px">${state.created}</div></div>
   </div>
-  <div class="faint center" style="margin-top:30px;font-size:12px">Cadence · offline study organizer · v1.6 · new icon · bottom nav · habit icons · confetti · no accounts, no AI, no tracking</div>`;
+  <div class="faint center" style="margin-top:30px;font-size:12px">Cadence · offline study organizer · v1.7 · icon UI · ambient focus sounds · Forest-style focus · no accounts, no AI, no tracking</div>`;
   view.innerHTML = html;
 
   renderSwatches(document.getElementById("setAccent"), s.accent, c=>{ s.accent=c; document.documentElement.style.setProperty("--accent",c); save(); });
@@ -1567,7 +1626,7 @@ function importData(e){
 
 /* ============================= Shared UI ============================= */
 function emptyState(title, msg, btnLabel, btnId){
-  return `<div class="empty"><div class="big">🌱</div><h3>${title}</h3><p>${msg}</p><br><button class="btn primary" id="${btnId}">${btnLabel}</button></div>`;
+  return `<div class="empty"><div class="big" style="color:var(--accent)">${ic("leaf",40)}</div><h3>${title}</h3><p>${msg}</p><br><button class="btn primary" id="${btnId}">${btnLabel}</button></div>`;
 }
 function showModal(id){ document.getElementById(id).classList.add("show"); }
 function hideModal(id){ document.getElementById(id).classList.remove("show"); }
@@ -1715,7 +1774,48 @@ function bloomShape(sp, x, y, r, p, id){
 let focusTick=null, chosenDur=25, chosenSpecies=null, chosenHabit="";
 function focusProgress(){ const a=state.garden.active; if(!a) return 0; return Math.max(0, Math.min(1,(Date.now()-a.startedAt)/60000/a.durationMin)); }
 function focusRemainingSec(){ const a=state.garden.active; if(!a) return 0; return Math.max(0, Math.round(a.durationMin*60 - (Date.now()-a.startedAt)/1000)); }
-function phaseText(p){ return p<0.05?"Seed planted…":p<0.3?"Sprouting 🌱":p<0.6?"Growing leaves 🍃":p<0.82?"Budding 🌿":p<1?"About to bloom ✨":"Bloomed! 🌸"; }
+function phaseText(p){ return p<0.05?"Seed planted…":p<0.3?"Sprouting":p<0.6?"Growing leaves":p<0.82?"Budding":p<1?"About to bloom":"Bloomed!"; }
+/* ===== Ambient focus sounds — synthesized with Web Audio (no files) ===== */
+const AMBIENTS = [
+  { id:"none",   name:"None",   icon:"volumeX" },
+  { id:"rain",   name:"Rain",   icon:"rain" },
+  { id:"ocean",  name:"Ocean",  icon:"waves" },
+  { id:"forest", name:"Forest", icon:"trees" },
+  { id:"cafe",   name:"Cafe",   icon:"coffee" },
+  { id:"white",  name:"Airflow",icon:"wind" },
+];
+const Ambient = (function(){
+  let ctx=null, nodes=null, cur="none";
+  function noiseBuffer(c){ const len=c.sampleRate*2, buf=c.createBuffer(1,len,c.sampleRate), d=buf.getChannelData(0); let last=0; for(let i=0;i<len;i++){ const w=Math.random()*2-1; last=(last+0.02*w)/1.02; d[i]=last*3.2; } return buf; }
+  function start(type){
+    stop();
+    if(!type||type==="none"){ cur="none"; return; }
+    try{
+      const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return;
+      ctx=ctx||new AC(); if(ctx.state==="suspended") ctx.resume();
+      const src=ctx.createBufferSource(); src.buffer=noiseBuffer(ctx); src.loop=true;
+      const filter=ctx.createBiquadFilter(); const gain=ctx.createGain(); gain.gain.value=0;
+      let target=0.11, lfo=null, lfoGain=null;
+      if(type==="rain"){ filter.type="highpass"; filter.frequency.value=1000; target=0.09; }
+      else if(type==="ocean"){ filter.type="lowpass"; filter.frequency.value=480; target=0.17; lfo=ctx.createOscillator(); lfo.frequency.value=0.12; lfoGain=ctx.createGain(); lfoGain.gain.value=0.07; lfo.connect(lfoGain); }
+      else if(type==="forest"){ filter.type="bandpass"; filter.frequency.value=1300; filter.Q.value=0.6; target=0.08; }
+      else if(type==="cafe"){ filter.type="lowpass"; filter.frequency.value=760; target=0.13; }
+      else { filter.type="lowpass"; filter.frequency.value=1400; target=0.09; }
+      src.connect(filter); filter.connect(gain); gain.connect(ctx.destination); src.start();
+      if(lfo){ lfoGain.connect(gain.gain); lfo.start(); }
+      gain.gain.setValueAtTime(0, ctx.currentTime); gain.gain.linearRampToValueAtTime(target, ctx.currentTime+1.2);
+      nodes={src,gain,lfo}; cur=type;
+    }catch(e){}
+  }
+  function stop(){ if(nodes){ try{ const n=nodes; if(n.gain&&ctx){ n.gain.gain.cancelScheduledValues(ctx.currentTime); n.gain.gain.setValueAtTime(n.gain.gain.value||0.05, ctx.currentTime); n.gain.gain.linearRampToValueAtTime(0, ctx.currentTime+0.4);} setTimeout(()=>{ try{ n.src.stop(); n.lfo&&n.lfo.stop(); }catch(e){} }, 480); }catch(e){} } nodes=null; cur="none"; }
+  return { start, stop, current:()=>cur };
+})();
+function setAmbient(id){
+  state.garden.ambient = id; save();
+  if (id==="none") Ambient.stop(); else Ambient.start(id);
+  if (currentView==="grow") renderers.grow();
+}
+
 // Keep the screen awake during a focus session (best-effort; not supported everywhere)
 let wakeLock=null;
 async function requestWakeLock(){ try { if("wakeLock" in navigator){ wakeLock = await navigator.wakeLock.request("screen"); } } catch {} }
@@ -1727,7 +1827,8 @@ function startFocus(durationMin, speciesId, habitId){
   if (!state.garden.unlocked.includes(speciesId)) speciesId = state.garden.unlocked[0]||"sprout";
   state.garden.active = { startedAt: Date.now(), durationMin, species: speciesId, habitId: habitId||null, strict: !!state.garden.strict };
   save(); ensureFocusTick(); requestWakeLock();
-  toast(`🌱 Planted a ${speciesById(speciesId).name}. Stay focused for ${durationMin} min!`);
+  if (state.garden.ambient && state.garden.ambient!=="none") Ambient.start(state.garden.ambient);
+  toast(`Planted a ${speciesById(speciesId).name}. Stay focused for ${durationMin} min.`);
   if (currentView==="grow") renderers.grow();
 }
 function completeFocus(){
@@ -1737,9 +1838,9 @@ function completeFocus(){
   state.garden.sun += mins;
   state.garden.active=null;
   if (a.habitId){ const h=habitById(a.habitId); if(h && h.type==="time") addSession(a.habitId, mins); }
-  unlockSpecies(); save(); checkBadges(); stopFocusTick(); releaseWakeLock(); exitFullscreen();
-  notify("🌸 Bloomed!", `Your ${speciesById(a.species).name} bloomed. +${mins} Sunlight.`);
-  toast(`🌸 Your ${speciesById(a.species).name} bloomed! +${mins} ☀`);
+  unlockSpecies(); save(); checkBadges(); stopFocusTick(); releaseWakeLock(); exitFullscreen(); Ambient.stop();
+  notify("Bloomed!", `Your ${speciesById(a.species).name} bloomed. +${mins} Sunlight.`);
+  toast(`Your ${speciesById(a.species).name} bloomed — +${mins} Sunlight`);
   confettiBurst();
   if (currentView==="grow") renderers.grow(); else if (currentView==="dashboard") rerender();
   toastAction("Nice work — take a 5-min break?", "Start break", ()=> startBreak(5));
@@ -1747,18 +1848,18 @@ function completeFocus(){
 let breakTimer=null;
 function startBreak(mins=5){
   if (breakTimer) clearTimeout(breakTimer);
-  toast(`☕ Break started — ${mins} min. Rest your eyes.`);
-  breakTimer=setTimeout(()=>{ breakTimer=null; notify("⏰ Break over", "Ready to grow another? 🌱"); toast("Break over — plant another session! 🌱"); }, mins*60000);
+  toast(`Break started — ${mins} min. Rest your eyes.`);
+  breakTimer=setTimeout(()=>{ breakTimer=null; notify("Break over", "Ready to grow another?"); toast("Break over — plant another session."); }, mins*60000);
 }
 function giveUpFocus(){
   const a=state.garden.active; if(!a) return;
   const p=focusProgress();
   state.garden.plants.push({ id:uid(), species:a.species, ts:new Date().toISOString(), minutes:Math.round(a.durationMin*p), habitId:a.habitId, withered:true });
-  state.garden.active=null; save(); stopFocusTick(); releaseWakeLock(); exitFullscreen();
-  toast("🥀 Plant wilted — you ended early. A shorter session next time?");
+  state.garden.active=null; save(); stopFocusTick(); releaseWakeLock(); exitFullscreen(); Ambient.stop();
+  toast("Plant wilted — you ended early. A shorter session next time?");
   if (currentView==="grow") renderers.grow();
 }
-function unlockSpecies(){ SPECIES.forEach(sp=>{ if(state.garden.sun>=sp.sun && !state.garden.unlocked.includes(sp.id)){ state.garden.unlocked.push(sp.id); toast(`🌟 New species unlocked: ${sp.name}!`); } }); }
+function unlockSpecies(){ SPECIES.forEach(sp=>{ if(state.garden.sun>=sp.sun && !state.garden.unlocked.includes(sp.id)){ state.garden.unlocked.push(sp.id); toast(`New species unlocked: ${sp.name}!`); } }); }
 function ensureFocusTick(){ if(focusTick) return; focusTick=setInterval(focusHeartbeat,1000); }
 function stopFocusTick(){ if(focusTick){ clearInterval(focusTick); focusTick=null; } }
 function focusHeartbeat(){ const a=state.garden.active; if(!a){ stopFocusTick(); return; } if(focusRemainingSec()<=0){ completeFocus(); return; } if(currentView==="grow") updateFocusUI(); }
@@ -1781,10 +1882,10 @@ renderers.grow = () => {
   const g=state.garden;
   const blooms=g.plants.filter(p=>!p.withered);
   let html = `<div class="flex wrap" style="gap:14px;margin-bottom:16px">
-    <span class="sun-pill">☀ ${g.sun} <span class="faint" style="font-weight:600;font-size:12px">Sunlight</span></span>
-    <span class="pill">🌸 ${blooms.length} grown</span>
-    <span class="pill">🥀 ${g.plants.length-blooms.length} wilted</span>
-    <span class="pill">🔥 ${gardenStreak()}-day garden streak</span>
+    <span class="sun-pill"><span style="color:var(--warn)">${ic("sun",16)}</span> ${g.sun} <span class="faint" style="font-weight:600;font-size:12px">Sunlight</span></span>
+    <span class="pill"><span style="color:var(--good)">${ic("leaf",13)}</span> ${blooms.length} grown</span>
+    <span class="pill">${g.plants.length-blooms.length} wilted</span>
+    <span class="pill"><span style="color:var(--warn)">${ic("flame",13)}</span> ${gardenStreak()}-day streak</span>
   </div>`;
 
   html += `<div class="grow-wrap">`;
@@ -1793,10 +1894,10 @@ renderers.grow = () => {
   if (g.active){
     const sp=speciesById(g.active.species), p=focusProgress(), sec=focusRemainingSec();
     html += `<div class="ring-wrap" id="focusRing">${ring(p, sp.bloom, 42)}</div>
-      <div class="pot-area" id="plantHolder">${plantSVG(sp,p,190)}</div>
+      <div class="pot-area glow" id="plantHolder">${plantSVG(sp,p,190)}</div>
       <div class="count" id="focusCount">${String(Math.floor(sec/60)).padStart(2,'0')}:${String(sec%60).padStart(2,'0')}</div>
       <div class="phase" id="focusPhase">${phaseText(p)}</div>
-      <div class="focus-controls"><button class="btn" id="fsFocus">⛶ Fullscreen</button><button class="btn danger" id="giveUp">Give up 🥀</button></div>
+      <div class="focus-controls"><button class="btn" id="fsFocus">${ic("fullscreen",15)} Fullscreen</button><button class="btn danger" id="giveUp">Give up</button></div>
       ${g.active.strict?`<div class="faint" style="font-size:11.5px">Strict mode on — leaving Cadence wilts the plant.</div>`:``}`;
   } else {
     if (!chosenSpecies || !g.unlocked.includes(chosenSpecies)) chosenSpecies=g.unlocked[g.unlocked.length-1]||"sprout";
@@ -1809,18 +1910,18 @@ renderers.grow = () => {
         <input class="input" id="durCustom" type="number" min="1" max="240" placeholder="min" style="width:74px;text-align:center">
       </div>
       <div class="species-pick" id="speciesPick">
-        ${SPECIES.map(s=>{ const on=g.unlocked.includes(s.id); return `<div class="sp ${s.id===chosenSpecies?'on':''} ${on?'':'locked'}" data-sp="${s.id}" title="${on?s.name:'Unlock at ☀ '+s.sun}">${plantSVG(s,1,40)}${on?'':`<span class="lock">🔒</span>`}</div>`; }).join("")}
+        ${SPECIES.map(s=>{ const on=g.unlocked.includes(s.id); return `<div class="sp ${s.id===chosenSpecies?'on':''} ${on?'':'locked'}" data-sp="${s.id}" title="${on?s.name:'Unlock at '+s.sun+' Sunlight'}">${plantSVG(s,1,40)}${on?'':`<span class="lock">${ic("lock",10)}</span>`}</div>`; }).join("")}
       </div>
       ${timeHabits.length?`<div class="field" style="width:100%;max-width:280px"><label class="faint" style="font-size:12px">Count this toward (optional)</label>
         <select class="input" id="focusHabit"><option value="">General focus</option>${timeHabits.map(h=>`<option value="${h.id}" ${chosenHabit===h.id?'selected':''}>${esc(h.name)}</option>`).join("")}</select></div>`:``}
-      <div class="focus-controls"><button class="btn primary" id="plantBtn" style="font-size:15px;padding:11px 22px">🌱 Plant &amp; Focus</button></div>`;
+      <div class="focus-controls"><button class="btn primary" id="plantBtn" style="font-size:15px;padding:11px 22px">${ic("leaf",16)} Plant &amp; Focus</button></div>`;
   }
   html += `</div>`;
 
   // RIGHT: garden + collection
   html += `<div style="display:flex;flex-direction:column;gap:16px">`;
   html += `<div class="card"><div class="flex" style="margin-bottom:12px"><b>Your garden</b><span class="spacer" style="flex:1"></span><span class="faint" style="font-size:12px">${g.plants.length} planted</span></div>`;
-  if (!g.plants.length){ html += `<div class="muted center" style="padding:20px 0">Empty plot. Plant your first focus session! 🌱</div>`; }
+  if (!g.plants.length){ html += `<div class="muted center" style="padding:20px 0">Empty plot. Plant your first focus session.</div>`; }
   else {
     const recent=g.plants.slice(-48).reverse();
     html += `<div class="garden-grid">`+recent.map(pl=>{ const sp=speciesById(pl.species); return `<div class="garden-cell ${pl.withered?'withered':''}" title="${sp.name} · ${new Date(pl.ts).toLocaleDateString()} · ${fmtDur(pl.minutes)}">${plantSVG(sp, pl.withered?0.45:1, 44)}</div>`; }).join("")+`</div>`;
@@ -1828,9 +1929,12 @@ renderers.grow = () => {
   html += `</div>`;
 
   html += `<div class="card"><div class="flex" style="margin-bottom:12px"><b>Species collection</b><span class="spacer" style="flex:1"></span><span class="faint" style="font-size:12px">${g.unlocked.length}/${SPECIES.length}</span></div>
-    <div class="shelf">`+SPECIES.map(s=>{ const on=g.unlocked.includes(s.id); return `<div class="item ${on?'':'locked'}">${plantSVG(s,1,54)}<div class="nm">${on?s.name:'???'}</div><div class="th">${on?'Unlocked':'☀ '+s.sun}</div></div>`; }).join("")+`</div></div>`;
+    <div class="shelf">`+SPECIES.map(s=>{ const on=g.unlocked.includes(s.id); return `<div class="item ${on?'':'locked'}">${plantSVG(s,1,54)}<div class="nm">${on?s.name:'???'}</div><div class="th">${on?'Unlocked':s.sun+' Sunlight'}</div></div>`; }).join("")+`</div></div>`;
 
-  html += `<div class="card flex" style="justify-content:space-between"><div><b style="font-size:14px">🔒 Focus Lock (Strict mode)</b><div class="muted" style="font-size:12.5px">Leaving Cadence mid-session wilts the plant, and the screen stays awake while you focus. Real stakes, real focus.</div></div>
+  html += `<div class="card"><div class="flex" style="margin-bottom:12px"><b>Ambient sound</b><span class="spacer" style="flex:1"></span><span class="faint" style="font-size:12px">plays while focusing</span></div>
+    <div class="amb-picker" id="ambPicker">`+AMBIENTS.map(a=>`<button class="${state.garden.ambient===a.id?'on':''}" data-amb="${a.id}">${ic(a.icon,20)}${a.name}</button>`).join("")+`</div></div>`;
+
+  html += `<div class="card flex" style="justify-content:space-between"><div><b style="font-size:14px">${ic("lock",14)} Focus Lock (Strict mode)</b><div class="muted" style="font-size:12.5px">Leaving Cadence mid-session wilts the plant, and the screen stays awake while you focus. Real stakes, real focus.</div></div>
     <button class="btn ${g.strict?'primary':''}" id="strictToggle">${g.strict?'On':'Off'}</button></div>`;
 
   html += `</div></div>`;
@@ -1846,25 +1950,26 @@ renderers.grow = () => {
     chosenHabit=hb; startFocus(dur, chosenSpecies, hb);
   };
   view.querySelectorAll("#durPicker [data-dur]").forEach(b=> b.onclick=()=>{ chosenDur=parseInt(b.dataset.dur); const c=document.getElementById("durCustom"); if(c)c.value=""; renderers.grow(); });
-  view.querySelectorAll("#speciesPick .sp").forEach(el=> el.onclick=()=>{ if(el.classList.contains("locked")){ toast("Earn more Sunlight to unlock this one ☀"); return; } chosenSpecies=el.dataset.sp; renderers.grow(); });
+  view.querySelectorAll("#speciesPick .sp").forEach(el=> el.onclick=()=>{ if(el.classList.contains("locked")){ toast("Earn more Sunlight to unlock this one"); return; } chosenSpecies=el.dataset.sp; renderers.grow(); });
   const st=document.getElementById("strictToggle"); if(st) st.onclick=()=>{ state.garden.strict=!state.garden.strict; save(); renderers.grow(); toast(state.garden.strict?"Strict mode on":"Strict mode off"); };
+  view.querySelectorAll("#ambPicker [data-amb]").forEach(b=> b.onclick=()=> setAmbient(b.dataset.amb));
 };
 
 /* ============================= Command palette ============================= */
 const CMDS = [
-  { label:"Go to Dashboard", ico:"🏠", run:()=>setView("dashboard") },
-  { label:"Focus Garden — plant a session", ico:"🌱", run:()=>setView("grow") },
-  { label:"Go to Habits", ico:"✅", run:()=>setView("habits") },
-  { label:"Go to Schedule", ico:"📅", run:()=>setView("schedule") },
-  { label:"Go to Analytics", ico:"📊", run:()=>setView("analytics") },
-  { label:"Go to Materials", ico:"📚", run:()=>setView("materials") },
-  { label:"Go to Planner", ico:"🧭", run:()=>setView("planner") },
-  { label:"Go to Achievements", ico:"🏆", run:()=>setView("achievements") },
-  { label:"New habit", ico:"➕", run:()=>openHabitModal() },
-  { label:"Add material", ico:"📚", run:()=>{ setView("materials"); setTimeout(()=>document.getElementById("addMat")?.click(),60); } },
-  { label:"Export data", ico:"⬇️", run:exportData },
-  { label:"Settings", ico:"⚙️", run:()=>setView("settings") },
-  { label:"Print report", ico:"🖨️", run:()=>window.print() },
+  { label:"Go to Dashboard", ico:"home", run:()=>setView("dashboard") },
+  { label:"Focus Garden — plant a session", ico:"leaf", run:()=>setView("grow") },
+  { label:"Go to Habits", ico:"check", run:()=>setView("habits") },
+  { label:"Go to Schedule", ico:"calendar", run:()=>setView("schedule") },
+  { label:"Go to Analytics", ico:"chart", run:()=>setView("analytics") },
+  { label:"Go to Materials", ico:"book", run:()=>setView("materials") },
+  { label:"Go to Planner", ico:"compass", run:()=>setView("planner") },
+  { label:"Go to Achievements", ico:"trophy", run:()=>setView("achievements") },
+  { label:"New habit", ico:"plus", run:()=>openHabitModal() },
+  { label:"Add material", ico:"book", run:()=>{ setView("materials"); setTimeout(()=>document.getElementById("addMat")?.click(),60); } },
+  { label:"Export data", ico:"download", run:exportData },
+  { label:"Settings", ico:"gear", run:()=>setView("settings") },
+  { label:"Print report", ico:"printer", run:()=>window.print() },
 ];
 let cmdSel=0, cmdFiltered=CMDS;
 function openCmd(){ document.getElementById("cmd").classList.add("show"); const i=document.getElementById("cmdInput"); i.value=""; renderCmd(""); i.focus(); }
@@ -1873,14 +1978,14 @@ function renderCmd(q){
   // dynamic: start/stop timers + log for each habit
   const dyn = [];
   state.habits.forEach(h=>{
-    dyn.push({ label:`Log · ${h.name}`, ico:"＋", run:()=>openLog(h.id) });
-    if (h.type==="time") dyn.push({ label:(activeTimers[h.id]?"Stop":"Start")+` timer · ${h.name}`, ico:"▶", run:()=> activeTimers[h.id]?stopTimer(h.id):startTimer(h.id) });
+    dyn.push({ label:`Log · ${h.name}`, ico:"plus", run:()=>openLog(h.id) });
+    if (h.type==="time") dyn.push({ label:(activeTimers[h.id]?"Stop":"Start")+` timer · ${h.name}`, ico: activeTimers[h.id]?"stop":"play", run:()=> activeTimers[h.id]?stopTimer(h.id):startTimer(h.id) });
   });
   const all = [...CMDS, ...dyn];
   cmdFiltered = q ? all.filter(c=>c.label.toLowerCase().includes(q.toLowerCase())) : all;
   cmdSel = 0;
   const box = document.getElementById("cmdResults");
-  box.innerHTML = cmdFiltered.slice(0,8).map((c,i)=>`<div class="res ${i===0?'on':''}" data-i="${i}"><span class="ico">${c.ico}</span>${esc(c.label)}</div>`).join("") || `<div class="res muted">No matches</div>`;
+  box.innerHTML = cmdFiltered.slice(0,8).map((c,i)=>`<div class="res ${i===0?'on':''}" data-i="${i}"><span class="ico">${ic(c.ico,16)}</span>${esc(c.label)}</div>`).join("") || `<div class="res muted">No matches</div>`;
   box.querySelectorAll(".res[data-i]").forEach(r=> r.onclick=()=>{ closeCmd(); cmdFiltered[parseInt(r.dataset.i)].run(); });
 }
 document.getElementById("cmdInput").oninput = e=> renderCmd(e.target.value);
@@ -1930,11 +2035,11 @@ const IS_FIRST_RUN = !localStorage.getItem(STORE_KEY);
 
 /* ============================= Onboarding ============================= */
 const TEMPLATES = [
-  { name:"Reading", emoji:"📖", subject:"", type:"time", target:30, unit:"min", period:"daily" },
-  { name:"Revision", emoji:"📝", subject:"", type:"time", target:45, unit:"min", period:"daily" },
-  { name:"Coding practice", emoji:"💻", subject:"", type:"time", target:60, unit:"min", period:"daily" },
-  { name:"Flashcards", emoji:"🧠", subject:"", type:"count", target:30, unit:"cards", period:"daily" },
-  { name:"Math problems", emoji:"🧮", subject:"", type:"count", target:20, unit:"problems", period:"daily" },
+  { name:"Reading", icon:"book", subject:"", type:"time", target:30, unit:"min", period:"daily" },
+  { name:"Revision", icon:"pen", subject:"", type:"time", target:45, unit:"min", period:"daily" },
+  { name:"Coding practice", icon:"code", subject:"", type:"time", target:60, unit:"min", period:"daily" },
+  { name:"Flashcards", icon:"brain", subject:"", type:"count", target:30, unit:"cards", period:"daily" },
+  { name:"Math problems", icon:"calc", subject:"", type:"count", target:20, unit:"problems", period:"daily" },
 ];
 function addTemplate(t){
   const h=Object.assign({ id:uid(), reminder:"", color:COLORS[state.habits.length%COLORS.length], created:todayISO(), sessions:[] }, t);
@@ -1943,8 +2048,8 @@ function addTemplate(t){
 function finishOnboarding(){ state.settings.onboarded=true; save(); hideModal("onboardModal"); applyTheme(); setView("dashboard"); }
 function showOnboarding(){
   const wrap=document.getElementById("onboardTemplates");
-  wrap.innerHTML = TEMPLATES.map((t,i)=>`<button class="btn small" data-tpl="${i}">${t.emoji||'+'} ${esc(t.name)}</button>`).join("");
-  wrap.querySelectorAll("[data-tpl]").forEach(b=> b.onclick=()=>{ const t=TEMPLATES[parseInt(b.dataset.tpl)]; addTemplate(t); b.classList.add("primary"); b.textContent="✓ "+t.name; toast("Added"); });
+  wrap.innerHTML = TEMPLATES.map((t,i)=>`<button class="btn small" data-tpl="${i}">${ic(t.icon||'plus',14)} ${esc(t.name)}</button>`).join("");
+  wrap.querySelectorAll("[data-tpl]").forEach(b=> b.onclick=()=>{ const t=TEMPLATES[parseInt(b.dataset.tpl)]; addTemplate(t); b.classList.add("primary"); b.textContent="Added: "+t.name; toast("Added"); });
   const seg=document.getElementById("onboardTheme");
   seg.querySelectorAll("button").forEach(b=> b.onclick=()=>{ seg.querySelectorAll("button").forEach(x=>x.classList.remove("on")); b.classList.add("on"); state.settings.theme=b.dataset.th; applyTheme(); });
   document.getElementById("onboardSamples").onclick=()=>{ seedDemo(); finishOnboarding(); toast("Loaded sample data — explore away!"); };
@@ -1952,10 +2057,10 @@ function showOnboarding(){
   showModal("onboardModal");
 }
 function seedDemo(){
-  const mk=(name,subject,type,target,unit,period,color,emoji)=>({id:uid(),name,subject,type,target,unit,period,color,emoji:emoji||"",reminder:"",created:todayISO(),sessions:[]});
-  const h1=mk("Deep Study","Exams","time",120,"min","daily",COLORS[0],"📚");
-  const h2=mk("Read textbook","Biology","count",30,"pages","daily",COLORS[2],"📖");
-  const h3=mk("Practice problems","Calculus","time",45,"min","daily",COLORS[3],"🧮");
+  const mk=(name,subject,type,target,unit,period,color,icon)=>({id:uid(),name,subject,type,target,unit,period,color,icon:icon||"",reminder:"",created:todayISO(),sessions:[]});
+  const h1=mk("Deep Study","Exams","time",120,"min","daily",COLORS[0],"book");
+  const h2=mk("Read textbook","Biology","count",30,"pages","daily",COLORS[2],"book");
+  const h3=mk("Practice problems","Calculus","time",45,"min","daily",COLORS[3],"calc");
   // backfill a few days of sessions for demo insight
   for (let i=1;i<=8;i++){
     const base=addDays(new Date(),-i);
@@ -2146,7 +2251,7 @@ function checkReminders(now){
       firedReminders.add(keyf);
       if (metOn(h, todayISO(now))) return; // already done today, skip
       const body = `Time for ${h.name} — ${h.type==="time"?fmtDur(h.target):h.target+" "+(h.unit||"")} ${h.period}.`;
-      notify("⏰ Cadence reminder", body);
+      notify("Cadence reminder", body);
     }
   });
 }
@@ -2155,7 +2260,7 @@ function notify(title, body){
   try {
     if (notifAvailable() && Notification.permission==="granted"){
       new Notification(title, { body, icon:"icon.svg", tag:"cadence" });
-    } else { toast(title.replace(/^⏰\s*/,"")+": "+body); }
+    } else { toast(title+": "+body); }
   } catch { toast(body); }
 }
 function heartbeat(){
@@ -2200,13 +2305,24 @@ function applyTheme(){
   document.documentElement.dataset.theme = r;
   document.documentElement.dataset.motion = state.settings.motion==="off" ? "off" : "on";
   const meta=document.querySelector('meta[name="theme-color"]'); if(meta) meta.setAttribute("content", r==="light" ? "#f5f7fb" : "#0d0f14");
-  const tb=document.getElementById("themeBtn"); if(tb) tb.textContent = r==="light" ? "☀️" : "🌙";
+  const tb=document.getElementById("themeBtn"); if(tb) tb.innerHTML = ic(r==="light" ? "sun" : "moon", 17);
+}
+function renderStaticIcons(){
+  document.querySelectorAll("[data-icon]").forEach(el=>{
+    const holder = el.querySelector(".ico") || el.querySelector(".tabic");
+    const svg = ic(el.dataset.icon, holder && holder.classList.contains("tabic") ? 22 : 20);
+    if (holder) holder.innerHTML = svg; else el.innerHTML = svg;
+  });
+  const c=document.querySelector(".cmd-ic"); if(c) c.innerHTML=ic("command",14);
+  const a=document.querySelector(".add-ic"); if(a) a.innerHTML=ic("plus",15);
+  const m=document.getElementById("micBtn"); if(m) m.innerHTML=ic("mic",17);
 }
 function cycleTheme(){ state.settings.theme = resolveTheme()==="light" ? "dark" : "light"; save(); applyTheme(); toast(resolveTheme()==="light"?"Light theme":"Dark theme"); }
 try { if (window.matchMedia){ matchMedia("(prefers-color-scheme: light)").addEventListener?.("change", ()=>{ if(state.settings.theme==="auto") applyTheme(); }); } } catch {}
 { const tb=document.getElementById("themeBtn"); if(tb) tb.onclick=cycleTheme; }
 
 /* ============================= Boot ============================= */
+renderStaticIcons();
 applyTheme();
 document.documentElement.style.setProperty("--accent", state.settings.accent||COLORS[0]);
 knownBadges = new Set(BADGES.filter(b=>b.test()).map(b=>b.id));
