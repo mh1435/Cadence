@@ -411,6 +411,8 @@
   .grow-plant { transition: none; }
   @keyframes sway { 0%,100%{ transform: rotate(-1.5deg);} 50%{ transform: rotate(1.5deg);} }
   .swaying { transform-origin: 50% 100%; animation: sway 3.5s ease-in-out infinite; }
+  @keyframes twinkle { 0%,100%{ opacity:0; transform:scale(.3);} 50%{ opacity:.95; transform:scale(1);} }
+  .grow-plant .spark { transform-origin: center; animation: twinkle 2.6s ease-in-out infinite; }
   .bloom-pop { animation: pop .5s ease; }
   @keyframes pop { 0%{ transform: scale(.6); opacity:.4;} 60%{ transform: scale(1.08);} 100%{ transform: scale(1);} }
 
@@ -1642,7 +1644,7 @@ renderers.settings = () => {
     <div class="stat"><div class="label">Total time</div><div class="value" style="font-size:22px">${fmtDur(totalMinutesAll())}</div></div>
     <div class="stat"><div class="label">Tracking since</div><div class="value" style="font-size:16px">${state.created}</div></div>
   </div>
-  <div class="faint center" style="margin-top:30px;font-size:12px">Cadence · offline study organizer · v1.9 · immersive focus mode · plant store · focus stats · no accounts, no AI, no tracking</div>`;
+  <div class="faint center" style="margin-top:30px;font-size:12px">Cadence · offline study organizer · v2.0 · lusher plant art · immersive focus · store · no accounts, no AI, no tracking</div>`;
   view.innerHTML = html;
 
   renderSwatches(document.getElementById("setAccent"), s.accent, c=>{ s.accent=c; document.documentElement.style.setProperty("--accent",c); save(); });
@@ -1812,6 +1814,10 @@ function plantSVG(sp, p, size=180){
   s += `<rect x="31.5" y="94.5" width="37" height="6" rx="3" fill="url(#${id('rim')})"/>`;
   s += `<rect x="33" y="95.4" width="34" height="1.6" rx="0.8" fill="rgba(255,255,255,.22)"/>`;
   if (p<=0.03) s += `<path d="M50 96 q -3 -4 0 -7 q 3 3 0 7 Z" fill="${sp.leaf}"/>`;
+  if (bloomP>0.5){
+    const sc=stemTop, sparks=[[35,sc+3],[65,sc-1],[50,sc-15],[59,sc+9],[41,sc-9]];
+    s += sparks.map((pt,i)=>`<circle class="spark" cx="${pt[0]}" cy="${Number(pt[1]).toFixed(1)}" r="${(1+(i%2)*0.6).toFixed(1)}" fill="#fff" style="animation-delay:${(i*0.35).toFixed(2)}s"/>`).join("");
+  }
   return s+`</svg>`;
 }
 function plantLeaf(x,y,dir,scale,id){
@@ -1820,39 +1826,59 @@ function plantLeaf(x,y,dir,scale,id){
     + `<path d="M${x} ${y} Q ${(x+dir*w*0.5).toFixed(1)} ${(y-h*0.35).toFixed(1)} ${ex.toFixed(1)} ${ey.toFixed(1)}" fill="none" stroke="rgba(255,255,255,.28)" stroke-width="${(0.7*scale).toFixed(2)}" stroke-linecap="round"/>`;
 }
 function bloomShape(sp, x, y, r, p, id){
-  const grad=`url(#${id('bloom')})`, c=sp.bloom, cd=hexAdj(c,-18), cl=hexAdj(c,34);
+  const grad=`url(#${id('bloom')})`, c=sp.bloom, cd=hexAdj(c,-20), cl=hexAdj(c,38), lg=`url(#${id('leaf')})`;
   const F=(v)=>Number(v).toFixed(1);
+  const hi = (cx,cy,rr)=>`<circle cx="${F(cx)}" cy="${F(cy)}" r="${F(rr)}" fill="rgba(255,255,255,.35)"/>`;
   if (sp.shape==="sunflower"){
-    let o=""; for(let i=0;i<14;i++){ const a=i/14*Math.PI*2; const px=x+Math.cos(a)*r, py=y+Math.sin(a)*r; o+=`<ellipse cx="${F(px)}" cy="${F(py)}" rx="${F(r*0.52)}" ry="${F(r*0.24)}" transform="rotate(${F(a*180/Math.PI)} ${F(px)} ${F(py)})" fill="${grad}"/>`; }
-    return o+`<circle cx="${F(x)}" cy="${F(y)}" r="${F(r*0.6)}" fill="#6e4423"/><circle cx="${F(x-r*0.15)}" cy="${F(y-r*0.15)}" r="${F(r*0.32)}" fill="#8a5a2c"/>`;
+    let o="";
+    for(let i=0;i<16;i++){ const a=i/16*Math.PI*2; const px=x+Math.cos(a)*r, py=y+Math.sin(a)*r; o+=`<ellipse cx="${F(px)}" cy="${F(py)}" rx="${F(r*0.55)}" ry="${F(r*0.22)}" transform="rotate(${F(a*180/Math.PI)} ${F(px)} ${F(py)})" fill="${cd}"/>`; }
+    for(let i=0;i<12;i++){ const a=(i/12+0.04)*Math.PI*2; const px=x+Math.cos(a)*r*0.82, py=y+Math.sin(a)*r*0.82; o+=`<ellipse cx="${F(px)}" cy="${F(py)}" rx="${F(r*0.5)}" ry="${F(r*0.2)}" transform="rotate(${F(a*180/Math.PI)} ${F(px)} ${F(py)})" fill="${grad}"/>`; }
+    o+=`<circle cx="${F(x)}" cy="${F(y)}" r="${F(r*0.62)}" fill="#5f3a1e"/><circle cx="${F(x-r*0.16)}" cy="${F(y-r*0.16)}" r="${F(r*0.34)}" fill="#8a5a2c"/>`;
+    for(let i=0;i<6;i++){ const a=i/6*Math.PI*2; o+=`<circle cx="${F(x+Math.cos(a)*r*0.32)}" cy="${F(y+Math.sin(a)*r*0.32)}" r="0.7" fill="#3f2410"/>`; }
+    return o;
   }
   if (sp.shape==="tulip"){
-    return `<path d="M${F(x-r)} ${F(y+r*0.9)} Q ${F(x-r)} ${F(y-r)} ${F(x)} ${F(y-r*0.35)} Q ${F(x+r)} ${F(y-r)} ${F(x+r)} ${F(y+r*0.9)} Q ${F(x)} ${F(y+r*0.55)} ${F(x-r)} ${F(y+r*0.9)} Z" fill="${grad}"/>`
-      + `<path d="M${F(x)} ${F(y-r*0.35)} L ${F(x)} ${F(y+r*0.55)}" stroke="${cd}" stroke-width="0.8" opacity="0.5"/>`;
+    return `<path d="M${F(x-r*0.95)} ${F(y+r*0.85)} Q ${F(x-r*1.05)} ${F(y-r*0.9)} ${F(x-r*0.15)} ${F(y-r*0.2)} Q ${F(x-r*0.55)} ${F(y+r*0.4)} ${F(x-r*0.95)} ${F(y+r*0.85)} Z" fill="${cd}"/>`
+      + `<path d="M${F(x+r*0.95)} ${F(y+r*0.85)} Q ${F(x+r*1.05)} ${F(y-r*0.9)} ${F(x+r*0.15)} ${F(y-r*0.2)} Q ${F(x+r*0.55)} ${F(y+r*0.4)} ${F(x+r*0.95)} ${F(y+r*0.85)} Z" fill="${cd}"/>`
+      + `<path d="M${F(x-r*0.7)} ${F(y+r*0.9)} Q ${F(x-r*0.8)} ${F(y-r*0.95)} ${F(x)} ${F(y-r*0.4)} Q ${F(x+r*0.8)} ${F(y-r*0.95)} ${F(x+r*0.7)} ${F(y+r*0.9)} Q ${F(x)} ${F(y+r*0.5)} ${F(x-r*0.7)} ${F(y+r*0.9)} Z" fill="${grad}"/>`
+      + hi(x-r*0.25,y-r*0.1,r*0.22);
   }
   if (sp.shape==="spike"){
-    let o=""; for(let i=0;i<6;i++){ const yy=y-i*r*0.5, rr=r*0.52*(1-i*0.11), dx=(i%2?1:-1)*r*0.18; o+=`<circle cx="${F(x+dx)}" cy="${F(yy)}" r="${F(rr)}" fill="${grad}"/>`; } return o;
+    let o=`<path d="M${F(x)} ${F(y-r*3)} L ${F(x-r*0.5)} ${F(y+r*0.5)} L ${F(x+r*0.5)} ${F(y+r*0.5)} Z" fill="${hexAdj(sp.leaf,-10)}" opacity="0.5"/>`;
+    for(let i=0;i<9;i++){ const yy=y-i*r*0.42, rr=r*0.5*(1-i*0.08), dx=(i%2?1:-1)*r*0.22; o+=`<circle cx="${F(x+dx)}" cy="${F(yy)}" r="${F(rr)}" fill="${grad}"/>`; }
+    return o;
   }
   if (sp.shape==="cactus"){
-    return `<rect x="${F(x-r*0.6)}" y="${F(y-r*0.4)}" width="${F(r*1.2)}" height="${F(r*2.3)}" rx="${F(r*0.6)}" fill="url(#${id('leaf')})"/>`
-      + `<rect x="${F(x+r*0.3)}" y="${F(y+r*0.2)}" width="${F(r*0.5)}" height="${F(r*1)}" rx="${F(r*0.25)}" fill="url(#${id('leaf')})"/>`
-      + `<circle cx="${F(x)}" cy="${F(y-r*0.4)}" r="${F(r*0.42)}" fill="${grad}"/>`;
+    return `<rect x="${F(x-r*0.62)}" y="${F(y-r*0.5)}" width="${F(r*1.24)}" height="${F(r*2.5)}" rx="${F(r*0.62)}" fill="${lg}"/>`
+      + `<rect x="${F(x+r*0.35)}" y="${F(y+r*0.1)}" width="${F(r*0.55)}" height="${F(r*1.1)}" rx="${F(r*0.28)}" fill="${lg}"/>`
+      + `<rect x="${F(x-r*0.9)}" y="${F(y+r*0.4)}" width="${F(r*0.5)}" height="${F(r*0.9)}" rx="${F(r*0.25)}" fill="${lg}"/>`
+      + `<path d="M${F(x-r*0.2)} ${F(y-r*0.3)} V ${F(y+r*1.7)} M${F(x+r*0.2)} ${F(y-r*0.3)} V ${F(y+r*1.7)}" stroke="${hexAdj(sp.leaf,-22)}" stroke-width="0.5" opacity=".6"/>`
+      + `<circle cx="${F(x)}" cy="${F(y-r*0.5)}" r="${F(r*0.44)}" fill="${grad}"/>` + hi(x-r*0.15,y-r*0.62,r*0.16);
   }
   if (sp.shape==="tree"){
-    return `<circle cx="${F(x-r*0.55)}" cy="${F(y+r*0.1)}" r="${F(r*0.95)}" fill="url(#${id('leaf')})"/>`
-      + `<circle cx="${F(x+r*0.6)}" cy="${F(y)}" r="${F(r*0.95)}" fill="url(#${id('leaf')})"/>`
-      + `<circle cx="${F(x)}" cy="${F(y-r*0.7)}" r="${F(r)}" fill="url(#${id('leaf')})"/>`
-      + `<circle cx="${F(x-r*0.2)}" cy="${F(y-r*0.5)}" r="${F(r*0.4)}" fill="rgba(255,255,255,.18)"/>`;
+    // fuller canopy: several overlapping foliage clusters + highlights + blossoms
+    const blobs=[[-.6,.25,.85],[.62,.2,.85],[-.15,-.15,.95],[.2,-.55,.75],[-.5,-.4,.6],[.55,-.35,.6]];
+    let o=blobs.map(([bx,by,br])=>`<circle cx="${F(x+r*bx)}" cy="${F(y+r*by)}" r="${F(r*br)}" fill="${lg}"/>`).join("");
+    o+=`<circle cx="${F(x-r*0.25)}" cy="${F(y-r*0.4)}" r="${F(r*0.5)}" fill="${hexAdj(sp.leaf,26)}" opacity=".55"/>`;
+    o+=hi(x-r*0.35,y-r*0.5,r*0.22);
+    for(let i=0;i<5;i++){ const a=i/5*Math.PI*2; o+=`<circle cx="${F(x+Math.cos(a)*r*0.7)}" cy="${F(y+Math.sin(a)*r*0.7)}" r="${F(r*0.16)}" fill="${c}"/>`; }
+    return o;
   }
   if (sp.shape==="lotus"){
-    let o=""; for(let i=0;i<7;i++){ const a=((i/6)-0.5)*Math.PI; o+=`<ellipse cx="${F(x)}" cy="${F(y)}" rx="${F(r*0.34)}" ry="${F(r)}" transform="rotate(${F(a*180/Math.PI)} ${F(x)} ${F(y)})" fill="${grad}"/>`; } return o+`<circle cx="${F(x)}" cy="${F(y)}" r="${F(r*0.34)}" fill="#fde68a"/>`;
+    let o="";
+    for(let i=0;i<7;i++){ const a=((i/6)-0.5)*Math.PI; o+=`<ellipse cx="${F(x)}" cy="${F(y)}" rx="${F(r*0.36)}" ry="${F(r*1.05)}" transform="rotate(${F(a*180/Math.PI)} ${F(x)} ${F(y)})" fill="${cd}"/>`; }
+    for(let i=0;i<5;i++){ const a=((i/4)-0.5)*Math.PI*0.9; o+=`<ellipse cx="${F(x)}" cy="${F(y+r*0.05)}" rx="${F(r*0.3)}" ry="${F(r*0.78)}" transform="rotate(${F(a*180/Math.PI)} ${F(x)} ${F(y)})" fill="${grad}"/>`; }
+    return o+`<circle cx="${F(x)}" cy="${F(y)}" r="${F(r*0.3)}" fill="#fde68a"/>`+hi(x-r*0.1,y-r*0.1,r*0.12);
   }
   if (sp.shape==="star"){
-    let pts=""; for(let i=0;i<10;i++){ const a=i/10*Math.PI*2 - Math.PI/2; const rr=i%2?r*0.42:r; pts+=`${F(x+Math.cos(a)*rr)},${F(y+Math.sin(a)*rr)} `; }
-    return `<circle cx="${F(x)}" cy="${F(y)}" r="${F(r*1.25)}" fill="${c}" opacity="0.22"/><polygon points="${pts.trim()}" fill="${grad}"/><circle cx="${F(x)}" cy="${F(y)}" r="${F(r*0.28)}" fill="#fef9c3"/>`;
+    let pts="",pin=""; for(let i=0;i<10;i++){ const a=i/10*Math.PI*2 - Math.PI/2; const rr=i%2?r*0.42:r; pts+=`${F(x+Math.cos(a)*rr)},${F(y+Math.sin(a)*rr)} `; const rr2=i%2?r*0.22:r*0.55; pin+=`${F(x+Math.cos(a)*rr2)},${F(y+Math.sin(a)*rr2)} `; }
+    return `<circle cx="${F(x)}" cy="${F(y)}" r="${F(r*1.5)}" fill="${c}" opacity="0.18"/><circle cx="${F(x)}" cy="${F(y)}" r="${F(r*1.1)}" fill="${cl}" opacity="0.25"/><polygon points="${pts.trim()}" fill="${grad}"/><polygon points="${pin.trim()}" fill="${cl}" opacity=".6"/><circle cx="${F(x)}" cy="${F(y)}" r="${F(r*0.2)}" fill="#fff"/>`;
   }
-  // default flower
-  let o=""; for(let i=0;i<6;i++){ const a=i/6*Math.PI*2; o+=`<circle cx="${F(x+Math.cos(a)*r*0.62)}" cy="${F(y+Math.sin(a)*r*0.62)}" r="${F(r*0.52)}" fill="${grad}"/>`; } return o+`<circle cx="${F(x)}" cy="${F(y)}" r="${F(r*0.5)}" fill="#fde68a"/>`;
+  // default flower — two-tone layered petals
+  let o="";
+  for(let i=0;i<8;i++){ const a=i/8*Math.PI*2; o+=`<ellipse cx="${F(x+Math.cos(a)*r*0.6)}" cy="${F(y+Math.sin(a)*r*0.6)}" rx="${F(r*0.55)}" ry="${F(r*0.34)}" transform="rotate(${F(a*180/Math.PI)} ${F(x+Math.cos(a)*r*0.6)} ${F(y+Math.sin(a)*r*0.6)})" fill="${cd}"/>`; }
+  for(let i=0;i<6;i++){ const a=(i/6+0.05)*Math.PI*2; o+=`<circle cx="${F(x+Math.cos(a)*r*0.5)}" cy="${F(y+Math.sin(a)*r*0.5)}" r="${F(r*0.42)}" fill="${grad}"/>`; }
+  return o+`<circle cx="${F(x)}" cy="${F(y)}" r="${F(r*0.42)}" fill="#fde68a"/>`+hi(x-r*0.12,y-r*0.12,r*0.14);
 }
 
 // Session lifecycle
