@@ -295,6 +295,44 @@
   .now-banner .nb-txt b { font-size: 15px; }
   .now-banner .nb-txt div { font-size: 12.5px; color: var(--txt-dim); }
 
+  /* ---------- Focus Garden ---------- */
+  .grow-wrap { display: grid; grid-template-columns: 1.1fr 1fr; gap: 16px; align-items: start; }
+  @media (max-width: 860px){ .grow-wrap{ grid-template-columns: 1fr; } }
+  .stage {
+    background: radial-gradient(120% 90% at 50% 0%, color-mix(in srgb, var(--accent) 14%, var(--bg-2)), var(--bg-2));
+    border: 1px solid var(--line); border-radius: var(--radius); padding: 18px;
+    display: flex; flex-direction: column; align-items: center; gap: 12px; min-height: 340px; justify-content: center; position: relative;
+  }
+  .stage .pot-area { display: grid; place-items: center; height: 220px; }
+  .stage .count { font-family: var(--mono); font-size: 40px; font-weight: 800; letter-spacing: -1px; }
+  .stage .phase { color: var(--txt-dim); font-size: 13px; min-height: 18px; text-align: center; }
+  .stage .ring-wrap { position: absolute; top: 14px; right: 16px; }
+  .focus-controls { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+  .dur-picker { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+  .dur-chip { padding: 8px 14px; border-radius: 20px; border: 1px solid var(--line-2); background: var(--bg-3); font-weight: 700; font-size: 13px; color: var(--txt-dim); }
+  .dur-chip.on { background: var(--accent); color: #06101f; border-color: var(--accent); }
+  .species-pick { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+  .species-pick .sp { width: 52px; height: 60px; border-radius: 10px; border: 1px solid var(--line-2); background: var(--bg-3); display: grid; place-items: center; position: relative; }
+  .species-pick .sp.on { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb,var(--accent) 40%, transparent); }
+  .species-pick .sp.locked { opacity: .4; }
+  .species-pick .sp .lock { position: absolute; bottom: 2px; right: 4px; font-size: 10px; }
+
+  .garden-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(58px, 1fr)); gap: 8px; }
+  .garden-cell { aspect-ratio: 1; background: var(--bg-2); border: 1px solid var(--line); border-radius: 10px; display: grid; place-items: center; position: relative; }
+  .garden-cell.withered { opacity: .45; }
+  .garden-cell .cap { position: absolute; bottom: 2px; left: 0; right: 0; text-align: center; font-size: 8.5px; color: var(--txt-faint); }
+  .sun-pill { display: inline-flex; align-items: center; gap: 6px; font-weight: 800; font-size: 15px; }
+  .shelf { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 10px; }
+  .shelf .item { background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; padding: 10px; text-align: center; }
+  .shelf .item.locked { opacity: .5; }
+  .shelf .item .nm { font-size: 12px; font-weight: 700; margin-top: 4px; }
+  .shelf .item .th { font-size: 10.5px; color: var(--txt-faint); }
+  .grow-plant { transition: none; }
+  @keyframes sway { 0%,100%{ transform: rotate(-1.5deg);} 50%{ transform: rotate(1.5deg);} }
+  .swaying { transform-origin: 50% 100%; animation: sway 3.5s ease-in-out infinite; }
+  .bloom-pop { animation: pop .5s ease; }
+  @keyframes pop { 0%{ transform: scale(.6); opacity:.4;} 60%{ transform: scale(1.08);} 100%{ transform: scale(1);} }
+
   @media print {
     body { overflow: visible; background: #fff; color: #000; }
     .side, .topbar, .no-print { display: none !important; }
@@ -323,6 +361,7 @@
       </div>
     </div>
     <button class="nav-btn active" data-view="dashboard"><span class="ico">◎</span> Dashboard <span class="key">1</span></button>
+    <button class="nav-btn" data-view="grow"><span class="ico">🌱</span> Focus Garden <span class="key">8</span></button>
     <button class="nav-btn" data-view="habits"><span class="ico">◈</span> Habits <span class="key">2</span></button>
     <button class="nav-btn" data-view="schedule"><span class="ico">▦</span> Schedule <span class="key">3</span></button>
     <button class="nav-btn" data-view="analytics"><span class="ico">◔</span> Analytics <span class="key">4</span></button>
@@ -497,6 +536,7 @@ const DEFAULT_STATE = {
   materials: [],
   blocks: [],           // {id, day:'mon', start:'09:00', end:'10:30', subject, color}
   settings: { accent: "#6ea8fe", weekStartMon: true, dayStart: 6, dayEnd: 23, notify: false },
+  garden: { plants: [], sun: 0, unlocked: ["sprout","fern"], strict: false, active: null },
   created: todayISO()
 };
 
@@ -591,6 +631,7 @@ function setView(v){
   document.querySelectorAll(".nav-btn").forEach(b=> b.classList.toggle("active", b.dataset.view===v));
   const map = {
     dashboard:["Dashboard", "Your day at a glance"],
+    grow:["Focus Garden","Plant a session — grow it by focusing"],
     habits:["Habits","Track time & count toward your targets"],
     schedule:["Schedule","Plan your week in time blocks"],
     analytics:["Analytics","Patterns, pace & consistency"],
@@ -650,6 +691,20 @@ renderers.dashboard = () => {
     <div class="stat"><div class="label">Best streak</div><div class="value">${bestStreakNow}<small> days</small></div><div class="trend">keep it alive 🔥</div></div>
     <div class="stat"><div class="label">Avg progress</div><div class="value">${avgProg}<small>%</small></div><div class="trend">this ${active[0]?active[0].period.replace('ly',''):'day'}</div></div>
   </div>`;
+
+  // Focus Garden quick strip
+  const g = state.garden;
+  const blooms = g.plants.filter(pp=>!pp.withered).length;
+  if (g.active){
+    const sp = speciesById(g.active.species);
+    html += `<div class="now-banner" style="margin-top:18px"><span style="display:grid;place-items:center">${plantSVG(sp, focusProgress(), 46)}</span>
+      <div class="nb-txt"><b>Focus session growing — ${sp.name}</b><div>${Math.floor(focusRemainingSec()/60)}:${String(focusRemainingSec()%60).padStart(2,'0')} left · ${phaseText(focusProgress())}</div></div>
+      <button class="btn small primary" data-goto="grow">Open</button></div>`;
+  } else {
+    html += `<div class="now-banner" style="margin-top:18px"><span class="pulse" style="background:var(--good)"></span>
+      <div class="nb-txt"><b>Focus Garden 🌱</b><div>☀ ${g.sun} Sunlight · ${blooms} plants grown · plant a session to grow more</div></div>
+      <button class="btn small primary" data-goto="grow">Plant &amp; focus</button></div>`;
+  }
 
   html += `<div class="section-title">Today's habits</div>`;
   if (!active.length){
@@ -1163,6 +1218,17 @@ renderers.planner = () => {
 };
 
 /* ---------- Achievements ---------- */
+const SPECIES = [
+  { id:"sprout",    name:"Sprout",    stem:"#4ade80", leaf:"#22c55e", bloom:"#a3e635", shape:"leaf",      sun:0    },
+  { id:"fern",      name:"Fern",      stem:"#34d399", leaf:"#10b981", bloom:"#6ee7b7", shape:"tree",      sun:0    },
+  { id:"tulip",     name:"Tulip",     stem:"#4ade80", leaf:"#22c55e", bloom:"#fb7185", shape:"tulip",     sun:60   },
+  { id:"sunflower", name:"Sunflower", stem:"#65a30d", leaf:"#4d7c0f", bloom:"#facc15", shape:"sunflower", sun:150  },
+  { id:"lavender",  name:"Lavender",  stem:"#4ade80", leaf:"#22c55e", bloom:"#a78bfa", shape:"spike",     sun:300  },
+  { id:"cactus",    name:"Cactus",    stem:"#16a34a", leaf:"#15803d", bloom:"#fb923c", shape:"cactus",    sun:500  },
+  { id:"bonsai",    name:"Bonsai",    stem:"#7c5b3f", leaf:"#22c55e", bloom:"#86efac", shape:"tree",      sun:800  },
+  { id:"lotus",     name:"Lotus",     stem:"#22c55e", leaf:"#16a34a", bloom:"#f472b6", shape:"lotus",     sun:1200 },
+  { id:"starbloom", name:"Starbloom", stem:"#60a5fa", leaf:"#38bdf8", bloom:"#c4b5fd", shape:"star",      sun:2000 },
+];
 const BADGES = [
   { id:"first", emoji:"🌱", name:"First Steps", desc:"Log your first session", test:()=> anySessions() },
   { id:"streak7", emoji:"🔥", name:"Week Warrior", desc:"7-day streak on any habit", test:()=> maxStreakAll()>=7 },
@@ -1174,6 +1240,11 @@ const BADGES = [
   { id:"habits5", emoji:"🧩", name:"Well-Rounded", desc:"Track 5 habits at once", test:()=> state.habits.length>=5 },
   { id:"perfect", emoji:"✨", name:"Perfect Day", desc:"Complete every habit in a day", test:()=> perfectDay() },
   { id:"planner", emoji:"📅", name:"Planner", desc:"Schedule 10h of blocks", test:()=> state.blocks.reduce((a,b)=>a+(toMin(b.end)-toMin(b.start)),0)>=600 },
+  { id:"firstbloom", emoji:"🌸", name:"First Bloom", desc:"Grow your first plant", test:()=> state.garden.plants.some(p=>!p.withered) },
+  { id:"greenthumb", emoji:"🌷", name:"Green Thumb", desc:"Grow 10 plants", test:()=> state.garden.plants.filter(p=>!p.withered).length>=10 },
+  { id:"botanist", emoji:"🪴", name:"Botanist", desc:"Unlock every species", test:()=> typeof SPECIES!=="undefined" && state.garden.unlocked.length>=SPECIES.length },
+  { id:"deepfocus", emoji:"🧘", name:"Deep Focus", desc:"Finish a 90-min session", test:()=> state.garden.plants.some(p=>!p.withered && p.minutes>=90) },
+  { id:"suncollector", emoji:"☀️", name:"Sun Collector", desc:"Earn 1000 Sunlight", test:()=> state.garden.sun>=1000 },
 ];
 function anySessions(){ return state.habits.some(h=>h.sessions.length); }
 function maxStreakAll(){ return state.habits.reduce((m,h)=>Math.max(m,bestStreak(h)),0); }
@@ -1309,7 +1380,7 @@ renderers.settings = () => {
     <div class="stat"><div class="label">Total time</div><div class="value" style="font-size:22px">${fmtDur(totalMinutesAll())}</div></div>
     <div class="stat"><div class="label">Tracking since</div><div class="value" style="font-size:16px">${state.created}</div></div>
   </div>
-  <div class="faint center" style="margin-top:30px;font-size:12px">Cadence · offline study organizer · v1.2 · voice + real-time reminders · no accounts, no AI, no tracking</div>`;
+  <div class="faint center" style="margin-top:30px;font-size:12px">Cadence · offline study organizer · v1.3 · Focus Garden · voice · real-time reminders · no accounts, no AI, no tracking</div>`;
   view.innerHTML = html;
 
   renderSwatches(document.getElementById("setAccent"), s.accent, c=>{ s.accent=c; document.documentElement.style.setProperty("--accent",c); save(); });
@@ -1392,9 +1463,170 @@ function esc(s){ return String(s??"").replace(/[&<>"']/g, m=>({"&":"&amp;","<":"
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
 function rerender(){ renderers[currentView](); }
 
+/* ============================= Focus Garden ============================= */
+function speciesById(id){ return SPECIES.find(s=>s.id===id) || SPECIES[0]; }
+function gsun(){ return state.garden.sun; }
+
+// Parametric plant art. p in 0..1.
+function plantSVG(sp, p, size=180){
+  p = Math.max(0, Math.min(1, p));
+  const stemTop = 100 - 60*Math.min(1, p/0.9);
+  const leafP = Math.max(0, Math.min(1,(p-0.3)/0.4));
+  const bloomP = Math.max(0, Math.min(1,(p-0.72)/0.28));
+  let s = `<svg class="grow-plant ${p>=1?'swaying':''}" width="${size}" height="${size*1.15}" viewBox="0 0 100 120" xmlns="http://www.w3.org/2000/svg">`;
+  s += `<ellipse cx="50" cy="115" rx="24" ry="4" fill="rgba(0,0,0,.22)"/>`;
+  s += `<path d="M33 100 L67 100 L62 115 L38 115 Z" fill="#a4623d"/><rect x="31" y="95" width="38" height="7" rx="2" fill="#bf7550"/>`;
+  s += `<ellipse cx="50" cy="97" rx="16" ry="3.5" fill="#3f2d20"/>`;
+  if (p<=0.03){ s += `<circle cx="50" cy="95" r="2.6" fill="#6b4a34"/>`; return s+`</svg>`; }
+  s += `<path d="M50 98 Q ${50+5*Math.sin(p*5)} ${(98+stemTop)/2} 50 ${stemTop}" stroke="${sp.stem}" stroke-width="${3+2*Math.min(1,p/0.9)}" fill="none" stroke-linecap="round"/>`;
+  if (leafP>0){
+    const ly=(98+stemTop)/2;
+    s += `<path d="M50 ${ly} q -${18*leafP} -3 -${24*leafP} 7 q ${9*leafP} 3 ${24*leafP} -7 Z" fill="${sp.leaf}"/>`;
+    s += `<path d="M50 ${ly-9} q ${18*leafP} -3 ${24*leafP} 7 q -${9*leafP} 3 -${24*leafP} -7 Z" fill="${sp.leaf}"/>`;
+  }
+  if (bloomP>0) s += bloomShape(sp, 50, stemTop, 11*bloomP, bloomP);
+  return s+`</svg>`;
+}
+function bloomShape(sp, x, y, r, p){
+  const c=sp.bloom;
+  if (sp.shape==="sunflower"){ let o=""; for(let i=0;i<12;i++){ const a=i/12*Math.PI*2; const px=x+Math.cos(a)*r, py=y+Math.sin(a)*r; o+=`<ellipse cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" rx="${(r*0.5).toFixed(1)}" ry="${(r*0.26).toFixed(1)}" transform="rotate(${(a*180/Math.PI).toFixed(1)} ${px.toFixed(1)} ${py.toFixed(1)})" fill="${c}"/>`; } return o+`<circle cx="${x}" cy="${y}" r="${(r*0.55).toFixed(1)}" fill="#7c4a1e"/>`; }
+  if (sp.shape==="tulip"){ return `<path d="M${x-r} ${y+r} Q ${x-r} ${y-r} ${x} ${y-r*0.3} Q ${x+r} ${y-r} ${x+r} ${y+r} Q ${x} ${y+r*0.6} ${x-r} ${y+r} Z" fill="${c}"/>`; }
+  if (sp.shape==="spike"){ let o=""; for(let i=0;i<5;i++){ o+=`<circle cx="${x}" cy="${(y - i*r*0.55).toFixed(1)}" r="${(r*0.5*(1-i*0.12)).toFixed(1)}" fill="${c}"/>`; } return o; }
+  if (sp.shape==="cactus"){ return `<rect x="${(x-r*0.7).toFixed(1)}" y="${(y-r*0.6).toFixed(1)}" width="${(r*1.4).toFixed(1)}" height="${(r*2.2).toFixed(1)}" rx="${(r*0.7).toFixed(1)}" fill="${sp.stem}"/><circle cx="${x}" cy="${(y-r*0.5).toFixed(1)}" r="${(r*0.4).toFixed(1)}" fill="${c}"/>`; }
+  if (sp.shape==="tree"){ return `<circle cx="${(x-r*0.6).toFixed(1)}" cy="${y}" r="${r.toFixed(1)}" fill="${sp.leaf}"/><circle cx="${(x+r*0.6).toFixed(1)}" cy="${y}" r="${r.toFixed(1)}" fill="${sp.leaf}"/><circle cx="${x}" cy="${(y-r*0.7).toFixed(1)}" r="${r.toFixed(1)}" fill="${sp.leaf}"/>`; }
+  if (sp.shape==="lotus"){ let o=""; for(let i=0;i<6;i++){ const a=(i/6)*Math.PI - Math.PI/2; o+=`<ellipse cx="${x}" cy="${y}" rx="${(r*0.35).toFixed(1)}" ry="${r.toFixed(1)}" transform="rotate(${(a*180/Math.PI).toFixed(1)} ${x} ${y})" fill="${c}"/>`; } return o+`<circle cx="${x}" cy="${y}" r="${(r*0.4).toFixed(1)}" fill="#fde68a"/>`; }
+  if (sp.shape==="star"){ let pts=""; for(let i=0;i<10;i++){ const a=i/10*Math.PI*2 - Math.PI/2; const rr=i%2?r*0.45:r; pts+=`${(x+Math.cos(a)*rr).toFixed(1)},${(y+Math.sin(a)*rr).toFixed(1)} `; } return `<polygon points="${pts.trim()}" fill="${c}"/><circle cx="${x}" cy="${y}" r="${(r*0.3).toFixed(1)}" fill="#fef9c3"/>`; }
+  let o=""; for(let i=0;i<6;i++){ const a=i/6*Math.PI*2; o+=`<circle cx="${(x+Math.cos(a)*r*0.7).toFixed(1)}" cy="${(y+Math.sin(a)*r*0.7).toFixed(1)}" r="${(r*0.5).toFixed(1)}" fill="${c}"/>`; } return o+`<circle cx="${x}" cy="${y}" r="${(r*0.5).toFixed(1)}" fill="#fde68a"/>`;
+}
+
+// Session lifecycle
+let focusTick=null, chosenDur=25, chosenSpecies=null, chosenHabit="";
+function focusProgress(){ const a=state.garden.active; if(!a) return 0; return Math.max(0, Math.min(1,(Date.now()-a.startedAt)/60000/a.durationMin)); }
+function focusRemainingSec(){ const a=state.garden.active; if(!a) return 0; return Math.max(0, Math.round(a.durationMin*60 - (Date.now()-a.startedAt)/1000)); }
+function phaseText(p){ return p<0.05?"Seed planted…":p<0.3?"Sprouting 🌱":p<0.6?"Growing leaves 🍃":p<0.82?"Budding 🌿":p<1?"About to bloom ✨":"Bloomed! 🌸"; }
+function startFocus(durationMin, speciesId, habitId){
+  if (state.garden.active) return toast("A session is already growing.");
+  if (!state.garden.unlocked.includes(speciesId)) speciesId = state.garden.unlocked[0]||"sprout";
+  state.garden.active = { startedAt: Date.now(), durationMin, species: speciesId, habitId: habitId||null, strict: !!state.garden.strict };
+  save(); ensureFocusTick();
+  toast(`🌱 Planted a ${speciesById(speciesId).name}. Stay focused for ${durationMin} min!`);
+  if (currentView==="grow") renderers.grow();
+}
+function completeFocus(){
+  const a=state.garden.active; if(!a) return;
+  const mins=a.durationMin;
+  state.garden.plants.push({ id:uid(), species:a.species, ts:new Date().toISOString(), minutes:mins, habitId:a.habitId, withered:false });
+  state.garden.sun += mins;
+  state.garden.active=null;
+  if (a.habitId){ const h=habitById(a.habitId); if(h && h.type==="time") addSession(a.habitId, mins); }
+  unlockSpecies(); save(); checkBadges(); stopFocusTick();
+  notify("🌸 Bloomed!", `Your ${speciesById(a.species).name} bloomed. +${mins} Sunlight.`);
+  toast(`🌸 Your ${speciesById(a.species).name} bloomed! +${mins} ☀`);
+  if (currentView==="grow") renderers.grow(); else if (currentView==="dashboard") rerender();
+}
+function giveUpFocus(){
+  const a=state.garden.active; if(!a) return;
+  const p=focusProgress();
+  state.garden.plants.push({ id:uid(), species:a.species, ts:new Date().toISOString(), minutes:Math.round(a.durationMin*p), habitId:a.habitId, withered:true });
+  state.garden.active=null; save(); stopFocusTick();
+  toast("🥀 Plant wilted — you ended early. A shorter session next time?");
+  if (currentView==="grow") renderers.grow();
+}
+function unlockSpecies(){ SPECIES.forEach(sp=>{ if(state.garden.sun>=sp.sun && !state.garden.unlocked.includes(sp.id)){ state.garden.unlocked.push(sp.id); toast(`🌟 New species unlocked: ${sp.name}!`); } }); }
+function ensureFocusTick(){ if(focusTick) return; focusTick=setInterval(focusHeartbeat,1000); }
+function stopFocusTick(){ if(focusTick){ clearInterval(focusTick); focusTick=null; } }
+function focusHeartbeat(){ const a=state.garden.active; if(!a){ stopFocusTick(); return; } if(focusRemainingSec()<=0){ completeFocus(); return; } if(currentView==="grow") updateFocusUI(); }
+function updateFocusUI(){
+  const a=state.garden.active; if(!a) return;
+  const sp=speciesById(a.species), p=focusProgress(), sec=focusRemainingSec();
+  const cnt=document.getElementById("focusCount"); if(cnt) cnt.textContent=`${String(Math.floor(sec/60)).padStart(2,'0')}:${String(sec%60).padStart(2,'0')}`;
+  const holder=document.getElementById("plantHolder"); if(holder) holder.innerHTML=plantSVG(sp,p,190);
+  const phase=document.getElementById("focusPhase"); if(phase) phase.textContent=phaseText(p);
+  const rw=document.getElementById("focusRing"); if(rw) rw.innerHTML=ring(p, sp.bloom, 42);
+}
+// garden streak: consecutive days with at least one bloom
+function gardenStreak(){
+  const days=new Set(state.garden.plants.filter(pl=>!pl.withered).map(pl=>todayISO(new Date(pl.ts))));
+  let n=0, d=new Date(); if(!days.has(todayISO(d))) d=addDays(d,-1);
+  while(days.has(todayISO(d))){ n++; d=addDays(d,-1); if(n>3650)break; } return n;
+}
+
+renderers.grow = () => {
+  const g=state.garden;
+  const blooms=g.plants.filter(p=>!p.withered);
+  let html = `<div class="flex wrap" style="gap:14px;margin-bottom:16px">
+    <span class="sun-pill">☀ ${g.sun} <span class="faint" style="font-weight:600;font-size:12px">Sunlight</span></span>
+    <span class="pill">🌸 ${blooms.length} grown</span>
+    <span class="pill">🥀 ${g.plants.length-blooms.length} wilted</span>
+    <span class="pill">🔥 ${gardenStreak()}-day garden streak</span>
+  </div>`;
+
+  html += `<div class="grow-wrap">`;
+  // LEFT: stage
+  html += `<div class="stage">`;
+  if (g.active){
+    const sp=speciesById(g.active.species), p=focusProgress(), sec=focusRemainingSec();
+    html += `<div class="ring-wrap" id="focusRing">${ring(p, sp.bloom, 42)}</div>
+      <div class="pot-area" id="plantHolder">${plantSVG(sp,p,190)}</div>
+      <div class="count" id="focusCount">${String(Math.floor(sec/60)).padStart(2,'0')}:${String(sec%60).padStart(2,'0')}</div>
+      <div class="phase" id="focusPhase">${phaseText(p)}</div>
+      <div class="focus-controls"><button class="btn danger" id="giveUp">Give up 🥀</button></div>
+      ${g.active.strict?`<div class="faint" style="font-size:11.5px">Strict mode on — leaving Cadence wilts the plant.</div>`:``}`;
+  } else {
+    if (!chosenSpecies || !g.unlocked.includes(chosenSpecies)) chosenSpecies=g.unlocked[g.unlocked.length-1]||"sprout";
+    const sp=speciesById(chosenSpecies);
+    const timeHabits=state.habits.filter(h=>h.type==="time");
+    html += `<div class="pot-area">${plantSVG(sp,0.001,150)}</div>
+      <div class="phase">Pick a length, choose a plant, and focus. Finish to make it bloom.</div>
+      <div class="dur-picker" id="durPicker">
+        ${[15,25,50,90].map(d=>`<button class="dur-chip ${d===chosenDur?'on':''}" data-dur="${d}">${d}m</button>`).join("")}
+        <input class="input" id="durCustom" type="number" min="1" max="240" placeholder="min" style="width:74px;text-align:center">
+      </div>
+      <div class="species-pick" id="speciesPick">
+        ${SPECIES.map(s=>{ const on=g.unlocked.includes(s.id); return `<div class="sp ${s.id===chosenSpecies?'on':''} ${on?'':'locked'}" data-sp="${s.id}" title="${on?s.name:'Unlock at ☀ '+s.sun}">${plantSVG(s,1,40)}${on?'':`<span class="lock">🔒</span>`}</div>`; }).join("")}
+      </div>
+      ${timeHabits.length?`<div class="field" style="width:100%;max-width:280px"><label class="faint" style="font-size:12px">Count this toward (optional)</label>
+        <select class="input" id="focusHabit"><option value="">General focus</option>${timeHabits.map(h=>`<option value="${h.id}" ${chosenHabit===h.id?'selected':''}>${esc(h.name)}</option>`).join("")}</select></div>`:``}
+      <div class="focus-controls"><button class="btn primary" id="plantBtn" style="font-size:15px;padding:11px 22px">🌱 Plant &amp; Focus</button></div>`;
+  }
+  html += `</div>`;
+
+  // RIGHT: garden + collection
+  html += `<div style="display:flex;flex-direction:column;gap:16px">`;
+  html += `<div class="card"><div class="flex" style="margin-bottom:12px"><b>Your garden</b><span class="spacer" style="flex:1"></span><span class="faint" style="font-size:12px">${g.plants.length} planted</span></div>`;
+  if (!g.plants.length){ html += `<div class="muted center" style="padding:20px 0">Empty plot. Plant your first focus session! 🌱</div>`; }
+  else {
+    const recent=g.plants.slice(-48).reverse();
+    html += `<div class="garden-grid">`+recent.map(pl=>{ const sp=speciesById(pl.species); return `<div class="garden-cell ${pl.withered?'withered':''}" title="${sp.name} · ${new Date(pl.ts).toLocaleDateString()} · ${fmtDur(pl.minutes)}">${plantSVG(sp, pl.withered?0.45:1, 44)}</div>`; }).join("")+`</div>`;
+  }
+  html += `</div>`;
+
+  html += `<div class="card"><div class="flex" style="margin-bottom:12px"><b>Species collection</b><span class="spacer" style="flex:1"></span><span class="faint" style="font-size:12px">${g.unlocked.length}/${SPECIES.length}</span></div>
+    <div class="shelf">`+SPECIES.map(s=>{ const on=g.unlocked.includes(s.id); return `<div class="item ${on?'':'locked'}">${plantSVG(s,1,54)}<div class="nm">${on?s.name:'???'}</div><div class="th">${on?'Unlocked':'☀ '+s.sun}</div></div>`; }).join("")+`</div></div>`;
+
+  html += `<div class="card flex" style="justify-content:space-between"><div><b style="font-size:14px">Strict mode</b><div class="muted" style="font-size:12.5px">Leaving Cadence mid-session wilts the plant. Real stakes, real focus.</div></div>
+    <button class="btn ${g.strict?'primary':''}" id="strictToggle">${g.strict?'On':'Off'}</button></div>`;
+
+  html += `</div></div>`;
+  view.innerHTML = html;
+
+  // wire
+  const gu=document.getElementById("giveUp"); if(gu) gu.onclick=()=>{ if(confirm("Give up this session? The plant will wilt.")) giveUpFocus(); };
+  const pb=document.getElementById("plantBtn"); if(pb) pb.onclick=()=>{
+    const custom=parseInt((document.getElementById("durCustom")||{}).value);
+    const dur=custom>0?custom:chosenDur;
+    const hb=(document.getElementById("focusHabit")||{}).value||"";
+    chosenHabit=hb; startFocus(dur, chosenSpecies, hb);
+  };
+  view.querySelectorAll("#durPicker [data-dur]").forEach(b=> b.onclick=()=>{ chosenDur=parseInt(b.dataset.dur); const c=document.getElementById("durCustom"); if(c)c.value=""; renderers.grow(); });
+  view.querySelectorAll("#speciesPick .sp").forEach(el=> el.onclick=()=>{ if(el.classList.contains("locked")){ toast("Earn more Sunlight to unlock this one ☀"); return; } chosenSpecies=el.dataset.sp; renderers.grow(); });
+  const st=document.getElementById("strictToggle"); if(st) st.onclick=()=>{ state.garden.strict=!state.garden.strict; save(); renderers.grow(); toast(state.garden.strict?"Strict mode on":"Strict mode off"); };
+};
+
 /* ============================= Command palette ============================= */
 const CMDS = [
   { label:"Go to Dashboard", ico:"◎", run:()=>setView("dashboard") },
+  { label:"Focus Garden — plant a session", ico:"🌱", run:()=>setView("grow") },
   { label:"Go to Habits", ico:"◈", run:()=>setView("habits") },
   { label:"Go to Schedule", ico:"▦", run:()=>setView("schedule") },
   { label:"Go to Analytics", ico:"◔", run:()=>setView("analytics") },
@@ -1447,7 +1679,7 @@ document.addEventListener("keydown", e=>{
   if (typing) return;
   if (e.key==="?"){ showShortcuts(); return; }
   if (e.key==="n"){ openHabitModal(); return; }
-  const map={"1":"dashboard","2":"habits","3":"schedule","4":"analytics","5":"materials","6":"planner","7":"achievements"};
+  const map={"1":"dashboard","2":"habits","3":"schedule","4":"analytics","5":"materials","6":"planner","7":"achievements","8":"grow"};
   if (map[e.key]) setView(map[e.key]);
 });
 function showShortcuts(){
@@ -1519,6 +1751,17 @@ function runCommand(raw){
   // NAVIGATION
   let m = t.match(/^(?:go to|open|show|navigate to)\s+(dashboard|home|habits?|schedule|analytics|materials?|planner|achievements?|settings)/);
   if (m){ const map={home:"dashboard",habit:"habits",habits:"habits",material:"materials",materials:"materials",achievement:"achievements",achievements:"achievements"}; const v=map[m[1]]||m[1]; setView(v); closeCmd(); return "Opened "+v+"."; }
+  if (/^(?:go to|open|show)\s+(garden|focus|grow)/.test(t)){ setView("grow"); closeCmd(); return "Opened Focus Garden."; }
+
+  // FOCUS SESSION — "focus for 25 minutes" / "plant a tree" / "grow 50"
+  if (/^(focus|plant|grow)\b/.test(t)){
+    if (state.garden.active) return "A session is already growing — stay with it!";
+    const dm = t.match(/(\d+)/);
+    const mins = dm ? Math.max(1, parseInt(dm[1])) : (chosenDur||25);
+    const sp = (chosenSpecies && state.garden.unlocked.includes(chosenSpecies)) ? chosenSpecies : (state.garden.unlocked[state.garden.unlocked.length-1]||"sprout");
+    startFocus(mins, sp, null); setView("grow");
+    return `Planted a ${speciesById(sp).name} — focus for ${mins} minutes.`;
+  }
 
   // START / STOP TIMER  — "start timer reading" / "start reading" / "stop coding"
   m = t.match(/^(start|stop|pause|begin)\s+(?:the\s+)?(?:timer\s+(?:for\s+)?|tracking\s+)?(.+)$/);
@@ -1689,9 +1932,20 @@ if ("serviceWorker" in navigator){
 let deferredInstall = null;
 window.addEventListener("beforeinstallprompt", e=>{ e.preventDefault(); deferredInstall = e; const b=document.getElementById("installBtn"); if(b) b.style.display=""; });
 
+// Strict-mode: leaving Cadence mid-session wilts the plant
+document.addEventListener("visibilitychange", ()=>{
+  const a=state.garden.active;
+  if (a && a.strict && document.hidden){ giveUpFocus(); }
+});
+
 /* ============================= Boot ============================= */
 document.documentElement.style.setProperty("--accent", state.settings.accent||COLORS[0]);
 knownBadges = new Set(BADGES.filter(b=>b.test()).map(b=>b.id));
+// Resume or finish a focus session that was running before reload
+if (state.garden.active){
+  if (focusRemainingSec()<=0) completeFocus();
+  else ensureFocusTick();
+}
 setView("dashboard");
 updateClock();
 handleUrlCommands();
