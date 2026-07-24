@@ -173,6 +173,26 @@
     .barchart .b > span { font-size: 9px; }
   }
 
+  /* Mobile bottom tab bar */
+  .bottombar { display: none; }
+  @media (max-width: 760px) {
+    .bottombar {
+      display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 70;
+      background: var(--topbar-bg); backdrop-filter: blur(14px);
+      border-top: 1px solid var(--line);
+      padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+    }
+    .tabbtn {
+      flex: 1; background: transparent; border: 0; display: flex; flex-direction: column;
+      align-items: center; gap: 2px; font-size: 10px; font-weight: 700;
+      color: var(--txt-faint); padding: 5px 0 3px; border-radius: 10px; transition: color .12s;
+    }
+    .tabbtn span { font-size: 20px; line-height: 1; }
+    .tabbtn.active { color: var(--accent); }
+    .tabbtn:active { transform: scale(.94); }
+    .view { padding-bottom: 92px; }
+  }
+
   .section-title { font-size: 13px; text-transform: uppercase; letter-spacing: .8px; color: var(--txt-faint); font-weight: 700; margin: 26px 2px 12px; }
   .section-title:first-child { margin-top: 4px; }
 
@@ -241,6 +261,10 @@
   .swatches { display: flex; gap: 8px; flex-wrap: wrap; }
   .swatch { width: 26px; height: 26px; border-radius: 50%; border: 2px solid transparent; }
   .swatch.sel { border-color: #fff; box-shadow: 0 0 0 2px var(--bg-2); }
+  .emoji-picks { display: flex; flex-wrap: wrap; gap: 6px; }
+  .emoji-picks button { width: 34px; height: 34px; border-radius: 9px; border: 1px solid var(--line-2); background: var(--bg); font-size: 17px; line-height: 1; display: grid; place-items: center; }
+  .emoji-picks button.sel { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, var(--bg)); }
+  .confetti-piece { position: fixed; width: 9px; height: 14px; z-index: 300; pointer-events: none; will-change: transform, opacity; }
 
   .seg { display: inline-flex; background: var(--bg); border: 1px solid var(--line-2); border-radius: var(--radius-sm); padding: 3px; gap: 3px; }
   .seg button { background: transparent; border: 0; padding: 6px 13px; border-radius: 6px; font-size: 13px; font-weight: 600; color: var(--txt-dim); }
@@ -385,7 +409,7 @@
 <div class="app">
   <aside class="side">
     <div class="brand">
-      <div class="logo">C</div>
+      <div class="logo"><svg width="20" height="20" viewBox="0 0 512 512" aria-hidden="true"><circle cx="256" cy="262" r="150" fill="none" stroke="currentColor" stroke-opacity="0.35" stroke-width="34"/><path d="M256 118 A150 150 0 1 1 150 176" fill="none" stroke="currentColor" stroke-width="34" stroke-linecap="round"/><path d="M256 330 C256 296 256 268 256 236" fill="none" stroke="currentColor" stroke-width="26" stroke-linecap="round"/><path d="M256 262 C230 248 202 255 187 281 C215 294 245 289 256 262 Z" fill="currentColor"/><path d="M256 244 C282 229 311 236 327 263 C299 276 268 271 256 244 Z" fill="currentColor"/></svg></div>
       <div>
         <h1>Cadence</h1>
         <small>study time &amp; habits</small>
@@ -424,6 +448,13 @@
     <div class="view" id="view"></div>
   </main>
   <div class="scrim no-print" id="scrim"></div>
+  <nav class="bottombar no-print" id="bottombar">
+    <button class="tabbtn active" data-view="dashboard"><span>🏠</span>Home</button>
+    <button class="tabbtn" data-view="grow"><span>🌱</span>Garden</button>
+    <button class="tabbtn" data-view="habits"><span>✅</span>Habits</button>
+    <button class="tabbtn" data-view="analytics"><span>📊</span>Stats</button>
+    <button class="tabbtn" data-view="__more"><span>☰</span>More</button>
+  </nav>
 </div>
 
 <!-- Habit modal -->
@@ -437,6 +468,10 @@
       <div class="field">
         <label>Habit name</label>
         <input class="input" id="fName" placeholder="e.g. Read textbook, Practice coding" />
+      </div>
+      <div class="field">
+        <label>Icon</label>
+        <div class="emoji-picks" id="fEmojiPicks"></div>
       </div>
       <div class="row">
         <div class="field">
@@ -688,6 +723,7 @@ let currentView = "dashboard";
 function setView(v){
   currentView = v;
   document.querySelectorAll(".nav-btn").forEach(b=> b.classList.toggle("active", b.dataset.view===v));
+  document.querySelectorAll(".tabbtn").forEach(b=> b.classList.toggle("active", b.dataset.view===v));
   const map = {
     dashboard:["Dashboard", "Your day at a glance"],
     grow:["Focus Garden","Plant a session — grow it by focusing"],
@@ -852,7 +888,7 @@ function habitCard(h, compact){
     <div class="h-head">
       <div>${ring(prog, h.color)}</div>
       <div class="h-info">
-        <div class="h-name">${esc(h.name)} ${streak>0?`<span class="streak-chip">🔥 ${streak}</span>`:''}</div>
+        <div class="h-name">${h.emoji?`<span style="margin-right:5px">${h.emoji}</span>`:''}${esc(h.name)} ${streak>0?`<span class="streak-chip">🔥 ${streak}</span>`:''}</div>
         <div class="h-sub">${esc(h.subject||"General")} · ${h.period}</div>
         <div class="h-target" style="margin-top:6px"><b>${curDisp}</b> / ${tgtDisp}</div>
       </div>
@@ -876,7 +912,7 @@ function wireHabitCards(){
   view.querySelectorAll("[data-start]").forEach(b=> b.onclick=()=>startTimer(b.dataset.start));
   view.querySelectorAll("[data-stop]").forEach(b=> b.onclick=()=>stopTimer(b.dataset.stop));
   view.querySelectorAll("[data-log]").forEach(b=> b.onclick=()=>openLog(b.dataset.log));
-  view.querySelectorAll("[data-inc]").forEach(b=> b.onclick=()=>{ addSession(b.dataset.inc, 1); toast("+1 logged"); rerender(); });
+  view.querySelectorAll("[data-inc]").forEach(b=> b.onclick=()=>{ const h=habitById(b.dataset.inc); const was=periodProgress(h)>=1; addSession(b.dataset.inc, 1); if(!was && periodProgress(h)>=1){ confettiBurst(); toast("🎉 Goal reached!"); } else toast("+1 logged"); rerender(); });
   view.querySelectorAll("[data-menu]").forEach(b=> b.onclick=(e)=>openHabitMenu(e, b.dataset.menu));
   view.querySelectorAll("[data-goto]").forEach(a=> a.onclick=(e)=>{ e.preventDefault(); setView(a.dataset.goto); });
 }
@@ -943,8 +979,11 @@ document.getElementById("saveLog").onclick = () => {
   const amt = parseFloat(document.getElementById("logAmount").value);
   const date = document.getElementById("logDate").value;
   if (!amt || amt<=0) return toast("Enter an amount");
+  const h = habitById(logTargetId); const was = h ? periodProgress(h)>=1 : true;
   addSession(logTargetId, amt, date);
-  hideModal("logModal"); toast("Logged"); rerender();
+  hideModal("logModal");
+  if (h && !was && periodProgress(h)>=1){ confettiBurst(); toast("🎉 Goal reached!"); } else toast("Logged");
+  rerender();
 };
 
 /* ---------- Habit menu (edit/delete/reset) ---------- */
@@ -982,10 +1021,16 @@ function quickMenu(anchor, items){
 }
 
 /* ---------- Habit modal ---------- */
-let modalColor = COLORS[0];
+let modalColor = COLORS[0], modalEmoji = "";
+const HABIT_EMOJIS = ["📚","📖","✍️","💻","🧮","🔬","🧠","📝","🗣️","🎨","🎵","🏃","🧘","🌍","💡","⭐"];
 function renderSwatches(container, sel, cb){
   container.innerHTML = COLORS.map(c=>`<div class="swatch ${c===sel?'sel':''}" data-c="${c}" style="background:${c}"></div>`).join("");
   container.querySelectorAll(".swatch").forEach(s=> s.onclick=()=>{ container.querySelectorAll(".swatch").forEach(x=>x.classList.remove("sel")); s.classList.add("sel"); cb(s.dataset.c); });
+}
+function renderEmojiPicks(sel){
+  const c=document.getElementById("fEmojiPicks");
+  c.innerHTML = `<button data-e="" class="${!sel?'sel':''}" title="No icon">∅</button>` + HABIT_EMOJIS.map(e=>`<button data-e="${e}" class="${e===sel?'sel':''}">${e}</button>`).join("");
+  c.querySelectorAll("button").forEach(b=> b.onclick=()=>{ c.querySelectorAll("button").forEach(x=>x.classList.remove("sel")); b.classList.add("sel"); modalEmoji=b.dataset.e; });
 }
 function openHabitModal(h){
   editingId = h && h.id ? h.id : null;
@@ -998,7 +1043,9 @@ function openHabitModal(h){
   document.getElementById("fPeriod").value = h?.period||"daily";
   document.getElementById("fReminder").value = h?.reminder||"";
   modalColor = h?.color||COLORS[0];
+  modalEmoji = h?.emoji||"";
   renderSwatches(document.getElementById("fSwatches"), modalColor, c=> modalColor=c);
+  renderEmojiPicks(modalEmoji);
   syncTypeUnit();
   showModal("habitModal");
   setTimeout(()=>document.getElementById("fName").focus(), 50);
@@ -1020,7 +1067,8 @@ document.getElementById("saveHabit").onclick = () => {
     unit: document.getElementById("fType").value==="time" ? "min" : (document.getElementById("fUnit").value.trim()||"units"),
     period: document.getElementById("fPeriod").value,
     reminder: document.getElementById("fReminder").value,
-    color: modalColor
+    color: modalColor,
+    emoji: modalEmoji
   };
   if (editingId){ Object.assign(habitById(editingId), data); toast("Updated"); }
   else { state.habits.push(Object.assign({ id: uid(), created: todayISO(), sessions: [] }, data)); toast("Habit created"); }
@@ -1450,7 +1498,7 @@ renderers.settings = () => {
     <div class="stat"><div class="label">Total time</div><div class="value" style="font-size:22px">${fmtDur(totalMinutesAll())}</div></div>
     <div class="stat"><div class="label">Tracking since</div><div class="value" style="font-size:16px">${state.created}</div></div>
   </div>
-  <div class="faint center" style="margin-top:30px;font-size:12px">Cadence · offline study organizer · v1.5 · prettier garden · themes · voice · reminders · no accounts, no AI, no tracking</div>`;
+  <div class="faint center" style="margin-top:30px;font-size:12px">Cadence · offline study organizer · v1.6 · new icon · bottom nav · habit icons · confetti · no accounts, no AI, no tracking</div>`;
   view.innerHTML = html;
 
   renderSwatches(document.getElementById("setAccent"), s.accent, c=>{ s.accent=c; document.documentElement.style.setProperty("--accent",c); save(); });
@@ -1556,6 +1604,22 @@ function deleteMaterialWithUndo(id){
 function esc(s){ return String(s??"").replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m])); }
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
 function rerender(){ renderers[currentView](); }
+function confettiBurst(x, y){
+  try { if (state.settings.motion==="off") return; if (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches) return; } catch {}
+  const cx = x==null ? window.innerWidth/2 : x, cy = y==null ? window.innerHeight*0.34 : y;
+  for (let i=0;i<36;i++){
+    const p=document.createElement("div"); p.className="confetti-piece";
+    p.style.left=cx+"px"; p.style.top=cy+"px"; p.style.background=COLORS[i%COLORS.length];
+    p.style.borderRadius = (i%2? "2px":"50%");
+    document.body.appendChild(p);
+    const ang=Math.random()*Math.PI*2, dist=70+Math.random()*150;
+    const dx=Math.cos(ang)*dist, dy=Math.sin(ang)*dist + 130 + Math.random()*140, rot=Math.random()*720-360;
+    const anim = (typeof p.animate==="function") ? p.animate(
+      [{ transform:"translate(0,0) rotate(0deg)", opacity:1 }, { transform:`translate(${dx.toFixed(0)}px, ${dy.toFixed(0)}px) rotate(${rot.toFixed(0)}deg)`, opacity:0 }],
+      { duration: 900+Math.random()*700, easing:"cubic-bezier(.2,.6,.3,1)" }) : null;
+    if (anim){ anim.onfinish=()=>p.remove(); anim.oncancel=()=>p.remove(); } else { p.remove(); }
+  }
+}
 
 /* ============================= Focus Garden ============================= */
 function speciesById(id){ return SPECIES.find(s=>s.id===id) || SPECIES[0]; }
@@ -1676,6 +1740,7 @@ function completeFocus(){
   unlockSpecies(); save(); checkBadges(); stopFocusTick(); releaseWakeLock(); exitFullscreen();
   notify("🌸 Bloomed!", `Your ${speciesById(a.species).name} bloomed. +${mins} Sunlight.`);
   toast(`🌸 Your ${speciesById(a.species).name} bloomed! +${mins} ☀`);
+  confettiBurst();
   if (currentView==="grow") renderers.grow(); else if (currentView==="dashboard") rerender();
   toastAction("Nice work — take a 5-min break?", "Start break", ()=> startBreak(5));
 }
@@ -1850,6 +1915,7 @@ function showShortcuts(){
 
 /* ============================= Wire up ============================= */
 document.querySelectorAll(".nav-btn").forEach(b=> b.onclick=()=>{ setView(b.dataset.view); closeDrawer(); });
+document.querySelectorAll(".tabbtn").forEach(b=> b.onclick=()=>{ if(b.dataset.view==="__more"){ openDrawer(); return; } setView(b.dataset.view); });
 document.getElementById("addBtn").onclick = ()=> openHabitModal();
 
 // Mobile drawer
@@ -1864,11 +1930,11 @@ const IS_FIRST_RUN = !localStorage.getItem(STORE_KEY);
 
 /* ============================= Onboarding ============================= */
 const TEMPLATES = [
-  { name:"Reading", subject:"", type:"time", target:30, unit:"min", period:"daily" },
-  { name:"Revision", subject:"", type:"time", target:45, unit:"min", period:"daily" },
-  { name:"Coding practice", subject:"", type:"time", target:60, unit:"min", period:"daily" },
-  { name:"Flashcards", subject:"", type:"count", target:30, unit:"cards", period:"daily" },
-  { name:"Math problems", subject:"", type:"count", target:20, unit:"problems", period:"daily" },
+  { name:"Reading", emoji:"📖", subject:"", type:"time", target:30, unit:"min", period:"daily" },
+  { name:"Revision", emoji:"📝", subject:"", type:"time", target:45, unit:"min", period:"daily" },
+  { name:"Coding practice", emoji:"💻", subject:"", type:"time", target:60, unit:"min", period:"daily" },
+  { name:"Flashcards", emoji:"🧠", subject:"", type:"count", target:30, unit:"cards", period:"daily" },
+  { name:"Math problems", emoji:"🧮", subject:"", type:"count", target:20, unit:"problems", period:"daily" },
 ];
 function addTemplate(t){
   const h=Object.assign({ id:uid(), reminder:"", color:COLORS[state.habits.length%COLORS.length], created:todayISO(), sessions:[] }, t);
@@ -1877,8 +1943,8 @@ function addTemplate(t){
 function finishOnboarding(){ state.settings.onboarded=true; save(); hideModal("onboardModal"); applyTheme(); setView("dashboard"); }
 function showOnboarding(){
   const wrap=document.getElementById("onboardTemplates");
-  wrap.innerHTML = TEMPLATES.map((t,i)=>`<button class="btn small" data-tpl="${i}">+ ${esc(t.name)}</button>`).join("");
-  wrap.querySelectorAll("[data-tpl]").forEach(b=> b.onclick=()=>{ addTemplate(TEMPLATES[parseInt(b.dataset.tpl)]); b.classList.add("primary"); b.textContent="✓ "+TEMPLATES[parseInt(b.dataset.tpl)].name; toast("Added"); });
+  wrap.innerHTML = TEMPLATES.map((t,i)=>`<button class="btn small" data-tpl="${i}">${t.emoji||'+'} ${esc(t.name)}</button>`).join("");
+  wrap.querySelectorAll("[data-tpl]").forEach(b=> b.onclick=()=>{ const t=TEMPLATES[parseInt(b.dataset.tpl)]; addTemplate(t); b.classList.add("primary"); b.textContent="✓ "+t.name; toast("Added"); });
   const seg=document.getElementById("onboardTheme");
   seg.querySelectorAll("button").forEach(b=> b.onclick=()=>{ seg.querySelectorAll("button").forEach(x=>x.classList.remove("on")); b.classList.add("on"); state.settings.theme=b.dataset.th; applyTheme(); });
   document.getElementById("onboardSamples").onclick=()=>{ seedDemo(); finishOnboarding(); toast("Loaded sample data — explore away!"); };
@@ -1886,10 +1952,10 @@ function showOnboarding(){
   showModal("onboardModal");
 }
 function seedDemo(){
-  const mk=(name,subject,type,target,unit,period,color)=>({id:uid(),name,subject,type,target,unit,period,color,reminder:"",created:todayISO(),sessions:[]});
-  const h1=mk("Deep Study","Exams","time",120,"min","daily",COLORS[0]);
-  const h2=mk("Read textbook","Biology","count",30,"pages","daily",COLORS[2]);
-  const h3=mk("Practice problems","Calculus","time",45,"min","daily",COLORS[3]);
+  const mk=(name,subject,type,target,unit,period,color,emoji)=>({id:uid(),name,subject,type,target,unit,period,color,emoji:emoji||"",reminder:"",created:todayISO(),sessions:[]});
+  const h1=mk("Deep Study","Exams","time",120,"min","daily",COLORS[0],"📚");
+  const h2=mk("Read textbook","Biology","count",30,"pages","daily",COLORS[2],"📖");
+  const h3=mk("Practice problems","Calculus","time",45,"min","daily",COLORS[3],"🧮");
   // backfill a few days of sessions for demo insight
   for (let i=1;i<=8;i++){
     const base=addDays(new Date(),-i);
