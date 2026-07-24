@@ -359,6 +359,30 @@
   .amb-picker { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
   .amb-picker button { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 11px 4px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--bg); color: var(--txt-dim); font-size: 11.5px; font-weight: 600; }
   .amb-picker button.on { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--bg)); }
+
+  /* Immersive focus screen (Forest-style green focus mode) */
+  .focus-screen { display: none; position: fixed; inset: 0; z-index: 130; padding: 26px 22px calc(26px + env(safe-area-inset-bottom,0px));
+    background: linear-gradient(165deg, #0d3d2f 0%, #155e49 46%, #1f7f60 100%);
+    color: #eafff5; flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center; }
+  .focus-screen.show { display: flex; }
+  .fs-min { position: absolute; top: 16px; left: 16px; width: 42px; height: 42px; border-radius: 12px; background: rgba(255,255,255,.12); border: 0; color: #eafff5; display: grid; place-items: center; }
+  .fs-min:hover { background: rgba(255,255,255,.2); }
+  .fs-phase { font-size: 13.5px; letter-spacing: .4px; text-transform: uppercase; opacity: .8; font-weight: 700; }
+  .fs-plant { position: relative; display: grid; place-items: center; width: 250px; height: 250px; }
+  .fs-plant::before { content: ""; position: absolute; width: 220px; height: 220px; border-radius: 50%; background: radial-gradient(circle, rgba(180,255,220,.35), transparent 62%); filter: blur(7px); }
+  .fs-plant::after { content: ""; position: absolute; width: 176px; height: 176px; border-radius: 50%; border: 2px dashed rgba(205,255,232,.5); animation: spin 11s linear infinite; }
+  .fs-plant svg { position: relative; z-index: 1; }
+  .fs-count { font-family: var(--mono); font-size: 58px; font-weight: 800; letter-spacing: -2px; line-height: 1; }
+  .fs-sub { opacity: .82; font-size: 14px; }
+  .fs-amb { max-width: 430px; width: 100%; grid-template-columns: repeat(6, 1fr); }
+  .fs-amb button { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.16); color: #eafff5; font-size: 10px; padding: 9px 2px; }
+  .fs-amb button.on { background: rgba(255,255,255,.92); color: #0d3d2f; border-color: #fff; }
+  .fs-controls { display: flex; gap: 12px; margin-top: 8px; }
+  .fs-btn { background: rgba(255,255,255,.12); border-color: rgba(255,255,255,.2); color: #eafff5; }
+  .fs-btn.danger:hover { border-color: #fda4af; color: #fecdd3; }
+  @media (max-width: 520px){ .fs-amb { grid-template-columns: repeat(3, 1fr); } .fs-count { font-size: 50px; } }
+  .focus-fab { display: none; position: fixed; right: 16px; bottom: 84px; z-index: 65; align-items: center; gap: 8px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: var(--accent-ink); border: 0; border-radius: 30px; padding: 12px 18px; font-weight: 700; font-size: 13px; box-shadow: var(--shadow); }
+  .focus-fab.show { display: inline-flex; }
   .stage .count { font-family: var(--mono); font-size: 40px; font-weight: 800; letter-spacing: -1px; }
   .stage .phase { color: var(--txt-dim); font-size: 13px; min-height: 18px; text-align: center; }
   .stage .ring-wrap { position: absolute; top: 14px; right: 16px; }
@@ -625,6 +649,21 @@
   </div>
 </div>
 
+<!-- Immersive focus screen -->
+<div class="focus-screen" id="focusScreen">
+  <button class="fs-min" id="fsMin" aria-label="Minimize"></button>
+  <div class="fs-phase" id="fsPhase"></div>
+  <div class="fs-plant" id="fsPlant"></div>
+  <div class="fs-count" id="fsCount">00:00</div>
+  <div class="fs-sub" id="fsSub">Stay focused — your plant is growing</div>
+  <div class="amb-picker fs-amb" id="fsAmb"></div>
+  <div class="fs-controls">
+    <button class="btn ghost fs-btn" id="fsFull"></button>
+    <button class="btn danger fs-btn" id="fsGiveup">Give up</button>
+  </div>
+</div>
+<button class="focus-fab" id="focusFab"></button>
+
 <div class="toast-wrap" id="toasts"></div>
 
 <script>
@@ -681,7 +720,9 @@ const ICONS = {
   lock:'<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
   fullscreen:'<path d="M4 9V5a1 1 0 0 1 1-1h4M20 9V5a1 1 0 0 0-1-1h-4M4 15v4a1 1 0 0 0 1 1h4M20 15v4a1 1 0 0 1-1 1h-4"/>',
   command:'<path d="M9 6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3z"/>',
-  trash:'<path d="M4 7h16M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M6 7l1 13h10l1-13"/>'
+  trash:'<path d="M4 7h16M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M6 7l1 13h10l1-13"/>',
+  chevron:'<path d="M6 9l6 6 6-6"/>',
+  timer:'<circle cx="12" cy="13" r="8"/><path d="M12 13V9M9 2h6"/>'
 };
 function ic(name, size=18, extra=""){ const p=ICONS[name]; if(!p) return ""; return `<svg class="ic" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ${extra}>${p}</svg>`; }
 const HABIT_ICONS = ["book","code","calc","brain","pen","flask","palette","music","run","globe","bulb","star","dumbbell","target","clock","leaf"];
@@ -1601,7 +1642,7 @@ renderers.settings = () => {
     <div class="stat"><div class="label">Total time</div><div class="value" style="font-size:22px">${fmtDur(totalMinutesAll())}</div></div>
     <div class="stat"><div class="label">Tracking since</div><div class="value" style="font-size:16px">${state.created}</div></div>
   </div>
-  <div class="faint center" style="margin-top:30px;font-size:12px">Cadence · offline study organizer · v1.8 · plant store · focus stats · ambient sounds · no accounts, no AI, no tracking</div>`;
+  <div class="faint center" style="margin-top:30px;font-size:12px">Cadence · offline study organizer · v1.9 · immersive focus mode · plant store · focus stats · no accounts, no AI, no tracking</div>`;
   view.innerHTML = html;
 
   renderSwatches(document.getElementById("setAccent"), s.accent, c=>{ s.accent=c; document.documentElement.style.setProperty("--accent",c); save(); });
@@ -1873,6 +1914,7 @@ function startFocus(durationMin, speciesId, habitId){
   save(); ensureFocusTick(); requestWakeLock();
   if (state.garden.ambient && state.garden.ambient!=="none") Ambient.start(state.garden.ambient);
   toast(`Planted a ${speciesById(speciesId).name}. Stay focused for ${durationMin} min.`);
+  showFocusScreen();
   if (currentView==="grow") renderers.grow();
 }
 function completeFocus(){
@@ -1882,7 +1924,7 @@ function completeFocus(){
   state.garden.sun += mins;
   state.garden.active=null;
   if (a.habitId){ const h=habitById(a.habitId); if(h && h.type==="time") addSession(a.habitId, mins); }
-  save(); checkBadges(); stopFocusTick(); releaseWakeLock(); exitFullscreen(); Ambient.stop();
+  save(); checkBadges(); stopFocusTick(); releaseWakeLock(); exitFullscreen(); Ambient.stop(); hideFocusScreen();
   notify("Bloomed!", `Your ${speciesById(a.species).name} bloomed. +${mins} Sunlight.`);
   toast(`Your ${speciesById(a.species).name} bloomed — +${mins} Sunlight`);
   confettiBurst();
@@ -1899,7 +1941,7 @@ function giveUpFocus(){
   const a=state.garden.active; if(!a) return;
   const p=focusProgress();
   state.garden.plants.push({ id:uid(), species:a.species, ts:new Date().toISOString(), minutes:Math.round(a.durationMin*p), habitId:a.habitId, withered:true });
-  state.garden.active=null; save(); stopFocusTick(); releaseWakeLock(); exitFullscreen(); Ambient.stop();
+  state.garden.active=null; save(); stopFocusTick(); releaseWakeLock(); exitFullscreen(); Ambient.stop(); hideFocusScreen();
   toast("Plant wilted — you ended early. A shorter session next time?");
   if (currentView==="grow") renderers.grow();
 }
@@ -1916,7 +1958,7 @@ function buySpecies(id){
 }
 function ensureFocusTick(){ if(focusTick) return; focusTick=setInterval(focusHeartbeat,1000); }
 function stopFocusTick(){ if(focusTick){ clearInterval(focusTick); focusTick=null; } }
-function focusHeartbeat(){ const a=state.garden.active; if(!a){ stopFocusTick(); return; } if(focusRemainingSec()<=0){ completeFocus(); return; } if(currentView==="grow") updateFocusUI(); }
+function focusHeartbeat(){ const a=state.garden.active; if(!a){ stopFocusTick(); return; } if(focusRemainingSec()<=0){ completeFocus(); return; } if(fsShown()) updateFocusScreen(); else if(currentView==="grow") updateFocusUI(); }
 function updateFocusUI(){
   const a=state.garden.active; if(!a) return;
   const sp=speciesById(a.species), p=focusProgress(), sec=focusRemainingSec();
@@ -1924,6 +1966,35 @@ function updateFocusUI(){
   const holder=document.getElementById("plantHolder"); if(holder) holder.innerHTML=plantSVG(sp,p,190);
   const phase=document.getElementById("focusPhase"); if(phase) phase.textContent=phaseText(p);
   const rw=document.getElementById("focusRing"); if(rw) rw.innerHTML=ring(p, sp.bloom, 42);
+}
+/* ---- Immersive full-screen focus mode ---- */
+function fsShown(){ return document.getElementById("focusScreen").classList.contains("show"); }
+function populateFsAmb(){
+  const c=document.getElementById("fsAmb"); if(!c) return;
+  c.innerHTML=AMBIENTS.map(a=>`<button class="${state.garden.ambient===a.id?'on':''}" data-amb2="${a.id}">${ic(a.icon,18)}${a.name}</button>`).join("");
+  c.querySelectorAll("[data-amb2]").forEach(b=> b.onclick=()=>{ setAmbient(b.dataset.amb2); populateFsAmb(); });
+}
+function updateFocusScreen(){
+  const a=state.garden.active; if(!a) return;
+  const sp=speciesById(a.species), p=focusProgress(), sec=focusRemainingSec();
+  const cnt=document.getElementById("fsCount"); if(cnt) cnt.textContent=`${String(Math.floor(sec/60)).padStart(2,'0')}:${String(sec%60).padStart(2,'0')}`;
+  const pl=document.getElementById("fsPlant"); if(pl) pl.innerHTML=plantSVG(sp,p,200);
+  const ph=document.getElementById("fsPhase"); if(ph) ph.textContent=phaseText(p);
+}
+function showFocusScreen(){
+  if (!state.garden.active) return;
+  const fab=document.getElementById("focusFab"); if(fab) fab.classList.remove("show");
+  document.getElementById("focusScreen").classList.add("show");
+  populateFsAmb(); updateFocusScreen();
+}
+function hideFocusScreen(){
+  document.getElementById("focusScreen").classList.remove("show");
+  const fab=document.getElementById("focusFab"); if(fab) fab.classList.remove("show");
+}
+function minimizeFocusScreen(){
+  document.getElementById("focusScreen").classList.remove("show");
+  const fab=document.getElementById("focusFab"); if(fab && state.garden.active) fab.classList.add("show");
+  if (currentView==="grow") renderers.grow();
 }
 // garden streak: consecutive days with at least one bloom
 function gardenStreak(){
@@ -2376,6 +2447,16 @@ function renderStaticIcons(){
   const c=document.querySelector(".cmd-ic"); if(c) c.innerHTML=ic("command",14);
   const a=document.querySelector(".add-ic"); if(a) a.innerHTML=ic("plus",15);
   const m=document.getElementById("micBtn"); if(m) m.innerHTML=ic("mic",17);
+  const fm=document.getElementById("fsMin"); if(fm) fm.innerHTML=ic("chevron",22);
+  const ff=document.getElementById("fsFull"); if(ff) ff.innerHTML=ic("fullscreen",15)+" Fullscreen";
+  const fab=document.getElementById("focusFab"); if(fab) fab.innerHTML=ic("leaf",16)+" Focusing";
+}
+function wireFocusScreen(){
+  const q=id=>document.getElementById(id);
+  if(q("fsMin")) q("fsMin").onclick=minimizeFocusScreen;
+  if(q("fsFull")) q("fsFull").onclick=()=> document.fullscreenElement?exitFullscreen():enterFullscreen();
+  if(q("fsGiveup")) q("fsGiveup").onclick=()=>{ if(confirm("Give up this session? The plant will wilt.")) giveUpFocus(); };
+  if(q("focusFab")) q("focusFab").onclick=showFocusScreen;
 }
 function cycleTheme(){ state.settings.theme = resolveTheme()==="light" ? "dark" : "light"; save(); applyTheme(); toast(resolveTheme()==="light"?"Light theme":"Dark theme"); }
 try { if (window.matchMedia){ matchMedia("(prefers-color-scheme: light)").addEventListener?.("change", ()=>{ if(state.settings.theme==="auto") applyTheme(); }); } } catch {}
@@ -2383,13 +2464,14 @@ try { if (window.matchMedia){ matchMedia("(prefers-color-scheme: light)").addEve
 
 /* ============================= Boot ============================= */
 renderStaticIcons();
+wireFocusScreen();
 applyTheme();
 document.documentElement.style.setProperty("--accent", state.settings.accent||COLORS[0]);
 knownBadges = new Set(BADGES.filter(b=>b.test()).map(b=>b.id));
 // Resume or finish a focus session that was running before reload
 if (state.garden.active){
   if (focusRemainingSec()<=0) completeFocus();
-  else ensureFocusTick();
+  else { ensureFocusTick(); if (state.garden.ambient && state.garden.ambient!=="none") { /* audio needs a gesture; wait */ } minimizeFocusScreen(); }
 }
 setView("dashboard");
 updateClock();
