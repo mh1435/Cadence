@@ -413,6 +413,10 @@
   .art-thumb { height: 72px; border: 1px solid var(--line-2); border-radius: 10px; background: var(--bg); display: grid; place-items: center; overflow: hidden; margin-bottom: 5px; }
   .art-thumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
   .art-lbl { font-size: 11px; color: var(--txt-dim); margin-bottom: 5px; }
+  .art-canvas-wrap { width: 300px; max-width: 100%; aspect-ratio: 1; border-radius: 14px; overflow: hidden; border: 1px solid var(--line-2);
+    background: repeating-conic-gradient(#7f7f7f22 0% 25%, transparent 0% 50%) 50% / 22px 22px, var(--bg); touch-action: none; align-self: center; }
+  #artCanvas { display: block; width: 100%; height: 100%; cursor: grab; }
+  #artCanvas:active { cursor: grabbing; }
   .species-pick { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
   .species-pick .sp { width: 52px; height: 60px; border-radius: 10px; border: 1px solid var(--line-2); background: var(--bg-3); display: grid; place-items: center; position: relative; }
   .species-pick .sp.on { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb,var(--accent) 40%, transparent); }
@@ -671,6 +675,27 @@
   <div class="box">
     <input id="cmdInput" placeholder="Jump to… or type a command, e.g. “add habit reading 30 min daily”, “log 25 to coding”" autocomplete="off" />
     <div class="results" id="cmdResults"></div>
+  </div>
+</div>
+
+<!-- Plant art editor (cut + remove background) -->
+<div class="overlay" id="artEditor">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-head"><h3>Cut out your plant</h3><button class="x" data-close-art>&times;</button></div>
+    <div class="modal-body">
+      <div class="art-canvas-wrap"><canvas id="artCanvas" width="600" height="600"></canvas></div>
+      <div class="field"><label>Zoom &amp; position <span class="hint">drag the image to frame one plant</span></label>
+        <input type="range" id="artZoom" min="1" max="5" step="0.01" value="1" class="input"></div>
+      <label class="flex" style="gap:8px;font-size:13.5px;align-self:flex-start"><input type="checkbox" id="artBg" checked> Remove background</label>
+      <div class="field" id="artTolField"><label>Background strength</label>
+        <input type="range" id="artTol" min="8" max="160" step="1" value="55" class="input"></div>
+      <div class="faint" style="font-size:11.5px">Removes the background connected to the edges. Nudge the strength if too much or too little is cut.</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" data-close-art>Cancel</button>
+      <button class="btn" id="artPreview">Preview cut</button>
+      <button class="btn primary" id="artUse">Use image</button>
+    </div>
   </div>
 </div>
 
@@ -1673,7 +1698,7 @@ renderers.settings = () => {
     <div class="stat"><div class="label">Total time</div><div class="value" style="font-size:22px">${fmtDur(totalMinutesAll())}</div></div>
     <div class="stat"><div class="label">Tracking since</div><div class="value" style="font-size:16px">${state.created}</div></div>
   </div>
-  <div class="faint center" style="margin-top:30px;font-size:12px">Cadence · offline study organizer · v2.3 · bring-your-own plant art · circular dial · no accounts, no AI, no tracking</div>`;
+  <div class="faint center" style="margin-top:30px;font-size:12px">Cadence · offline study organizer · v2.4 · in-app plant cutter + background remover · no accounts, no AI, no tracking</div>`;
   view.innerHTML = html;
 
   renderSwatches(document.getElementById("setAccent"), s.accent, c=>{ s.accent=c; document.documentElement.style.setProperty("--accent",c); save(); });
@@ -1807,19 +1832,68 @@ function saveArt(){ try { localStorage.setItem(ART_KEY, JSON.stringify(art)); re
 function importArtImage(slot, file){
   if (!file) return;
   const rd=new FileReader();
-  rd.onload=()=>{ const img=new Image();
-    img.onload=()=>{ try {
-      const max=512; let w=img.width||1, h=img.height||1; const sc=Math.min(1, max/Math.max(w,h)); w=Math.max(1,Math.round(w*sc)); h=Math.max(1,Math.round(h*sc));
-      const cv=document.createElement("canvas"); cv.width=w; cv.height=h; const cx=cv.getContext("2d"); cx.clearRect(0,0,w,h); cx.drawImage(img,0,0,w,h);
-      let data; try { data=cv.toDataURL("image/webp",0.82); if(!data.startsWith("data:image/webp")) data=cv.toDataURL("image/png"); } catch { data=cv.toDataURL("image/png"); }
-      art[slot]=data; if(!art.enabled) art.enabled=true;
-      if (saveArt()){ toast("Saved your "+slot+" image"); if(currentView==="grow") renderers.grow(); }
-    } catch(e){ toast("Couldn't process that image."); } };
-    img.onerror=()=> toast("Couldn't read that image.");
-    img.src=rd.result;
-  };
+  rd.onload=()=>{ const img=new Image(); img.onload=()=> openArtEditor(slot, img); img.onerror=()=> toast("Couldn't read that image."); img.src=rd.result; };
   rd.onerror=()=> toast("Couldn't read that file.");
   rd.readAsDataURL(file);
+}
+/* ---- In-app cutter + background remover (operates only on the user's imported image) ---- */
+let artEdit=null;
+function openArtEditor(slot, img){
+  const c=document.getElementById("artCanvas"), S=c.width;
+  const base=Math.min(S/img.width, S/img.height);
+  artEdit={ slot, img, base, scale:1, ox:(S-img.width*base)/2, oy:(S-img.height*base)/2, preview:false };
+  const z=document.getElementById("artZoom"); if(z) z.value=1;
+  const bg=document.getElementById("artBg"); if(bg) bg.checked=true;
+  drawArtEditor();
+  showModal("artEditor");
+}
+function drawArtEditor(){
+  if(!artEdit) return; const c=document.getElementById("artCanvas"); if(!c) return; const cx=c.getContext("2d"), S=c.width;
+  const sc=artEdit.base*artEdit.scale;
+  cx.clearRect(0,0,S,S);
+  cx.drawImage(artEdit.img, artEdit.ox, artEdit.oy, artEdit.img.width*sc, artEdit.img.height*sc);
+  if (artEdit.preview && document.getElementById("artBg").checked){ removeBg(cx, S, S, +document.getElementById("artTol").value); }
+}
+function artSetZoom(z){
+  if(!artEdit) return; const S=document.getElementById("artCanvas").width, cxp=S/2, cyp=S/2;
+  const oldsc=artEdit.base*artEdit.scale, newsc=artEdit.base*z;
+  const ix=(cxp-artEdit.ox)/oldsc, iy=(cyp-artEdit.oy)/oldsc;
+  artEdit.scale=z; artEdit.ox=cxp-ix*newsc; artEdit.oy=cyp-iy*newsc; artEdit.preview=false; drawArtEditor();
+}
+function removeBg(ctx, w, h, tol){
+  const id=ctx.getImageData(0,0,w,h), d=id.data, N=w*h;
+  const cornerIdx=[0, (w-1)*4, (h-1)*w*4, ((h-1)*w+(w-1))*4];
+  const cols=cornerIdx.map(i=>[d[i],d[i+1],d[i+2],d[i+3]]);
+  const T=tol*3;
+  const bgMatch=i=>{ if(d[i+3]===0) return true; for(const c of cols){ if(c[3]>0 && Math.abs(d[i]-c[0])+Math.abs(d[i+1]-c[1])+Math.abs(d[i+2]-c[2])<=T) return true; } return false; };
+  const seen=new Uint8Array(N); const stack=new Int32Array(N); let sp=0;
+  for(let x=0;x<w;x++){ stack[sp++]=x; stack[sp++]=(h-1)*w+x; }
+  for(let y=0;y<h;y++){ stack[sp++]=y*w; stack[sp++]=y*w+(w-1); }
+  while(sp>0){ const p=stack[--sp]; if(p<0||p>=N||seen[p]) continue; seen[p]=1; const i=p*4; if(!bgMatch(i)) continue; d[i+3]=0;
+    const x=p%w, y=(p-x)/w;
+    if(x+1<w) stack[sp++]=p+1; if(x-1>=0) stack[sp++]=p-1; if(y+1<h) stack[sp++]=p+w; if(y-1>=0) stack[sp++]=p-w;
+  }
+  ctx.putImageData(id,0,0);
+}
+function trimCanvas(cv){
+  const w=cv.width,h=cv.height,ctx=cv.getContext("2d"),d=ctx.getImageData(0,0,w,h).data;
+  let x0=w,y0=h,x1=-1,y1=-1;
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){ if(d[(y*w+x)*4+3]>10){ if(x<x0)x0=x; if(x>x1)x1=x; if(y<y0)y0=y; if(y>y1)y1=y; } }
+  if(x1<0) return cv;
+  const cw=x1-x0+1, ch=y1-y0+1, o=document.createElement("canvas"); o.width=cw; o.height=ch;
+  o.getContext("2d").drawImage(cv, x0,y0,cw,ch, 0,0,cw,ch); return o;
+}
+function useArtImage(){
+  if(!artEdit) return;
+  const out=512, cv=document.createElement("canvas"); cv.width=out; cv.height=out; const cx=cv.getContext("2d");
+  const S=document.getElementById("artCanvas").width, k=out/S, sc=artEdit.base*artEdit.scale*k;
+  cx.clearRect(0,0,out,out);
+  cx.drawImage(artEdit.img, artEdit.ox*k, artEdit.oy*k, artEdit.img.width*sc, artEdit.img.height*sc);
+  if (document.getElementById("artBg").checked) removeBg(cx, out, out, +document.getElementById("artTol").value);
+  const trimmed=trimCanvas(cv);
+  let data; try { data=trimmed.toDataURL("image/webp",0.85); if(!data.startsWith("data:image/webp")) data=trimmed.toDataURL("image/png"); } catch { data=trimmed.toDataURL("image/png"); }
+  art[artEdit.slot]=data; if(!art.enabled) art.enabled=true;
+  if (saveArt()){ toast("Saved your "+artEdit.slot+" image"); hideModal("artEditor"); artEdit=null; if(currentView==="grow") renderers.grow(); }
 }
 function artFor(p){ if(!art.enabled) return ""; if(p<0.34) return art.seed||art.mid||art.bloom||""; if(p<0.75) return art.mid||art.bloom||art.seed||""; return art.bloom||art.mid||art.seed||""; }
 // growing plant visual: user image if provided, else our SVG art
@@ -2660,6 +2734,22 @@ function renderStaticIcons(){
   const ff=document.getElementById("fsFull"); if(ff) ff.innerHTML=ic("fullscreen",15)+" Fullscreen";
   const fab=document.getElementById("focusFab"); if(fab) fab.innerHTML=ic("leaf",16)+" Focusing";
 }
+function wireArtEditor(){
+  const q=id=>document.getElementById(id);
+  document.querySelectorAll("[data-close-art]").forEach(b=> b.onclick=()=>{ hideModal("artEditor"); artEdit=null; });
+  if(q("artZoom")) q("artZoom").oninput=e=> artSetZoom(+e.target.value);
+  if(q("artPreview")) q("artPreview").onclick=()=>{ if(artEdit){ artEdit.preview=true; drawArtEditor(); } };
+  if(q("artTol")) q("artTol").oninput=()=>{ if(artEdit&&artEdit.preview) drawArtEditor(); };
+  if(q("artBg")) q("artBg").onchange=()=>{ if(artEdit){ artEdit.preview=false; drawArtEditor(); } };
+  if(q("artUse")) q("artUse").onclick=useArtImage;
+  const c=q("artCanvas");
+  if(c){ let drag=false, lx=0, ly=0;
+    const to=(e)=>{ const r=c.getBoundingClientRect(); return [ (e.clientX-r.left)*(c.width/r.width), (e.clientY-r.top)*(c.height/r.height) ]; };
+    c.onpointerdown=e=>{ drag=true; try{c.setPointerCapture(e.pointerId);}catch{} [lx,ly]=to(e); e.preventDefault(); };
+    c.onpointermove=e=>{ if(!drag||!artEdit) return; const [x,y]=to(e); artEdit.ox+=x-lx; artEdit.oy+=y-ly; lx=x; ly=y; artEdit.preview=false; drawArtEditor(); };
+    c.onpointerup=c.onpointercancel=()=>{ drag=false; };
+  }
+}
 function wireFocusScreen(){
   const q=id=>document.getElementById(id);
   if(q("fsMin")) q("fsMin").onclick=minimizeFocusScreen;
@@ -2674,6 +2764,7 @@ try { if (window.matchMedia){ matchMedia("(prefers-color-scheme: light)").addEve
 /* ============================= Boot ============================= */
 renderStaticIcons();
 wireFocusScreen();
+wireArtEditor();
 applyTheme();
 document.documentElement.style.setProperty("--accent", state.settings.accent||COLORS[0]);
 knownBadges = new Set(BADGES.filter(b=>b.test()).map(b=>b.id));
