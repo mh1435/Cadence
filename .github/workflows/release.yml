@@ -103,7 +103,7 @@ jobs:
           # Minimal Capacitor project
           npm init -y >/dev/null 2>&1
           npm install --no-audit --no-fund @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6
-          npx --yes cap init Cadence com.cadence.app --web-dir www
+          npx --yes cap init Cadence app.cadence.focus --web-dir www
           npx --yes cap add android
           npx --yes cap sync android
 
