@@ -407,6 +407,12 @@
   .dial-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
   .dial-min { font-family: var(--mono); font-weight: 800; font-size: 30px; margin-top: -6px; }
   .dial-min small { font-size: 13px; color: var(--txt-dim); font-weight: 600; }
+  .plant-img { display: block; }
+  .art-slots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .art-slot { text-align: center; }
+  .art-thumb { height: 72px; border: 1px solid var(--line-2); border-radius: 10px; background: var(--bg); display: grid; place-items: center; overflow: hidden; margin-bottom: 5px; }
+  .art-thumb img { max-width: 100%; max-height: 100%; object-fit: contain; }
+  .art-lbl { font-size: 11px; color: var(--txt-dim); margin-bottom: 5px; }
   .species-pick { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
   .species-pick .sp { width: 52px; height: 60px; border-radius: 10px; border: 1px solid var(--line-2); background: var(--bg-3); display: grid; place-items: center; position: relative; }
   .species-pick .sp.on { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb,var(--accent) 40%, transparent); }
@@ -1667,7 +1673,7 @@ renderers.settings = () => {
     <div class="stat"><div class="label">Total time</div><div class="value" style="font-size:22px">${fmtDur(totalMinutesAll())}</div></div>
     <div class="stat"><div class="label">Tracking since</div><div class="value" style="font-size:16px">${state.created}</div></div>
   </div>
-  <div class="faint center" style="margin-top:30px;font-size:12px">Cadence · offline study organizer · v2.2 · circular dial timer · magical species · immersive focus · no accounts, no AI, no tracking</div>`;
+  <div class="faint center" style="margin-top:30px;font-size:12px">Cadence · offline study organizer · v2.3 · bring-your-own plant art · circular dial · no accounts, no AI, no tracking</div>`;
   view.innerHTML = html;
 
   renderSwatches(document.getElementById("setAccent"), s.accent, c=>{ s.accent=c; document.documentElement.style.setProperty("--accent",c); save(); });
@@ -1793,6 +1799,35 @@ function confettiBurst(x, y){
 /* ============================= Focus Garden ============================= */
 function speciesById(id){ return SPECIES.find(s=>s.id===id) || SPECIES[0]; }
 function gsun(){ return state.garden.sun; }
+
+/* ===== Bring-your-own plant art: user imports their own images (stored locally, never uploaded) ===== */
+const ART_KEY="cadence.art.v1";
+let art = (function(){ try { return Object.assign({enabled:false,seed:"",mid:"",bloom:""}, JSON.parse(localStorage.getItem(ART_KEY)||"{}")); } catch { return {enabled:false,seed:"",mid:"",bloom:""}; } })();
+function saveArt(){ try { localStorage.setItem(ART_KEY, JSON.stringify(art)); return true; } catch(e){ toast("That image is too large to store — try a smaller one."); return false; } }
+function importArtImage(slot, file){
+  if (!file) return;
+  const rd=new FileReader();
+  rd.onload=()=>{ const img=new Image();
+    img.onload=()=>{ try {
+      const max=512; let w=img.width||1, h=img.height||1; const sc=Math.min(1, max/Math.max(w,h)); w=Math.max(1,Math.round(w*sc)); h=Math.max(1,Math.round(h*sc));
+      const cv=document.createElement("canvas"); cv.width=w; cv.height=h; const cx=cv.getContext("2d"); cx.clearRect(0,0,w,h); cx.drawImage(img,0,0,w,h);
+      let data; try { data=cv.toDataURL("image/webp",0.82); if(!data.startsWith("data:image/webp")) data=cv.toDataURL("image/png"); } catch { data=cv.toDataURL("image/png"); }
+      art[slot]=data; if(!art.enabled) art.enabled=true;
+      if (saveArt()){ toast("Saved your "+slot+" image"); if(currentView==="grow") renderers.grow(); }
+    } catch(e){ toast("Couldn't process that image."); } };
+    img.onerror=()=> toast("Couldn't read that image.");
+    img.src=rd.result;
+  };
+  rd.onerror=()=> toast("Couldn't read that file.");
+  rd.readAsDataURL(file);
+}
+function artFor(p){ if(!art.enabled) return ""; if(p<0.34) return art.seed||art.mid||art.bloom||""; if(p<0.75) return art.mid||art.bloom||art.seed||""; return art.bloom||art.mid||art.seed||""; }
+// growing plant visual: user image if provided, else our SVG art
+function plantVisual(sp, p, size){
+  const src=artFor(p);
+  if (src) return `<img class="plant-img" src="${src}" alt="" style="width:${size}px;height:${(size*1.15).toFixed(0)}px;object-fit:contain;object-position:center bottom">`;
+  return plantSVG(sp, p, size);
+}
 
 // ----- color helpers for shading -----
 function hexAdj(hex, amt){
@@ -2074,7 +2109,7 @@ function updateFocusUI(){
   const a=state.garden.active; if(!a) return;
   const sp=speciesById(a.species), p=focusProgress(), sec=focusRemainingSec();
   const cnt=document.getElementById("focusCount"); if(cnt) cnt.textContent=`${String(Math.floor(sec/60)).padStart(2,'0')}:${String(sec%60).padStart(2,'0')}`;
-  const holder=document.getElementById("plantHolder"); if(holder) holder.innerHTML=plantSVG(sp,p,190);
+  const holder=document.getElementById("plantHolder"); if(holder) holder.innerHTML=plantVisual(sp,p,190);
   const phase=document.getElementById("focusPhase"); if(phase) phase.textContent=phaseText(p);
   const rw=document.getElementById("focusRing"); if(rw) rw.innerHTML=ring(p, sp.bloom, 42);
 }
@@ -2089,7 +2124,7 @@ function updateFocusScreen(){
   const a=state.garden.active; if(!a) return;
   const sp=speciesById(a.species), p=focusProgress(), sec=focusRemainingSec();
   const cnt=document.getElementById("fsCount"); if(cnt) cnt.textContent=`${String(Math.floor(sec/60)).padStart(2,'0')}:${String(sec%60).padStart(2,'0')}`;
-  const pl=document.getElementById("fsPlant"); if(pl) pl.innerHTML=plantSVG(sp,p,200);
+  const pl=document.getElementById("fsPlant"); if(pl) pl.innerHTML=plantVisual(sp,p,200);
   const ph=document.getElementById("fsPhase"); if(ph) ph.textContent=phaseText(p);
 }
 function showFocusScreen(){
@@ -2130,7 +2165,7 @@ renderers.grow = () => {
   if (g.active){
     const sp=speciesById(g.active.species), p=focusProgress(), sec=focusRemainingSec();
     html += `<div class="ring-wrap" id="focusRing">${ring(p, sp.bloom, 42)}</div>
-      <div class="pot-area glow" id="plantHolder">${plantSVG(sp,p,190)}</div>
+      <div class="pot-area glow" id="plantHolder">${plantVisual(sp,p,190)}</div>
       <div class="count" id="focusCount">${String(Math.floor(sec/60)).padStart(2,'0')}:${String(sec%60).padStart(2,'0')}</div>
       <div class="phase" id="focusPhase">${phaseText(p)}</div>
       <div class="focus-controls"><button class="btn" id="fsFocus">${ic("fullscreen",15)} Fullscreen</button><button class="btn danger" id="giveUp">Give up</button></div>
@@ -2146,7 +2181,7 @@ renderers.grow = () => {
           <circle class="dial-handle" id="dialHandle" r="9" cx="100" cy="14"/>
         </svg>
         <div class="dial-center">
-          <div style="width:96px;height:104px;display:grid;place-items:center">${plantSVG(sp,1,90)}</div>
+          <div style="width:96px;height:104px;display:grid;place-items:center">${plantVisual(sp,1,90)}</div>
           <div class="dial-min"><span id="dialMin">${chosenDur}</span><small> min</small></div>
         </div>
       </div>
@@ -2198,6 +2233,20 @@ renderers.grow = () => {
   html += `<div class="card"><div class="flex" style="margin-bottom:12px"><b>Ambient sound</b><span class="spacer" style="flex:1"></span><span class="faint" style="font-size:12px">plays while focusing</span></div>
     <div class="amb-picker" id="ambPicker">`+AMBIENTS.map(a=>`<button class="${state.garden.ambient===a.id?'on':''}" data-amb="${a.id}">${ic(a.icon,20)}${a.name}</button>`).join("")+`</div></div>`;
 
+  html += `<div class="card"><div class="flex" style="margin-bottom:4px"><b>Your own plant art</b><span class="spacer" style="flex:1"></span>
+      <button class="btn small ${art.enabled?'primary':''}" id="artToggle">${art.enabled?'On':'Off'}</button></div>
+    <div class="muted" style="font-size:12.5px;margin-bottom:10px">Import your own images to show as the growing plant. Stored on this device only — nothing is uploaded.</div>
+    <div class="art-slots">
+      ${['seed','mid','bloom'].map(sl=>`<div class="art-slot">
+        <div class="art-thumb">${art[sl]?`<img src="${art[sl]}" alt="">`:`<span class="faint" style="font-size:11px">empty</span>`}</div>
+        <div class="art-lbl">${sl==='seed'?'Start':sl==='mid'?'Growing':'Bloom'}</div>
+        <button class="btn small" data-art="${sl}">${art[sl]?'Change':'Add'}</button>
+      </div>`).join("")}
+    </div>
+    <input type="file" accept="image/*" id="artFile" style="display:none">
+    ${(art.seed||art.mid||art.bloom)?`<div style="margin-top:10px"><button class="btn small ghost danger" id="artClear">Clear all</button></div>`:''}
+  </div>`;
+
   html += `<div class="card flex" style="justify-content:space-between"><div><b style="font-size:14px">${ic("lock",14)} Focus Lock (Strict mode)</b><div class="muted" style="font-size:12.5px">Leaving Cadence mid-session wilts the plant, and the screen stays awake while you focus. Real stakes, real focus.</div></div>
     <button class="btn ${g.strict?'primary':''}" id="strictToggle">${g.strict?'On':'Off'}</button></div>`;
 
@@ -2237,6 +2286,13 @@ renderers.grow = () => {
   const st=document.getElementById("strictToggle"); if(st) st.onclick=()=>{ state.garden.strict=!state.garden.strict; save(); renderers.grow(); toast(state.garden.strict?"Strict mode on":"Strict mode off"); };
   view.querySelectorAll("#ambPicker [data-amb]").forEach(b=> b.onclick=()=> setAmbient(b.dataset.amb));
   view.querySelectorAll("[data-buy]").forEach(b=> b.onclick=()=> buySpecies(b.dataset.buy));
+  // Bring-your-own plant art
+  { const artFileEl=document.getElementById("artFile"); let artSlot="seed";
+    view.querySelectorAll("[data-art]").forEach(b=> b.onclick=()=>{ artSlot=b.dataset.art; if(artFileEl){ artFileEl.value=""; artFileEl.click(); } });
+    if (artFileEl) artFileEl.onchange=e=>{ const f=e.target.files&&e.target.files[0]; if(f) importArtImage(artSlot,f); };
+    const at=document.getElementById("artToggle"); if(at) at.onclick=()=>{ art.enabled=!art.enabled; saveArt(); renderers.grow(); toast(art.enabled?"Using your art":"Using built-in art"); };
+    const ac=document.getElementById("artClear"); if(ac) ac.onclick=()=>{ if(confirm("Remove your imported plant images?")){ art={enabled:false,seed:"",mid:"",bloom:""}; saveArt(); renderers.grow(); } };
+  }
 };
 
 /* ============================= Command palette ============================= */
