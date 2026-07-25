@@ -504,6 +504,7 @@
     <button class="nav-btn active" data-view="dashboard" data-icon="home"><span class="ico"></span> Dashboard <span class="key">1</span></button>
     <button class="nav-btn" data-view="grow" data-icon="leaf"><span class="ico"></span> Focus Garden <span class="key">8</span></button>
     <button class="nav-btn" data-view="habits" data-icon="check"><span class="ico"></span> Habits <span class="key">2</span></button>
+    <button class="nav-btn" data-view="study" data-icon="book"><span class="ico"></span> Study <span class="key">9</span></button>
     <button class="nav-btn" data-view="schedule" data-icon="calendar"><span class="ico"></span> Schedule <span class="key">3</span></button>
     <button class="nav-btn" data-view="analytics" data-icon="chart"><span class="ico"></span> Analytics <span class="key">4</span></button>
     <button class="nav-btn" data-view="materials" data-icon="book"><span class="ico"></span> Materials <span class="key">5</span></button>
@@ -798,13 +799,98 @@ const ICONS = {
   timer:'<circle cx="12" cy="13" r="8"/><path d="M12 13V9M9 2h6"/>'
 };
 function ic(name, size=18, extra=""){ const p=ICONS[name]; if(!p) return ""; return `<svg class="ic" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" ${extra}>${p}</svg>`; }
+
+/* ============================= i18n ============================= */
+const LANGS = [
+  { id:"en", name:"English" },
+  { id:"es", name:"Español" },
+  { id:"fr", name:"Français" },
+  { id:"de", name:"Deutsch" },
+  { id:"pt", name:"Português" },
+  { id:"ar", name:"العربية", rtl:true },
+];
+const I18N = {
+  en:{ dashboard:"Dashboard", garden:"Focus Garden", habits:"Habits", schedule:"Schedule", analytics:"Analytics", materials:"Materials", planner:"Planner", achievements:"Achievements", study:"Study", settings:"Settings",
+    home:"Home", stats:"Stats", more:"More", newHabit:"New Habit", quick:"Quick",
+    d_sub:"Your day at a glance", g_sub:"Plant a session — grow it by focusing", h_sub:"Track time & count toward your targets",
+    s_sub:"Plan your week in time blocks", a_sub:"Patterns, pace & consistency", m_sub:"Bookmarks for what you're studying",
+    p_sub:"Allocate free time across your goals", ac_sub:"Streaks, badges & levels", st_sub:"Syllabus, flashcards & goals", se_sub:"Data, theme & preferences",
+    timeToday:"Time today", habitsDone:"Habits done", bestStreak:"Best streak", avgProgress:"Avg progress",
+    plantFocus:"Plant & Focus", giveUp:"Give up", start:"Start", stop:"Stop", log:"Log", save:"Save", cancel:"Cancel", del:"Delete", add:"Add",
+    syllabus:"Syllabus", flashcards:"Flashcards", goals:"Goals", addSubject:"Add subject", addTopic:"Add topic", addCard:"Add card", addGoal:"Add goal",
+    language:"Language", theme:"Theme", dark:"Dark", light:"Light", forest:"Forest", auto:"Auto" },
+  es:{ dashboard:"Panel", garden:"Jardín de enfoque", habits:"Hábitos", schedule:"Horario", analytics:"Análisis", materials:"Materiales", planner:"Planificador", achievements:"Logros", study:"Estudio", settings:"Ajustes",
+    home:"Inicio", stats:"Datos", more:"Más", newHabit:"Nuevo hábito", quick:"Rápido",
+    d_sub:"Tu día de un vistazo", g_sub:"Planta una sesión y hazla crecer", h_sub:"Controla tiempo y objetivos",
+    s_sub:"Planifica tu semana en bloques", a_sub:"Patrones, ritmo y constancia", m_sub:"Marcadores de lo que estudias",
+    p_sub:"Reparte tu tiempo libre", ac_sub:"Rachas, insignias y niveles", st_sub:"Temario, tarjetas y metas", se_sub:"Datos, tema y preferencias",
+    timeToday:"Tiempo hoy", habitsDone:"Hábitos hechos", bestStreak:"Mejor racha", avgProgress:"Progreso medio",
+    plantFocus:"Plantar y enfocar", giveUp:"Rendirse", start:"Iniciar", stop:"Parar", log:"Registrar", save:"Guardar", cancel:"Cancelar", del:"Eliminar", add:"Añadir",
+    syllabus:"Temario", flashcards:"Tarjetas", goals:"Metas", addSubject:"Añadir asignatura", addTopic:"Añadir tema", addCard:"Añadir tarjeta", addGoal:"Añadir meta",
+    language:"Idioma", theme:"Tema", dark:"Oscuro", light:"Claro", forest:"Bosque", auto:"Auto" },
+  fr:{ dashboard:"Tableau de bord", garden:"Jardin de concentration", habits:"Habitudes", schedule:"Emploi du temps", analytics:"Analyses", materials:"Ressources", planner:"Planificateur", achievements:"Réussites", study:"Étude", settings:"Réglages",
+    home:"Accueil", stats:"Stats", more:"Plus", newHabit:"Nouvelle habitude", quick:"Rapide",
+    d_sub:"Votre journée en un coup d'œil", g_sub:"Plantez une session et faites-la pousser", h_sub:"Suivez temps et objectifs",
+    s_sub:"Planifiez votre semaine", a_sub:"Tendances, rythme et régularité", m_sub:"Favoris de vos révisions",
+    p_sub:"Répartissez votre temps libre", ac_sub:"Séries, badges et niveaux", st_sub:"Programme, cartes et objectifs", se_sub:"Données, thème et préférences",
+    timeToday:"Temps aujourd'hui", habitsDone:"Habitudes faites", bestStreak:"Meilleure série", avgProgress:"Progrès moyen",
+    plantFocus:"Planter et se concentrer", giveUp:"Abandonner", start:"Démarrer", stop:"Arrêter", log:"Enregistrer", save:"Enregistrer", cancel:"Annuler", del:"Supprimer", add:"Ajouter",
+    syllabus:"Programme", flashcards:"Cartes", goals:"Objectifs", addSubject:"Ajouter une matière", addTopic:"Ajouter un thème", addCard:"Ajouter une carte", addGoal:"Ajouter un objectif",
+    language:"Langue", theme:"Thème", dark:"Sombre", light:"Clair", forest:"Forêt", auto:"Auto" },
+  de:{ dashboard:"Übersicht", garden:"Fokus-Garten", habits:"Gewohnheiten", schedule:"Zeitplan", analytics:"Analysen", materials:"Materialien", planner:"Planer", achievements:"Erfolge", study:"Lernen", settings:"Einstellungen",
+    home:"Start", stats:"Statistik", more:"Mehr", newHabit:"Neue Gewohnheit", quick:"Schnell",
+    d_sub:"Dein Tag auf einen Blick", g_sub:"Pflanze eine Sitzung und lass sie wachsen", h_sub:"Zeit und Ziele verfolgen",
+    s_sub:"Plane deine Woche in Blöcken", a_sub:"Muster, Tempo und Beständigkeit", m_sub:"Lesezeichen für dein Lernmaterial",
+    p_sub:"Verteile deine freie Zeit", ac_sub:"Serien, Abzeichen und Level", st_sub:"Lehrplan, Karten und Ziele", se_sub:"Daten, Design und Einstellungen",
+    timeToday:"Zeit heute", habitsDone:"Erledigt", bestStreak:"Beste Serie", avgProgress:"Ø Fortschritt",
+    plantFocus:"Pflanzen & fokussieren", giveUp:"Aufgeben", start:"Start", stop:"Stopp", log:"Erfassen", save:"Speichern", cancel:"Abbrechen", del:"Löschen", add:"Hinzufügen",
+    syllabus:"Lehrplan", flashcards:"Karteikarten", goals:"Ziele", addSubject:"Fach hinzufügen", addTopic:"Thema hinzufügen", addCard:"Karte hinzufügen", addGoal:"Ziel hinzufügen",
+    language:"Sprache", theme:"Design", dark:"Dunkel", light:"Hell", forest:"Wald", auto:"Auto" },
+  pt:{ dashboard:"Painel", garden:"Jardim de foco", habits:"Hábitos", schedule:"Agenda", analytics:"Análises", materials:"Materiais", planner:"Planejador", achievements:"Conquistas", study:"Estudo", settings:"Definições",
+    home:"Início", stats:"Dados", more:"Mais", newHabit:"Novo hábito", quick:"Rápido",
+    d_sub:"O seu dia num relance", g_sub:"Plante uma sessão e faça-a crescer", h_sub:"Acompanhe tempo e metas",
+    s_sub:"Planeie a sua semana", a_sub:"Padrões, ritmo e consistência", m_sub:"Marcadores do que estuda",
+    p_sub:"Distribua o seu tempo livre", ac_sub:"Sequências, medalhas e níveis", st_sub:"Programa, cartões e metas", se_sub:"Dados, tema e preferências",
+    timeToday:"Tempo hoje", habitsDone:"Hábitos feitos", bestStreak:"Melhor sequência", avgProgress:"Progresso médio",
+    plantFocus:"Plantar e focar", giveUp:"Desistir", start:"Iniciar", stop:"Parar", log:"Registar", save:"Guardar", cancel:"Cancelar", del:"Eliminar", add:"Adicionar",
+    syllabus:"Programa", flashcards:"Cartões", goals:"Metas", addSubject:"Adicionar disciplina", addTopic:"Adicionar tópico", addCard:"Adicionar cartão", addGoal:"Adicionar meta",
+    language:"Idioma", theme:"Tema", dark:"Escuro", light:"Claro", forest:"Floresta", auto:"Auto" },
+  ar:{ dashboard:"لوحة التحكم", garden:"حديقة التركيز", habits:"العادات", schedule:"الجدول", analytics:"التحليلات", materials:"المواد", planner:"المخطط", achievements:"الإنجازات", study:"الدراسة", settings:"الإعدادات",
+    home:"الرئيسية", stats:"الإحصائيات", more:"المزيد", newHabit:"عادة جديدة", quick:"سريع",
+    d_sub:"يومك في لمحة", g_sub:"ازرع جلسة ونمِّها بالتركيز", h_sub:"تتبع الوقت والأهداف",
+    s_sub:"خطط أسبوعك بمقاطع زمنية", a_sub:"الأنماط والوتيرة والانتظام", m_sub:"مراجع لما تدرسه",
+    p_sub:"وزّع وقتك الحر على أهدافك", ac_sub:"السلاسل والأوسمة والمستويات", st_sub:"المنهج والبطاقات والأهداف", se_sub:"البيانات والمظهر والتفضيلات",
+    timeToday:"وقت اليوم", habitsDone:"العادات المنجزة", bestStreak:"أفضل سلسلة", avgProgress:"متوسط التقدم",
+    plantFocus:"ازرع وركّز", giveUp:"استسلام", start:"ابدأ", stop:"إيقاف", log:"تسجيل", save:"حفظ", cancel:"إلغاء", del:"حذف", add:"إضافة",
+    syllabus:"المنهج", flashcards:"البطاقات", goals:"الأهداف", addSubject:"إضافة مادة", addTopic:"إضافة موضوع", addCard:"إضافة بطاقة", addGoal:"إضافة هدف",
+    language:"اللغة", theme:"المظهر", dark:"داكن", light:"فاتح", forest:"غابة", auto:"تلقائي" },
+};
+function t(k){ const L=state.settings.lang||"en"; return (I18N[L]&&I18N[L][k]) || I18N.en[k] || k; }
+function applyLang(){
+  const L=state.settings.lang||"en", meta=LANGS.find(x=>x.id===L);
+  document.documentElement.lang=L;
+  document.documentElement.dir = meta&&meta.rtl ? "rtl" : "ltr";
+  document.querySelectorAll(".nav-btn[data-view]").forEach(b=>{
+    const key={dashboard:"dashboard",grow:"garden",habits:"habits",schedule:"schedule",analytics:"analytics",materials:"materials",planner:"planner",achievements:"achievements",study:"study",settings:"settings"}[b.dataset.view];
+    if(!key) return; const ico=b.querySelector(".ico"), k=b.querySelector(".key");
+    b.innerHTML = (ico?ico.outerHTML:"") + " " + esc(t(key)) + " " + (k?k.outerHTML:"");
+  });
+  document.querySelectorAll(".tabbtn[data-view]").forEach(b=>{
+    const key={dashboard:"home",grow:"garden",habits:"habits",analytics:"stats",__more:"more"}[b.dataset.view];
+    if(!key) return; const ico=b.querySelector(".tabic");
+    b.innerHTML = (ico?ico.outerHTML:"") + esc(t(key));
+  });
+  const add=document.getElementById("addBtn"); if(add) add.innerHTML=`<span class="add-ic">${ic("plus",15)}</span> ${esc(t("newHabit"))}`;
+  const cb=document.getElementById("cmdBtn"); if(cb) cb.innerHTML=`<span class="cmd-ic">${ic("command",14)}</span> ${esc(t("quick"))} <span class="kbd">K</span>`;
+}
 const HABIT_ICONS = ["book","code","calc","brain","pen","flask","palette","music","run","globe","bulb","star","dumbbell","target","clock","leaf"];
 
 const DEFAULT_STATE = {
   habits: [],
   materials: [],
   blocks: [],           // {id, day:'mon', start:'09:00', end:'10:30', subject, color}
-  settings: { accent: "#6ea8fe", weekStartMon: true, dayStart: 6, dayEnd: 23, notify: false, theme: "dark", motion: "on", onboarded: false },
+  settings: { accent: "#6ea8fe", weekStartMon: true, dayStart: 6, dayEnd: 23, notify: false, theme: "dark", motion: "on", onboarded: false, lang: "en" },
+  study: { subjects: [], goals: [] },
   garden: { plants: [], sun: 0, unlocked: ["sprout","fern"], strict: false, active: null,
             ambient: "none", pomo: { on:false, focus:25, short:5, long:20, cycle:4 }, pomoCount: 0, onBreak: null },
   created: todayISO()
@@ -901,15 +987,16 @@ function setView(v){
   document.querySelectorAll(".nav-btn").forEach(b=> b.classList.toggle("active", b.dataset.view===v));
   document.querySelectorAll(".tabbtn").forEach(b=> b.classList.toggle("active", b.dataset.view===v));
   const map = {
-    dashboard:["Dashboard", "Your day at a glance"],
-    grow:["Focus Garden","Plant a session — grow it by focusing"],
-    habits:["Habits","Track time & count toward your targets"],
-    schedule:["Schedule","Plan your week in time blocks"],
-    analytics:["Analytics","Patterns, pace & consistency"],
-    materials:["Materials","Bookmarks for what you're studying"],
-    planner:["Planner","Allocate free time across your goals"],
-    achievements:["Achievements","Streaks, badges & levels"],
-    settings:["Settings","Data, theme & preferences"]
+    dashboard:[t("dashboard"),t("d_sub")],
+    grow:[t("garden"),t("g_sub")],
+    habits:[t("habits"),t("h_sub")],
+    study:[t("study"),t("st_sub")],
+    schedule:[t("schedule"),t("s_sub")],
+    analytics:[t("analytics"),t("a_sub")],
+    materials:[t("materials"),t("m_sub")],
+    planner:[t("planner"),t("p_sub")],
+    achievements:[t("achievements"),t("ac_sub")],
+    settings:[t("settings"),t("se_sub")]
   };
   document.getElementById("viewTitle").textContent = map[v][0];
   document.getElementById("viewSub").textContent = map[v][1];
@@ -1638,7 +1725,11 @@ renderers.settings = () => {
   let html = `
   <div class="section-title">Appearance</div>
   <div class="card">
-    <div class="field"><label>Theme</label>
+    <div class="field"><label>${t("language")}</label>
+      <select class="input" id="setLang" style="max-width:240px">${LANGS.map(L=>`<option value="${L.id}" ${(s.lang||'en')===L.id?'selected':''}>${L.name}</option>`).join("")}</select>
+    </div>
+    <div class="divider" style="margin:16px 0"></div>
+    <div class="field"><label>${t("theme")}</label>
       <div class="seg" id="setTheme">
         <button data-th="dark" class="${(s.theme||'dark')==='dark'?'on':''}">Dark</button>
         <button data-th="light" class="${s.theme==='light'?'on':''}">Light</button>
@@ -1722,10 +1813,11 @@ renderers.settings = () => {
     <div class="stat"><div class="label">Total time</div><div class="value" style="font-size:22px">${fmtDur(totalMinutesAll())}</div></div>
     <div class="stat"><div class="label">Tracking since</div><div class="value" style="font-size:16px">${state.created}</div></div>
   </div>
-  <div class="faint center" style="margin-top:30px;font-size:12px">Cadence · offline study organizer · v2.5 · Forest theme · plant cutter · no accounts, no AI, no tracking</div>`;
+  <div class="faint center" style="margin-top:30px;font-size:12px">Cadence · offline study organizer · v3.0 · syllabus · flashcards · SMART goals · 6 languages · no accounts, no AI, no tracking</div>`;
   view.innerHTML = html;
 
   renderSwatches(document.getElementById("setAccent"), s.accent, c=>{ s.accent=c; document.documentElement.style.setProperty("--accent",c); save(); });
+  { const ls=document.getElementById("setLang"); if(ls) ls.onchange=e=>{ s.lang=e.target.value; save(); applyLang(); setView("settings"); toast("Language updated"); }; }
   { const seg=document.getElementById("setTheme"); seg.querySelectorAll("button").forEach(b=> b.onclick=()=>{ seg.querySelectorAll("button").forEach(x=>x.classList.remove("on")); b.classList.add("on"); s.theme=b.dataset.th; save(); applyTheme(); }); }
   document.getElementById("motionToggle").onclick=()=>{ s.motion = s.motion==="off"?"on":"off"; save(); applyTheme(); rerender(); };
   document.getElementById("setStart").onchange = e=>{ s.dayStart=parseInt(e.target.value); save(); };
@@ -1853,19 +1945,19 @@ function gsun(){ return state.garden.sun; }
 const ART_KEY="cadence.art.v1";
 let art = (function(){ try { return Object.assign({enabled:false,seed:"",mid:"",bloom:""}, JSON.parse(localStorage.getItem(ART_KEY)||"{}")); } catch { return {enabled:false,seed:"",mid:"",bloom:""}; } })();
 function saveArt(){ try { localStorage.setItem(ART_KEY, JSON.stringify(art)); return true; } catch(e){ toast("That image is too large to store — try a smaller one."); return false; } }
-function importArtImage(slot, file){
+function importArtImage(slot, file, speciesId){
   if (!file) return;
   const rd=new FileReader();
-  rd.onload=()=>{ const img=new Image(); img.onload=()=> openArtEditor(slot, img); img.onerror=()=> toast("Couldn't read that image."); img.src=rd.result; };
+  rd.onload=()=>{ const img=new Image(); img.onload=()=> openArtEditor(slot, img, speciesId); img.onerror=()=> toast("Couldn't read that image."); img.src=rd.result; };
   rd.onerror=()=> toast("Couldn't read that file.");
   rd.readAsDataURL(file);
 }
 /* ---- In-app cutter + background remover (operates only on the user's imported image) ---- */
 let artEdit=null;
-function openArtEditor(slot, img){
+function openArtEditor(slot, img, speciesId){
   const c=document.getElementById("artCanvas"), S=c.width;
   const base=Math.min(S/img.width, S/img.height);
-  artEdit={ slot, img, base, scale:1, ox:(S-img.width*base)/2, oy:(S-img.height*base)/2, preview:false };
+  artEdit={ slot, species:speciesId||null, img, base, scale:1, ox:(S-img.width*base)/2, oy:(S-img.height*base)/2, preview:false };
   const z=document.getElementById("artZoom"); if(z) z.value=1;
   const bg=document.getElementById("artBg"); if(bg) bg.checked=true;
   drawArtEditor();
@@ -1916,13 +2008,23 @@ function useArtImage(){
   if (document.getElementById("artBg").checked) removeBg(cx, out, out, +document.getElementById("artTol").value);
   const trimmed=trimCanvas(cv);
   let data; try { data=trimmed.toDataURL("image/webp",0.85); if(!data.startsWith("data:image/webp")) data=trimmed.toDataURL("image/png"); } catch { data=trimmed.toDataURL("image/png"); }
-  art[artEdit.slot]=data; if(!art.enabled) art.enabled=true;
+  if (artEdit.species){ (art.species||={}); (art.species[artEdit.species]||={}); art.species[artEdit.species][artEdit.slot]=data; }
+  else art[artEdit.slot]=data;
+  if(!art.enabled) art.enabled=true;
   if (saveArt()){ toast("Saved your "+artEdit.slot+" image"); hideModal("artEditor"); artEdit=null; if(currentView==="grow") renderers.grow(); }
 }
-function artFor(p){ if(!art.enabled) return ""; if(p<0.34) return art.seed||art.mid||art.bloom||""; if(p<0.75) return art.mid||art.bloom||art.seed||""; return art.bloom||art.mid||art.seed||""; }
+function artFor(p, speciesId){
+  if(!art.enabled) return "";
+  // per-species override wins when set
+  const per = speciesId && art.species && art.species[speciesId];
+  if (per){ if(p<0.34) return per.seed||per.mid||per.bloom||""; if(p<0.75) return per.mid||per.bloom||per.seed||""; return per.bloom||per.mid||per.seed||""; }
+  if(p<0.34) return art.seed||art.mid||art.bloom||"";
+  if(p<0.75) return art.mid||art.bloom||art.seed||"";
+  return art.bloom||art.mid||art.seed||"";
+}
 // growing plant visual: user image if provided, else our SVG art
 function plantVisual(sp, p, size){
-  const src=artFor(p);
+  const src=artFor(p, sp&&sp.id);
   if (src) return `<img class="plant-img" src="${src}" alt="" style="width:${size}px;height:${(size*1.15).toFixed(0)}px;object-fit:contain;object-position:center bottom">`;
   return plantSVG(sp, p, size);
 }
@@ -2341,6 +2443,13 @@ renderers.grow = () => {
         <button class="btn small" data-art="${sl}">${art[sl]?'Change':'Add'}</button>
       </div>`).join("")}
     </div>
+    <div class="divider" style="margin:14px 0"></div>
+    <div class="flex" style="margin-bottom:8px"><b style="font-size:13.5px">Per-plant images</b><span class="spacer" style="flex:1"></span>
+      <span class="faint" style="font-size:11.5px">optional — overrides the three above</span></div>
+    <div class="flex wrap" style="gap:8px">
+      <select class="input" id="artSpecies" style="max-width:190px">${SPECIES.filter(x=>g.unlocked.includes(x.id)).map(x=>`<option value="${x.id}">${x.name}${art.species&&art.species[x.id]?' ✓':''}</option>`).join("")}</select>
+      ${['seed','mid','bloom'].map(sl=>`<button class="btn small" data-artsp="${sl}">${sl==='seed'?'Start':sl==='mid'?'Growing':'Bloom'}</button>`).join("")}
+    </div>
     <input type="file" accept="image/*" id="artFile" style="display:none">
     ${(art.seed||art.mid||art.bloom)?`<div style="margin-top:10px"><button class="btn small ghost danger" id="artClear">Clear all</button></div>`:''}
   </div>`;
@@ -2387,11 +2496,174 @@ renderers.grow = () => {
   // Bring-your-own plant art
   { const artFileEl=document.getElementById("artFile"); let artSlot="seed";
     view.querySelectorAll("[data-art]").forEach(b=> b.onclick=()=>{ artSlot=b.dataset.art; if(artFileEl){ artFileEl.value=""; artFileEl.click(); } });
-    if (artFileEl) artFileEl.onchange=e=>{ const f=e.target.files&&e.target.files[0]; if(f) importArtImage(artSlot,f); };
+    let artSpec=null;
+    view.querySelectorAll("[data-artsp]").forEach(b=> b.onclick=()=>{ artSlot=b.dataset.artsp; artSpec=(document.getElementById("artSpecies")||{}).value||null; if(artFileEl){ artFileEl.value=""; artFileEl.click(); } });
+    view.querySelectorAll("[data-art]").forEach(b=> b.addEventListener("click", ()=>{ artSpec=null; }, true));
+    if (artFileEl) artFileEl.onchange=e=>{ const f=e.target.files&&e.target.files[0]; if(f) importArtImage(artSlot,f,artSpec); };
     const at=document.getElementById("artToggle"); if(at) at.onclick=()=>{ art.enabled=!art.enabled; saveArt(); renderers.grow(); toast(art.enabled?"Using your art":"Using built-in art"); };
     const ac=document.getElementById("artClear"); if(ac) ac.onclick=()=>{ if(confirm("Remove your imported plant images?")){ art={enabled:false,seed:"",mid:"",bloom:""}; saveArt(); renderers.grow(); } };
   }
 };
+
+/* ============================= Study: syllabus, flashcards, SMART goals ============================= */
+let studyTab="syllabus", cardIdx=0, cardFlipped=false, cardSubject="";
+function subjById(id){ return state.study.subjects.find(s=>s.id===id); }
+function subjProgress(sj){
+  let total=0, done=0;
+  (sj.topics||[]).forEach(tp=>{ const subs=tp.sub||[];
+    if (subs.length){ subs.forEach(x=>{ total++; if(x.done) done++; }); }
+    else { total++; if(tp.done) done++; }
+  });
+  return { total, done, pct: total? done/total : 0 };
+}
+function goalPct(g){ return g.target>0 ? Math.max(0, Math.min(1, (g.current||0)/g.target)) : 0; }
+function goalOnTrack(g){
+  if(!g.due) return null;
+  const start=g.created?parseISO(g.created):new Date(), due=parseISO(g.due), now=new Date();
+  const span=due-start; if(span<=0) return goalPct(g)>=1;
+  const elapsed=Math.max(0, Math.min(1,(now-start)/span));
+  return goalPct(g) >= elapsed-0.05;
+}
+renderers.study = () => {
+  const S=state.study;
+  let html = `<div class="seg" id="studyTabs" style="margin-bottom:16px">
+    <button data-tab="syllabus" class="${studyTab==='syllabus'?'on':''}">${t("syllabus")}</button>
+    <button data-tab="cards" class="${studyTab==='cards'?'on':''}">${t("flashcards")}</button>
+    <button data-tab="goals" class="${studyTab==='goals'?'on':''}">${t("goals")}</button>
+  </div>`;
+
+  if (studyTab==="syllabus"){
+    html += `<div class="flex" style="margin-bottom:12px"><span class="muted" style="font-size:13.5px">Break each subject into topics and sub-topics; tick them off to track exam prep.</span><span class="spacer" style="flex:1"></span><button class="btn small primary" id="addSubj">${ic("plus",13)} ${t("addSubject")}</button></div>`;
+    if (!S.subjects.length) html += `<div class="card muted center" style="padding:26px">No subjects yet. Add one to build your syllabus.</div>`;
+    S.subjects.forEach(sj=>{
+      const pr=subjProgress(sj);
+      html += `<div class="card" style="margin-bottom:12px">
+        <div class="flex" style="margin-bottom:8px">
+          <span style="width:11px;height:11px;border-radius:3px;background:${sj.color}"></span>
+          <b style="font-size:15px">${esc(sj.name)}</b>
+          <span class="spacer" style="flex:1"></span>
+          <span class="faint" style="font-size:12.5px">${pr.done}/${pr.total} · ${Math.round(pr.pct*100)}%</span>
+          <button class="menu-dot" data-delsubj="${sj.id}">×</button>
+        </div>
+        <div class="progress-line" style="margin-bottom:10px"><span style="width:${pr.pct*100}%;background:${sj.color}"></span></div>`;
+      (sj.topics||[]).forEach(tp=>{
+        const subs=tp.sub||[];
+        html += `<div style="padding:5px 0">
+          <label class="flex" style="gap:9px;font-size:14px;cursor:pointer">
+            <input type="checkbox" data-tp="${sj.id}|${tp.id}" ${(subs.length? subs.every(x=>x.done) : tp.done)?'checked':''}>
+            <span style="${(subs.length? subs.every(x=>x.done) : tp.done)?'opacity:.55;text-decoration:line-through':''}">${esc(tp.name)}</span>
+            <span class="spacer" style="flex:1"></span>
+            <button class="btn small ghost" data-addsub="${sj.id}|${tp.id}">+ sub</button>
+            <button class="menu-dot" data-deltp="${sj.id}|${tp.id}">×</button>
+          </label>`;
+        subs.forEach(sb=>{
+          html += `<label class="flex" style="gap:9px;font-size:13px;margin-left:26px;padding:3px 0;cursor:pointer">
+            <input type="checkbox" data-sb="${sj.id}|${tp.id}|${sb.id}" ${sb.done?'checked':''}>
+            <span style="${sb.done?'opacity:.55;text-decoration:line-through':''}">${esc(sb.name)}</span>
+            <span class="spacer" style="flex:1"></span>
+            <button class="menu-dot" data-delsb="${sj.id}|${tp.id}|${sb.id}">×</button>
+          </label>`;
+        });
+        html += `</div>`;
+      });
+      html += `<button class="btn small" data-addtp="${sj.id}" style="margin-top:8px">${ic("plus",12)} ${t("addTopic")}</button></div>`;
+    });
+  }
+
+  if (studyTab==="cards"){
+    const subs=S.subjects.filter(x=>true);
+    if (!subs.length){ html += `<div class="card muted center" style="padding:26px">Add a subject in the Syllabus tab first — flashcards live inside subjects.</div>`; }
+    else {
+      if (!cardSubject || !subjById(cardSubject)) cardSubject=subs[0].id;
+      const sj=subjById(cardSubject), cards=sj.cards||[];
+      html += `<div class="flex wrap" style="margin-bottom:12px;gap:8px">
+        <select class="input" id="cardSubj" style="max-width:220px">${subs.map(x=>`<option value="${x.id}" ${x.id===cardSubject?'selected':''}>${esc(x.name)}</option>`).join("")}</select>
+        <span class="spacer" style="flex:1"></span>
+        <button class="btn small primary" id="addCard">${ic("plus",13)} ${t("addCard")}</button>
+      </div>`;
+      if (!cards.length) html += `<div class="card muted center" style="padding:26px">No cards in ${esc(sj.name)} yet.</div>`;
+      else {
+        if (cardIdx>=cards.length) cardIdx=0;
+        const c=cards[cardIdx];
+        html += `<div class="card center" id="cardBox" style="padding:30px 20px;cursor:pointer;min-height:170px;display:flex;flex-direction:column;justify-content:center">
+          <div class="faint" style="font-size:11.5px;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px">${cardFlipped?'Answer':'Question'} · ${cardIdx+1}/${cards.length}</div>
+          <div style="font-size:18px;font-weight:600;line-height:1.5">${esc(cardFlipped?c.a:c.q)}</div>
+          <div class="faint" style="font-size:12px;margin-top:14px">${cardFlipped?'Tap to see question':'Tap to reveal answer'}</div>
+        </div>
+        <div class="flex" style="margin-top:12px;gap:8px">
+          <button class="btn" id="cardPrev">‹ Prev</button>
+          <button class="btn" id="cardShuffle">Shuffle</button>
+          <span class="spacer" style="flex:1"></span>
+          <button class="btn ghost danger" id="cardDel">${t("del")}</button>
+          <button class="btn primary" id="cardNext">Next ›</button>
+        </div>`;
+      }
+    }
+  }
+
+  if (studyTab==="goals"){
+    html += `<div class="flex" style="margin-bottom:12px"><span class="muted" style="font-size:13.5px">SMART goals: specific, measurable, with a deadline. Progress and pace are tracked for you.</span><span class="spacer" style="flex:1"></span><button class="btn small primary" id="addGoal">${ic("plus",13)} ${t("addGoal")}</button></div>`;
+    if (!S.goals.length) html += `<div class="card muted center" style="padding:26px">No goals yet. Set one you can measure.</div>`;
+    S.goals.forEach(g=>{
+      const pct=goalPct(g), ok=goalOnTrack(g);
+      const daysLeft = g.due ? Math.ceil((parseISO(g.due)-new Date())/86400000) : null;
+      html += `<div class="card" style="margin-bottom:12px">
+        <div class="flex" style="margin-bottom:6px"><b style="font-size:15px">${esc(g.name)}</b><span class="spacer" style="flex:1"></span>
+          ${ok===null?'':`<span class="pill" style="color:${ok?'var(--good)':'var(--warn)'};border-color:${ok?'var(--good)':'var(--warn)'}">${ok?'On track':'Behind'}</span>`}
+          <button class="menu-dot" data-delgoal="${g.id}">×</button></div>
+        <div class="muted" style="font-size:13px;margin-bottom:8px">${g.current||0} / ${g.target} ${esc(g.unit||'')}${g.due?` · due ${g.due}${daysLeft!=null?` (${daysLeft>=0?daysLeft+' days left':'overdue'})`:''}`:''}</div>
+        <div class="progress-line"><span style="width:${pct*100}%;background:${pct>=1?'var(--good)':'var(--accent)'}"></span></div>
+        <div class="flex" style="margin-top:10px;gap:8px">
+          <button class="btn small" data-ginc="${g.id}|1">+1</button>
+          <button class="btn small" data-ginc="${g.id}|5">+5</button>
+          <button class="btn small" data-ginc="${g.id}|10">+10</button>
+          <span class="spacer" style="flex:1"></span>
+          <span class="faint" style="font-size:12.5px">${Math.round(pct*100)}%</span>
+        </div>
+      </div>`;
+    });
+  }
+
+  view.innerHTML = html;
+  wireStudy();
+};
+function wireStudy(){
+  const q=id=>document.getElementById(id);
+  view.querySelectorAll("#studyTabs [data-tab]").forEach(b=> b.onclick=()=>{ studyTab=b.dataset.tab; cardFlipped=false; renderers.study(); });
+  // syllabus
+  if(q("addSubj")) q("addSubj").onclick=()=>{ const n=prompt("Subject name (e.g. Biology)"); if(!n) return;
+    state.study.subjects.push({ id:uid(), name:n.trim(), color:COLORS[state.study.subjects.length%COLORS.length], topics:[], cards:[] }); save(); renderers.study(); };
+  view.querySelectorAll("[data-addtp]").forEach(b=> b.onclick=()=>{ const sj=subjById(b.dataset.addtp); if(!sj) return;
+    const n=prompt("Topic name"); if(!n) return; (sj.topics||=[]).push({ id:uid(), name:n.trim(), done:false, sub:[] }); save(); renderers.study(); });
+  view.querySelectorAll("[data-addsub]").forEach(b=> b.onclick=e=>{ e.preventDefault(); const [si,ti]=b.dataset.addsub.split("|"); const sj=subjById(si); const tp=sj&&(sj.topics||[]).find(x=>x.id===ti); if(!tp) return;
+    const n=prompt("Sub-topic name"); if(!n) return; (tp.sub||=[]).push({ id:uid(), name:n.trim(), done:false }); save(); renderers.study(); });
+  view.querySelectorAll("[data-tp]").forEach(cb=> cb.onchange=()=>{ const [si,ti]=cb.dataset.tp.split("|"); const sj=subjById(si); const tp=sj&&(sj.topics||[]).find(x=>x.id===ti); if(!tp) return;
+    const v=cb.checked; tp.done=v; (tp.sub||[]).forEach(x=>x.done=v); save(); renderers.study(); });
+  view.querySelectorAll("[data-sb]").forEach(cb=> cb.onchange=()=>{ const [si,ti,bi]=cb.dataset.sb.split("|"); const sj=subjById(si); const tp=sj&&(sj.topics||[]).find(x=>x.id===ti); const sb=tp&&(tp.sub||[]).find(x=>x.id===bi); if(!sb) return;
+    sb.done=cb.checked; if(tp.sub.length) tp.done=tp.sub.every(x=>x.done); save(); renderers.study(); });
+  view.querySelectorAll("[data-delsubj]").forEach(b=> b.onclick=()=>{ if(confirm("Delete this subject and its topics/cards?")){ state.study.subjects=state.study.subjects.filter(x=>x.id!==b.dataset.delsubj); save(); renderers.study(); } });
+  view.querySelectorAll("[data-deltp]").forEach(b=> b.onclick=e=>{ e.preventDefault(); const [si,ti]=b.dataset.deltp.split("|"); const sj=subjById(si); if(!sj) return; sj.topics=(sj.topics||[]).filter(x=>x.id!==ti); save(); renderers.study(); });
+  view.querySelectorAll("[data-delsb]").forEach(b=> b.onclick=e=>{ e.preventDefault(); const [si,ti,bi]=b.dataset.delsb.split("|"); const sj=subjById(si); const tp=sj&&(sj.topics||[]).find(x=>x.id===ti); if(!tp) return; tp.sub=(tp.sub||[]).filter(x=>x.id!==bi); save(); renderers.study(); });
+  // flashcards
+  if(q("cardSubj")) q("cardSubj").onchange=e=>{ cardSubject=e.target.value; cardIdx=0; cardFlipped=false; renderers.study(); };
+  if(q("addCard")) q("addCard").onclick=()=>{ const sj=subjById(cardSubject); if(!sj) return;
+    const qq=prompt("Question / front"); if(!qq) return; const aa=prompt("Answer / back"); if(aa==null) return;
+    (sj.cards||=[]).push({ id:uid(), q:qq.trim(), a:aa.trim() }); cardIdx=(sj.cards.length-1); cardFlipped=false; save(); renderers.study(); };
+  if(q("cardBox")) q("cardBox").onclick=()=>{ cardFlipped=!cardFlipped; renderers.study(); };
+  if(q("cardNext")) q("cardNext").onclick=()=>{ const sj=subjById(cardSubject); const n=(sj.cards||[]).length||1; cardIdx=(cardIdx+1)%n; cardFlipped=false; renderers.study(); };
+  if(q("cardPrev")) q("cardPrev").onclick=()=>{ const sj=subjById(cardSubject); const n=(sj.cards||[]).length||1; cardIdx=(cardIdx-1+n)%n; cardFlipped=false; renderers.study(); };
+  if(q("cardShuffle")) q("cardShuffle").onclick=()=>{ const sj=subjById(cardSubject); if(!sj||!(sj.cards||[]).length) return; cardIdx=Math.floor(Math.random()*sj.cards.length); cardFlipped=false; renderers.study(); };
+  if(q("cardDel")) q("cardDel").onclick=()=>{ const sj=subjById(cardSubject); if(!sj||!(sj.cards||[]).length) return; if(!confirm("Delete this card?")) return; sj.cards.splice(cardIdx,1); cardIdx=0; cardFlipped=false; save(); renderers.study(); };
+  // goals
+  if(q("addGoal")) q("addGoal").onclick=()=>{ const n=prompt("Goal (specific — e.g. Finish 12 past papers)"); if(!n) return;
+    const tg=parseFloat(prompt("Measurable target (a number)","10")); if(!tg||tg<=0) return toast("Target must be a number");
+    const un=prompt("Unit (papers, chapters, hours…)","")||""; const due=prompt("Deadline (YYYY-MM-DD, optional)","")||"";
+    state.study.goals.push({ id:uid(), name:n.trim(), target:tg, current:0, unit:un.trim(), due:due.trim(), created:todayISO() }); save(); renderers.study(); };
+  view.querySelectorAll("[data-ginc]").forEach(b=> b.onclick=()=>{ const [gi,amt]=b.dataset.ginc.split("|"); const g=state.study.goals.find(x=>x.id===gi); if(!g) return;
+    const was=goalPct(g)>=1; g.current=(g.current||0)+parseFloat(amt); save();
+    if(!was && goalPct(g)>=1){ confettiBurst(); toast("Goal reached!"); } renderers.study(); });
+  view.querySelectorAll("[data-delgoal]").forEach(b=> b.onclick=()=>{ if(confirm("Delete this goal?")){ state.study.goals=state.study.goals.filter(x=>x.id!==b.dataset.delgoal); save(); renderers.study(); } });
+}
 
 /* ============================= Command palette ============================= */
 const CMDS = [
@@ -2449,7 +2721,7 @@ document.addEventListener("keydown", e=>{
   if (typing) return;
   if (e.key==="?"){ showShortcuts(); return; }
   if (e.key==="n"){ openHabitModal(); return; }
-  const map={"1":"dashboard","2":"habits","3":"schedule","4":"analytics","5":"materials","6":"planner","7":"achievements","8":"grow"};
+  const map={"1":"dashboard","2":"habits","3":"schedule","4":"analytics","5":"materials","6":"planner","7":"achievements","8":"grow","9":"study"};
   if (map[e.key]) setView(map[e.key]);
 });
 function showShortcuts(){
@@ -2795,6 +3067,7 @@ try { if (window.matchMedia){ matchMedia("(prefers-color-scheme: light)").addEve
 
 /* ============================= Boot ============================= */
 renderStaticIcons();
+applyLang();
 wireFocusScreen();
 wireArtEditor();
 applyTheme();
