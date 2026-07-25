@@ -121,12 +121,42 @@ jobs:
           # Ensure Gradle finds the SDK
           echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
 
+          # Stable release signing: same key every build, so new APKs install
+          # OVER the previous one instead of "package conflicts with existing package".
+          cp cadence-release.keystore android/app/cadence-release.keystore
+          VERSION_CODE=$(( 1000 + ${{ github.run_number }} ))
+          cat >> android/app/build.gradle <<GRADLE
+
+          android {
+              defaultConfig {
+                  versionCode ${VERSION_CODE}
+                  versionName "1.0.${VERSION_CODE}"
+              }
+              signingConfigs {
+                  release {
+                      storeFile file('cadence-release.keystore')
+                      storePassword 'cadence-sideload'
+                      keyAlias 'cadence'
+                      keyPassword 'cadence-sideload'
+                  }
+              }
+              buildTypes {
+                  release {
+                      signingConfig signingConfigs.release
+                      minifyEnabled false
+                  }
+              }
+          }
+          GRADLE
+
           cd android
           chmod +x ./gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace
+          ./gradlew assembleRelease --no-daemon --stacktrace
           cd ..
-          cp android/app/build/outputs/apk/debug/app-debug.apk cadence.apk
+          cp android/app/build/outputs/apk/release/app-release.apk cadence.apk
           ls -la cadence.apk
+          # Confirm it is properly signed
+          "$ANDROID_SDK_ROOT"/build-tools/34.0.0/apksigner verify --print-certs cadence.apk | head -4
 
       - name: Determine tag
         id: tag
