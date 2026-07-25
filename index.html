@@ -398,6 +398,15 @@
   .dur-picker { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
   .dur-chip { padding: 8px 14px; border-radius: 20px; border: 1px solid var(--line-2); background: var(--bg-3); font-weight: 700; font-size: 13px; color: var(--txt-dim); }
   .dur-chip.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  /* Circular drag-dial timer */
+  .dial-wrap { position: relative; width: 220px; height: 220px; margin: 2px auto 4px; touch-action: none; user-select: none; }
+  .dial-svg { width: 100%; height: 100%; display: block; }
+  .dial-track { fill: none; stroke: var(--bg-3); stroke-width: 12; }
+  .dial-arc { fill: none; stroke: var(--accent); stroke-width: 12; stroke-linecap: round; transition: stroke-dashoffset .05s linear; }
+  .dial-handle { fill: #fff; stroke: var(--accent); stroke-width: 4; cursor: grab; filter: drop-shadow(0 2px 3px rgba(0,0,0,.3)); }
+  .dial-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
+  .dial-min { font-family: var(--mono); font-weight: 800; font-size: 30px; margin-top: -6px; }
+  .dial-min small { font-size: 13px; color: var(--txt-dim); font-weight: 600; }
   .species-pick { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
   .species-pick .sp { width: 52px; height: 60px; border-radius: 10px; border: 1px solid var(--line-2); background: var(--bg-3); display: grid; place-items: center; position: relative; }
   .species-pick .sp.on { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb,var(--accent) 40%, transparent); }
@@ -1658,7 +1667,7 @@ renderers.settings = () => {
     <div class="stat"><div class="label">Total time</div><div class="value" style="font-size:22px">${fmtDur(totalMinutesAll())}</div></div>
     <div class="stat"><div class="label">Tracking since</div><div class="value" style="font-size:16px">${state.created}</div></div>
   </div>
-  <div class="faint center" style="margin-top:30px;font-size:12px">Cadence · offline study organizer · v2.1 · magical species · today's forest · immersive focus · no accounts, no AI, no tracking</div>`;
+  <div class="faint center" style="margin-top:30px;font-size:12px">Cadence · offline study organizer · v2.2 · circular dial timer · magical species · immersive focus · no accounts, no AI, no tracking</div>`;
   view.innerHTML = html;
 
   renderSwatches(document.getElementById("setAccent"), s.accent, c=>{ s.accent=c; document.documentElement.style.setProperty("--accent",c); save(); });
@@ -2130,11 +2139,20 @@ renderers.grow = () => {
     if (!chosenSpecies || !g.unlocked.includes(chosenSpecies)) chosenSpecies=g.unlocked[g.unlocked.length-1]||"sprout";
     const sp=speciesById(chosenSpecies);
     const timeHabits=state.habits.filter(h=>h.type==="time");
-    html += `<div class="pot-area">${plantSVG(sp,0.001,150)}</div>
-      <div class="phase">Pick a length, choose a plant, and focus. Finish to make it bloom.</div>
+    html += `<div class="dial-wrap" id="dial">
+        <svg viewBox="0 0 200 200" class="dial-svg">
+          <circle class="dial-track" cx="100" cy="100" r="86"/>
+          <circle class="dial-arc" id="dialArc" cx="100" cy="100" r="86" transform="rotate(-90 100 100)"/>
+          <circle class="dial-handle" id="dialHandle" r="9" cx="100" cy="14"/>
+        </svg>
+        <div class="dial-center">
+          <div style="width:96px;height:104px;display:grid;place-items:center">${plantSVG(sp,1,90)}</div>
+          <div class="dial-min"><span id="dialMin">${chosenDur}</span><small> min</small></div>
+        </div>
+      </div>
+      <div class="phase">Drag the ring to set your focus time (10–120 min).</div>
       <div class="dur-picker" id="durPicker">
         ${[15,25,50,90].map(d=>`<button class="dur-chip ${d===chosenDur?'on':''}" data-dur="${d}">${d}m</button>`).join("")}
-        <input class="input" id="durCustom" type="number" min="1" max="240" placeholder="min" style="width:74px;text-align:center">
       </div>
       <div class="species-pick" id="speciesPick">
         ${SPECIES.map(s=>{ const on=g.unlocked.includes(s.id); return `<div class="sp ${s.id===chosenSpecies?'on':''} ${on?'':'locked'}" data-sp="${s.id}" title="${on?s.name:'Unlock at '+s.sun+' Sunlight'}">${plantSVG(s,1,40)}${on?'':`<span class="lock">${ic("lock",10)}</span>`}</div>`; }).join("")}
@@ -2195,7 +2213,26 @@ renderers.grow = () => {
     const hb=(document.getElementById("focusHabit")||{}).value||"";
     chosenHabit=hb; startFocus(dur, chosenSpecies, hb);
   };
-  view.querySelectorAll("#durPicker [data-dur]").forEach(b=> b.onclick=()=>{ chosenDur=parseInt(b.dataset.dur); const c=document.getElementById("durCustom"); if(c)c.value=""; renderers.grow(); });
+  // Circular drag-dial
+  (function(){
+    const dial=document.getElementById("dial"); if(!dial) return;
+    const R=86, cx=100, cy=100, C=2*Math.PI*R;
+    function setMin(m){
+      m=Math.max(10, Math.min(120, Math.round(m/5)*5)); chosenDur=m;
+      const f=(m-10)/110;
+      const arc=document.getElementById("dialArc"); if(arc){ arc.setAttribute("stroke-dasharray", C.toFixed(1)); arc.setAttribute("stroke-dashoffset", (C*(1-f)).toFixed(1)); }
+      const a=(-90+f*360)*Math.PI/180; const h=document.getElementById("dialHandle"); if(h){ h.setAttribute("cx",(cx+R*Math.cos(a)).toFixed(1)); h.setAttribute("cy",(cy+R*Math.sin(a)).toFixed(1)); }
+      const t=document.getElementById("dialMin"); if(t) t.textContent=m;
+      document.querySelectorAll("#durPicker .dur-chip").forEach(b=> b.classList.toggle("on", +b.dataset.dur===m));
+    }
+    function angleToMin(e){ const r=dial.getBoundingClientRect(); const dx=e.clientX-r.left-r.width/2, dy=e.clientY-r.top-r.height/2; let deg=Math.atan2(dy,dx)*180/Math.PI+90; if(deg<0) deg+=360; return 10 + deg/360*110; }
+    let drag=false;
+    dial.onpointerdown=e=>{ drag=true; try{dial.setPointerCapture(e.pointerId);}catch{} setMin(angleToMin(e)); e.preventDefault(); };
+    dial.onpointermove=e=>{ if(drag) setMin(angleToMin(e)); };
+    dial.onpointerup=dial.onpointercancel=()=>{ drag=false; };
+    setMin(chosenDur);
+  })();
+  view.querySelectorAll("#durPicker [data-dur]").forEach(b=> b.onclick=()=>{ chosenDur=parseInt(b.dataset.dur); renderers.grow(); });
   view.querySelectorAll("#speciesPick .sp").forEach(el=> el.onclick=()=>{ if(el.classList.contains("locked")){ toast("Buy this plant in the Store below."); return; } chosenSpecies=el.dataset.sp; renderers.grow(); });
   const st=document.getElementById("strictToggle"); if(st) st.onclick=()=>{ state.garden.strict=!state.garden.strict; save(); renderers.grow(); toast(state.garden.strict?"Strict mode on":"Strict mode off"); };
   view.querySelectorAll("#ambPicker [data-amb]").forEach(b=> b.onclick=()=> setAmbient(b.dataset.amb));
@@ -2506,7 +2543,7 @@ function notifAvailable(){ return typeof Notification !== "undefined" && !!Notif
 function notify(title, body){
   try {
     if (notifAvailable() && Notification.permission==="granted"){
-      new Notification(title, { body, icon:"icon.svg", tag:"cadence" });
+      new Notification(title, { body, icon:"icon.svg", tag:"cadence", silent:true });
     } else { toast(title+": "+body); }
   } catch { toast(body); }
 }
