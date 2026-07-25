@@ -33,6 +33,28 @@
     --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
     --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, system-ui, sans-serif;
   }
+  :root[data-theme="forest"] {
+    --bg: #f4f0e4;
+    --bg-2: #fffdf6;
+    --bg-3: #e9e1cf;
+    --line: #ded3bd;
+    --line-2: #c9bb9f;
+    --txt: #2c3a2e;
+    --txt-dim: #5d6d59;
+    --txt-faint: #8b9584;
+    --accent: #4a7c59;
+    --accent-2: #8a6a45;
+    --accent-ink: #ffffff;
+    --good: #4a7c59;
+    --warn: #b07d1a;
+    --bad: #a9483f;
+    --topbar-bg: rgba(244,240,228,.88);
+    --scrim: rgba(58,48,32,.42);
+    --shadow: 0 10px 28px rgba(80,68,46,.16);
+    --radius: 18px;
+    --radius-sm: 12px;
+    --sans: ui-rounded, "SF Pro Rounded", "Hiragino Maru Gothic ProN", Quicksand, Nunito, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+  }
   :root[data-theme="light"] {
     --bg: #f5f7fb;
     --bg-2: #ffffff;
@@ -659,6 +681,7 @@
         <div class="seg" id="onboardTheme">
           <button data-th="dark" class="on">Dark</button>
           <button data-th="light">Light</button>
+          <button data-th="forest">Forest</button>
           <button data-th="auto">Auto</button>
         </div>
       </div>
@@ -1619,6 +1642,7 @@ renderers.settings = () => {
       <div class="seg" id="setTheme">
         <button data-th="dark" class="${(s.theme||'dark')==='dark'?'on':''}">Dark</button>
         <button data-th="light" class="${s.theme==='light'?'on':''}">Light</button>
+        <button data-th="forest" class="${s.theme==='forest'?'on':''}">Forest</button>
         <button data-th="auto" class="${s.theme==='auto'?'on':''}">Auto</button>
       </div>
     </div>
@@ -1698,7 +1722,7 @@ renderers.settings = () => {
     <div class="stat"><div class="label">Total time</div><div class="value" style="font-size:22px">${fmtDur(totalMinutesAll())}</div></div>
     <div class="stat"><div class="label">Tracking since</div><div class="value" style="font-size:16px">${state.created}</div></div>
   </div>
-  <div class="faint center" style="margin-top:30px;font-size:12px">Cadence · offline study organizer · v2.4 · in-app plant cutter + background remover · no accounts, no AI, no tracking</div>`;
+  <div class="faint center" style="margin-top:30px;font-size:12px">Cadence · offline study organizer · v2.5 · Forest theme · plant cutter · no accounts, no AI, no tracking</div>`;
   view.innerHTML = html;
 
   renderSwatches(document.getElementById("setAccent"), s.accent, c=>{ s.accent=c; document.documentElement.style.setProperty("--accent",c); save(); });
@@ -2712,14 +2736,17 @@ document.addEventListener("visibilitychange", ()=>{
 function resolveTheme(){
   const t=state.settings.theme||"dark";
   if (t==="auto"){ try { return (window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches) ? "light" : "dark"; } catch { return "dark"; } }
-  return t==="light" ? "light" : "dark";
+  return (t==="light"||t==="forest") ? t : "dark";
 }
 function applyTheme(){
   const r=resolveTheme();
   document.documentElement.dataset.theme = r;
   document.documentElement.dataset.motion = state.settings.motion==="off" ? "off" : "on";
-  const meta=document.querySelector('meta[name="theme-color"]'); if(meta) meta.setAttribute("content", r==="light" ? "#f5f7fb" : "#0d0f14");
-  const tb=document.getElementById("themeBtn"); if(tb) tb.innerHTML = ic(r==="light" ? "sun" : "moon", 17);
+  // Forest is a cohesive designed palette — let its greens win over the saved accent
+  if (r==="forest") document.documentElement.style.removeProperty("--accent");
+  else document.documentElement.style.setProperty("--accent", state.settings.accent||COLORS[0]);
+  const meta=document.querySelector('meta[name="theme-color"]'); if(meta) meta.setAttribute("content", r==="forest" ? "#f4f0e4" : r==="light" ? "#f5f7fb" : "#0d0f14");
+  const tb=document.getElementById("themeBtn"); if(tb) tb.innerHTML = ic(r==="forest" ? "leaf" : r==="light" ? "sun" : "moon", 17);
 }
 function renderStaticIcons(){
   document.querySelectorAll("[data-icon]").forEach(el=>{
@@ -2757,7 +2784,12 @@ function wireFocusScreen(){
   if(q("fsGiveup")) q("fsGiveup").onclick=()=>{ if(confirm("Give up this session? The plant will wilt.")) giveUpFocus(); };
   if(q("focusFab")) q("focusFab").onclick=showFocusScreen;
 }
-function cycleTheme(){ state.settings.theme = resolveTheme()==="light" ? "dark" : "light"; save(); applyTheme(); toast(resolveTheme()==="light"?"Light theme":"Dark theme"); }
+function cycleTheme(){
+  const order=["dark","light","forest"], cur=resolveTheme();
+  state.settings.theme = order[(order.indexOf(cur)+1) % order.length];
+  save(); applyTheme();
+  const r=resolveTheme(); toast(r==="forest"?"Forest theme":r==="light"?"Light theme":"Dark theme");
+}
 try { if (window.matchMedia){ matchMedia("(prefers-color-scheme: light)").addEventListener?.("change", ()=>{ if(state.settings.theme==="auto") applyTheme(); }); } } catch {}
 { const tb=document.getElementById("themeBtn"); if(tb) tb.onclick=cycleTheme; }
 
