@@ -349,6 +349,8 @@
   .clock b { color: var(--txt); font-size: 15px; display: block; }
   .clock small { font-size: 10.5px; color: var(--txt-faint); }
   #micBtn.listening { color: var(--bad); border-color: var(--bad); animation: pulse 1.2s infinite; }
+  #micBtn.always { border-color: var(--good); color: var(--good); }
+  #micBtn.always.listening { border-color: var(--good); color: var(--good); }
   @media (max-width: 760px){ .clock{ display:none; } }
 
   /* greeting + now banner */
@@ -891,7 +893,7 @@ const DEFAULT_STATE = {
   habits: [],
   materials: [],
   blocks: [],           // {id, day:'mon', start:'09:00', end:'10:30', subject, color}
-  settings: { accent: "#6ea8fe", weekStartMon: true, dayStart: 6, dayEnd: 23, notify: false, theme: "dark", motion: "on", onboarded: false, lang: "en" },
+  settings: { accent: "#6ea8fe", weekStartMon: true, dayStart: 6, dayEnd: 23, notify: false, theme: "dark", motion: "on", onboarded: false, lang: "en", listen: false },
   study: { subjects: [], goals: [] },
   garden: { plants: [], sun: 0, unlocked: ["oak","cactus"], strict: false, active: null,
             ambient: "none", pomo: { on:false, focus:25, short:5, long:20, cycle:4 }, pomoCount: 0, onBreak: null },
@@ -1833,6 +1835,7 @@ renderers.settings = () => {
     </div>
     <div class="flex wrap">
       <button class="btn" id="tryVoice">${ic("mic",14)} Try voice</button>
+      <button class="btn ${s.listen?'primary':''}" id="listenToggle">${s.listen?'Always listening: On':'Always listening: Off'}</button>
       <label class="flex" style="gap:7px;font-size:13px"><input type="checkbox" id="voiceSpeakChk" ${voiceSpeak?'checked':''}> Speak results back</label>
     </div>
     <div class="faint" style="font-size:11.5px;margin-top:10px">${voiceSupported()?'Voice input is available in this browser.':'Voice input needs Chrome (Android/desktop). Typed commands work everywhere.'}</div>
@@ -1868,11 +1871,11 @@ renderers.settings = () => {
     <div class="stat"><div class="label">Total time</div><div class="value" style="font-size:22px">${fmtDur(totalMinutesAll())}</div></div>
     <div class="stat"><div class="label">Tracking since</div><div class="value" style="font-size:16px">${state.created}</div></div>
   </div>
-  <div class="faint center" style="margin-top:30px;font-size:12px">Cadence · offline study organizer · v3.3 · 28 plants with growth stages · syllabus · flashcards · goals · 6 languages</div>`;
+  <div class="faint center" style="margin-top:30px;font-size:12px">Cadence · offline study organizer · v3.4 · always-listening voice in 6 languages · 28 plants · syllabus · goals</div>`;
   view.innerHTML = html;
 
   renderSwatches(document.getElementById("setAccent"), s.accent, c=>{ s.accent=c; document.documentElement.style.setProperty("--accent",c); save(); });
-  { const ls=document.getElementById("setLang"); if(ls) ls.onchange=e=>{ s.lang=e.target.value; save(); applyLang(); setView("settings"); toast("Language updated"); }; }
+  { const ls=document.getElementById("setLang"); if(ls) ls.onchange=e=>{ s.lang=e.target.value; save(); applyLang(); refreshVoiceLang(); setView("settings"); toast("Language updated"); }; }
   { const seg=document.getElementById("setTheme"); seg.querySelectorAll("button").forEach(b=> b.onclick=()=>{ seg.querySelectorAll("button").forEach(x=>x.classList.remove("on")); b.classList.add("on"); s.theme=b.dataset.th; save(); applyTheme(); }); }
   document.getElementById("motionToggle").onclick=()=>{ s.motion = s.motion==="off"?"on":"off"; save(); applyTheme(); rerender(); };
   document.getElementById("setStart").onchange = e=>{ s.dayStart=parseInt(e.target.value); save(); };
@@ -1899,6 +1902,8 @@ renderers.settings = () => {
 
   // Voice
   document.getElementById("tryVoice").onclick = startVoice;
+  { const lt=document.getElementById("listenToggle");
+    if (lt) lt.onclick=()=>{ if(state.settings.listen){ stopAlwaysListening(); } else { startAlwaysListening(); } setView("settings"); }; }
   document.getElementById("voiceSpeakChk").onchange = e=>{ voiceSpeak = e.target.checked; };
 
   // Install
@@ -2880,8 +2885,27 @@ function parseTimeToken(str){
   if (h>23||min>59) return null;
   return String(h).padStart(2,'0')+":"+String(min).padStart(2,'0');
 }
+/* Localised verbs -> canonical English so one parser serves every language */
+const VERB_MAP = {
+  es:{ "añadir":"add","agregar":"add","crear":"create","nuevo":"new","nueva":"new","registrar":"log","apunta":"log","empezar":"start","empieza":"start","iniciar":"start","comenzar":"start","parar":"stop","detener":"stop","abrir":"open","ir a":"go to","mostrar":"show","recuérdame":"remind me to","recuerdame":"remind me to","enfocar":"focus","concentrarme":"focus","minutos":"minutes","minuto":"minute","horas":"hours","hora":"hour","hábito":"habit","habito":"habit","diario":"daily","diaria":"daily","semanal":"weekly","mensual":"monthly","páginas":"pages","paginas":"pages" },
+  fr:{ "ajouter":"add","créer":"create","creer":"create","nouveau":"new","nouvelle":"new","enregistrer":"log","noter":"log","démarrer":"start","demarrer":"start","commencer":"start","arrêter":"stop","arreter":"stop","ouvrir":"open","aller à":"go to","aller a":"go to","afficher":"show","rappelle-moi de":"remind me to","concentrer":"focus","minutes":"minutes","minute":"minute","heures":"hours","heure":"hour","habitude":"habit","quotidien":"daily","quotidienne":"daily","hebdomadaire":"weekly","mensuel":"monthly","pages":"pages" },
+  de:{ "hinzufügen":"add","hinzufugen":"add","erstellen":"create","neu":"new","neue":"new","erfassen":"log","eintragen":"log","starten":"start","beginnen":"start","stoppen":"stop","anhalten":"stop","öffnen":"open","offnen":"open","gehe zu":"go to","zeige":"show","erinnere mich an":"remind me to","fokus":"focus","minuten":"minutes","minute":"minute","stunden":"hours","stunde":"hour","gewohnheit":"habit","täglich":"daily","taglich":"daily","wöchentlich":"weekly","wochentlich":"weekly","monatlich":"monthly","seiten":"pages" },
+  pt:{ "adicionar":"add","criar":"create","novo":"new","nova":"new","registar":"log","registrar":"log","começar":"start","comecar":"start","iniciar":"start","parar":"stop","abrir":"open","ir para":"go to","mostrar":"show","lembra-me de":"remind me to","foco":"focus","minutos":"minutes","minuto":"minute","horas":"hours","hora":"hour","hábito":"habit","habito":"habit","diário":"daily","diario":"daily","semanal":"weekly","mensal":"monthly","páginas":"pages","paginas":"pages" },
+  ar:{ "أضف":"add","اضف":"add","أضيف":"add","انشئ":"create","أنشئ":"create","جديد":"new","سجل":"log","ابدأ":"start","ابدا":"start","أوقف":"stop","اوقف":"stop","افتح":"open","اذهب الى":"go to","اذهب إلى":"go to","ذكرني":"remind me to","ركز":"focus","تركيز":"focus","دقيقة":"minutes","دقائق":"minutes","ساعة":"hours","ساعات":"hours","عادة":"habit","يومي":"daily","يوميا":"daily","اسبوعي":"weekly","أسبوعي":"weekly","شهري":"monthly","صفحة":"pages","صفحات":"pages" },
+};
+function normalizeCommand(text){
+  const L=state.settings.lang||"en";
+  const map=VERB_MAP[L]; if(!map) return text;
+  let out=String(text);
+  // longest phrases first so "ir a" doesn't clobber inside another word
+  Object.keys(map).sort((a,b)=>b.length-a.length).forEach(k=>{
+    out = out.replace(new RegExp(k.replace(/[.*+?^${}()|[\]\\]/g,"\\$&"),"gi"), map[k]);
+  });
+  return out;
+}
 function runCommand(raw){
   if (!raw) return "Say a command like “add habit reading 30 minutes daily”.";
+  raw = normalizeCommand(raw);
   let t = raw.toLowerCase().trim().replace(/[.!]+$/,"");
   // NAVIGATION
   let m = t.match(/^(?:go to|open|show|navigate to)\s+(dashboard|home|habits?|schedule|analytics|materials?|planner|achievements?|settings)/);
@@ -2966,28 +2990,114 @@ function runCommand(raw){
   }
   return `Sorry, I didn't understand “${raw}”. Try: “add habit reading 30 minutes daily”, “log 25 minutes to coding”, or “start reading”.`;
 }
+/* Speech locale per app language (free, built into the browser) */
+const SPEECH_LOCALE = { en:"en-US", es:"es-ES", fr:"fr-FR", de:"de-DE", pt:"pt-PT", ar:"ar-SA" };
+function speechLocale(){ return SPEECH_LOCALE[state.settings.lang||"en"] || "en-US"; }
 function speakResult(msg){
   toast(msg);
-  try { if ("speechSynthesis" in window && voiceSpeak){ const u=new SpeechSynthesisUtterance(msg.replace(/[“”]/g,'')); u.rate=1.05; speechSynthesis.cancel(); speechSynthesis.speak(u); } } catch {}
+  try {
+    if (!("speechSynthesis" in window) || !voiceSpeak) return;
+    const u=new SpeechSynthesisUtterance(String(msg).replace(/[“”]/g,''));
+    u.lang = speechLocale(); u.rate=1.05;
+    const want=(u.lang||"").slice(0,2);
+    const v=(speechSynthesis.getVoices()||[]).find(x=>(x.lang||"").toLowerCase().startsWith(want));
+    if (v) u.voice=v;
+    speechSynthesis.cancel(); speechSynthesis.speak(u);
+  } catch {}
 }
 
-/* ============================= Voice input (Web Speech API) ============================= */
-let recog = null, voiceSpeak = true;
-function voiceSupported(){ return ("webkitSpeechRecognition" in window) || ("SpeechRecognition" in window); }
-function startVoice(){
-  if (!voiceSupported()){ toast("Voice input isn't supported in this browser. Try Chrome on Android."); return; }
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  try { recog = new SR(); } catch { toast("Couldn't start the microphone."); return; }
-  recog.lang = navigator.language || "en-US"; recog.interimResults=false; recog.maxAlternatives=1;
-  const btn = document.getElementById("micBtn"); btn.classList.add("listening");
-  toast("Listening… say a command");
-  recog.onresult = e=>{ const said = e.results[0][0].transcript; toast(`Heard: “${said}”`); const res = runCommand(said); speakResult(res); };
-  recog.onerror = e=>{ btn.classList.remove("listening"); if(e.error!=="aborted") toast("Voice error: "+e.error); };
-  recog.onend = ()=> btn.classList.remove("listening");
-  try { recog.start(); } catch { btn.classList.remove("listening"); }
+/* ============================= Voice input (Web Speech API — free, multilingual) ============================= */
+let recog = null, voiceSpeak = true, alwaysOn = false, recogRunning = false, restartTimer = null;
+// Trigger words per language ("Cadence, add habit…"). Any of these starts a command.
+const WAKE_WORDS = {
+  en:["cadence","hey cadence","ok cadence"],
+  es:["cadence","cadencia","oye cadence"],
+  fr:["cadence","hé cadence","ok cadence"],
+  de:["cadence","kadenz","hey cadence"],
+  pt:["cadence","cadência","ei cadence"],
+  ar:["cadence","كادنس","يا كادنس"],
+};
+function wakeWords(){ return (WAKE_WORDS[state.settings.lang||"en"]||WAKE_WORDS.en).concat(WAKE_WORDS.en); }
+function stripWake(text){
+  const t=String(text||"").trim(); const low=t.toLowerCase();
+  for (const w of wakeWords().sort((a,b)=>b.length-a.length)){
+    // must open the utterance, like a real wake word ("cadence …", "hey cadence …")
+    if (low.startsWith(w)){ return { hit:true, rest: t.slice(w.length).replace(/^[\s,.:؛،-]+/,"").trim() }; }
+  }
+  return { hit:false, rest:t };
 }
-function stopVoice(){ try{ recog && recog.stop(); }catch{} }
-document.getElementById("micBtn").onclick = ()=> document.getElementById("micBtn").classList.contains("listening") ? stopVoice() : startVoice();
+function voiceSupported(){ return ("webkitSpeechRecognition" in window) || ("SpeechRecognition" in window); }
+function micUI(on, listening){
+  const b=document.getElementById("micBtn"); if(!b) return;
+  b.classList.toggle("listening", !!listening);
+  b.classList.toggle("always", !!on);
+  b.title = on ? "Always listening — say “Cadence, …”" : "Voice command";
+}
+function buildRecognizer(continuous){
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const r = new SR();
+  r.lang = speechLocale(); r.interimResults = false; r.maxAlternatives = 1; r.continuous = !!continuous;
+  return r;
+}
+function handleHeard(said, requireWake){
+  if (!said) return;
+  const { hit, rest } = stripWake(said);
+  if (requireWake && !hit) return;                 // ignore ordinary conversation
+  const cmd = (requireWake ? rest : (hit ? rest : said)).trim();
+  if (!cmd) { speakResult(t("plantFocus") ? "Yes?" : "Yes?"); return; }
+  toast(`“${cmd}”`);
+  speakResult(runCommand(cmd));
+}
+function startVoice(){   // one-shot: tap the mic, speak a command
+  if (!voiceSupported()){ toast("Voice input isn't supported in this browser. Try Chrome on Android."); return; }
+  stopVoice(true);
+  try { recog = buildRecognizer(false); } catch { toast("Couldn't start the microphone."); return; }
+  micUI(alwaysOn, true); toast("Listening…");
+  recog.onresult = e=> handleHeard(e.results[0][0].transcript, false);
+  recog.onerror = e=>{ micUI(alwaysOn,false); if(e.error!=="aborted"&&e.error!=="no-speech") toast("Voice error: "+e.error); };
+  recog.onend = ()=>{ recogRunning=false; micUI(alwaysOn,false); if(alwaysOn) scheduleRestart(); };
+  try { recog.start(); recogRunning=true; } catch { micUI(alwaysOn,false); }
+}
+function scheduleRestart(){
+  if (!alwaysOn || recogRunning) return;
+  clearTimeout(restartTimer);
+  restartTimer=setTimeout(()=>{ if(alwaysOn && !recogRunning) startAlwaysListening(true); }, 600);
+}
+function startAlwaysListening(silent){
+  if (!voiceSupported()){ toast("Always-listening needs Chrome (Android/desktop)."); return false; }
+  alwaysOn = true; state.settings.listen = true; save();
+  stopVoice(true);
+  try { recog = buildRecognizer(true); } catch { alwaysOn=false; return false; }
+  recog.onresult = e=>{
+    for (let i=e.resultIndex; i<e.results.length; i++){
+      if (e.results[i].isFinal) handleHeard(e.results[i][0].transcript, true);
+    }
+  };
+  recog.onerror = e=>{
+    recogRunning=false;
+    if (e.error==="not-allowed" || e.error==="service-not-allowed"){
+      alwaysOn=false; state.settings.listen=false; save(); micUI(false,false);
+      toast("Microphone permission denied — always-listening off."); return;
+    }
+    scheduleRestart();
+  };
+  recog.onend = ()=>{ recogRunning=false; micUI(alwaysOn,false); scheduleRestart(); };  // auto-resume
+  try { recog.start(); recogRunning=true; micUI(true,true); if(!silent) toast('Always listening — say "Cadence, …"'); return true; }
+  catch { recogRunning=false; scheduleRestart(); return false; }
+}
+function stopAlwaysListening(){
+  alwaysOn=false; state.settings.listen=false; save();
+  clearTimeout(restartTimer); stopVoice(true); micUI(false,false); toast("Always-listening off");
+}
+function stopVoice(quiet){ try{ if(recog){ recog.onend=null; recog.onerror=null; recog.stop(); } }catch{} recogRunning=false; if(!quiet) micUI(alwaysOn,false); }
+{ const mb=document.getElementById("micBtn");
+  if (mb){
+    mb.onclick = ()=> alwaysOn ? stopAlwaysListening() : startVoice();
+    mb.oncontextmenu = e=>{ e.preventDefault(); alwaysOn ? stopAlwaysListening() : startAlwaysListening(); };
+  }
+}
+// keep recognition language in sync when the app language changes
+function refreshVoiceLang(){ if (alwaysOn){ stopVoice(true); startAlwaysListening(true); } }
 
 /* ============================= URL command bridge (for Google Assistant / shortcuts) ============================= */
 // Examples:  ?add=Reading|30|min|daily   ?log=Reading|30   ?start=Reading   ?stop=Reading   ?do=log 30 minutes to reading   ?go=analytics
@@ -3153,6 +3263,11 @@ setView("dashboard");
 updateClock();
 handleUrlCommands();
 setInterval(heartbeat, 1000);
+// Resume always-listening if it was enabled (needs a user gesture on some browsers)
+if (state.settings.listen){
+  const kick=()=>{ if(state.settings.listen && !alwaysOn) startAlwaysListening(true); document.removeEventListener("pointerdown",kick); };
+  startAlwaysListening(true); document.addEventListener("pointerdown", kick, {once:true});
+}
 // First-time welcome (skips for anyone who already has data)
 if (IS_FIRST_RUN && !state.settings.onboarded){
   document.getElementById("onboardModal").addEventListener("click", e=>{ if(e.target.id==="onboardModal") finishOnboarding(); });

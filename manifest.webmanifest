@@ -14,8 +14,9 @@
     { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
   ],
   "shortcuts": [
-    { "name": "New habit", "short_name": "Add", "url": "./?new=1", "description": "Create a new habit" },
-    { "name": "Habits", "short_name": "Habits", "url": "./?go=habits", "description": "Open habits" },
-    { "name": "Analytics", "short_name": "Stats", "url": "./?go=analytics", "description": "See your insights" }
+    { "name": "Start focus session", "short_name": "Focus", "url": "./?go=grow", "description": "Plant a tree and focus", "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }] },
+    { "name": "New habit", "short_name": "Add habit", "url": "./?new=1", "description": "Create a new habit", "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }] },
+    { "name": "Study", "short_name": "Study", "url": "./?go=study", "description": "Syllabus, flashcards and goals", "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }] },
+    { "name": "Statistics", "short_name": "Stats", "url": "./?go=analytics", "description": "See your insights", "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }] }
   ]
 }
