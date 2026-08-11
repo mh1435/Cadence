@@ -107,19 +107,11 @@ jobs:
           npx --yes cap init Cadence app.cadence.focus --web-dir www
           npx --yes cap add android
 
-          # Microphone permission for native speech recognition
+          # Microphone permission + recogniser visibility for native speech recognition
           MAN=android/app/src/main/AndroidManifest.xml
-          python3 - "$MAN" <<'PYEOF'
-import sys,re
-p=sys.argv[1]; s=open(p).read()
-perms='''    <uses-permission android:name="android.permission.RECORD_AUDIO" />
-    <queries><intent><action android:name="android.speech.RecognitionService" /></intent></queries>
-'''
-if "RECORD_AUDIO" not in s:
-    s=s.replace("</manifest>", perms+"</manifest>")
-open(p,"w").write(s)
-print("manifest permissions added")
-PYEOF
+          if ! grep -q RECORD_AUDIO "$MAN"; then
+            sed -i 's#</manifest>#    <uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <queries><intent><action android:name="android.speech.RecognitionService" /></intent></queries>\n</manifest>#' "$MAN"
+          fi
           grep -c RECORD_AUDIO "$MAN"
 
           npx --yes cap sync android
