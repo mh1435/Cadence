@@ -1838,8 +1838,24 @@ renderers.settings = () => {
       <button class="btn ${s.listen?'primary':''}" id="listenToggle">${s.listen?'Always listening: On':'Always listening: Off'}</button>
       <label class="flex" style="gap:7px;font-size:13px"><input type="checkbox" id="voiceSpeakChk" ${voiceSpeak?'checked':''}> Speak results back</label>
     </div>
-    <div class="faint" style="font-size:11.5px;margin-top:10px">${nativeSR()?'Voice runs on your phone&rsquo;s own recogniser. Always-listening works while Cadence is open &mdash; Android blocks microphone access for closed apps.':voiceSupported()?'Voice input is available in this browser. Always-listening works while this tab is open.':'Voice input needs Chrome (Android/desktop). Typed commands work everywhere.'}</div>
+    <div class="faint" style="font-size:11.5px;margin-top:10px">${nativeSR()?'Voice runs on your phone&rsquo;s own recogniser, offline.':voiceSupported()?'Voice input is available in this browser. Always-listening works while this tab is open.':'Voice input needs Chrome (Android/desktop). Typed commands work everywhere.'}</div>
   </div>
+
+  ${bgVoice()?`
+  <div class="section-title">${ic("mic",15)} Background listening</div>
+  <div class="card">
+    <div class="flex wrap" style="gap:10px;align-items:center">
+      <button class="btn ${bgRunning?'primary':''}" id="bgListenToggle">${bgRunning?'Background listening: On':'Background listening: Off'}</button>
+      <span class="faint" style="font-size:12px">${bgRunning?'Say &ldquo;Cadence, &hellip;&rdquo; any time &mdash; even with the app closed or the screen off.':'Off &mdash; Cadence only hears you while the app is open.'}</span>
+    </div>
+    <div class="faint" style="font-size:11.5px;margin-top:10px;line-height:1.55">
+      Recognition runs entirely on this phone (Vosk, offline) &mdash; no audio ever leaves the device and no account is needed.
+      Android only allows an app to keep the microphone open as a foreground service, so a permanent
+      &ldquo;Cadence is listening&rdquo; notification stays in your shade while this is on; that notification <em>is</em> the feature working.
+      It uses noticeably more battery than normal, and after you restart your phone you have to open Cadence once to arm it again.
+      Wake-word listening is English-only for now; tapping the mic still understands all ${LANGS.length} languages.
+    </div>
+  </div>`:''}
 
   <div class="section-title">Install &amp; Google Assistant</div>
   <div class="card">
@@ -1904,6 +1920,8 @@ renderers.settings = () => {
   document.getElementById("tryVoice").onclick = startVoice;
   { const lt=document.getElementById("listenToggle");
     if (lt) lt.onclick=()=>{ if(state.settings.listen){ stopAlwaysListening(); } else { startAlwaysListening(); } setView("settings"); }; }
+  { const bt=document.getElementById("bgListenToggle");
+    if (bt) bt.onclick=async ()=>{ bt.disabled=true; await (bgRunning?bgStop():bgStart()); bt.disabled=false; if(currentView==="settings") setView("settings"); }; }
   document.getElementById("voiceSpeakChk").onchange = e=>{ voiceSpeak = e.target.checked; };
 
   // Install
@@ -2817,6 +2835,9 @@ scrimEl.onclick = closeDrawer;
 
 // First run detection (no saved data yet)
 const IS_FIRST_RUN = !localStorage.getItem(STORE_KEY);
+/* True in the offscreen page the Android background listener uses to apply a
+   command with the app closed: same data, none of the UI clockwork. */
+const IS_HEADLESS = (()=>{ try { return new URLSearchParams(location.search).has("headless"); } catch { return false; } })();
 
 /* ============================= Onboarding ============================= */
 const TEMPLATES = [
@@ -3230,8 +3251,59 @@ function heartbeat(){
   }
 }
 
+/* ============================= Background listening (Android foreground service) =============================
+   The APK ships a small native service that runs an offline Vosk recogniser and
+   watches for the wake word while Cadence is closed. When it hears a command it
+   either hands it to this page (if the app is on screen) or replays it in an
+   offscreen copy of this page against the same localStorage. */
+function bgVoice(){
+  try { const P=window.Capacitor && window.Capacitor.Plugins; return (P && P.CadenceVoice) || null; } catch { return null; }
+}
+let bgRunning = false;
+async function bgStatus(){
+  const P=bgVoice(); if(!P) return { supported:false, running:false };
+  try { const s = await P.status(); bgRunning = !!(s && s.running); return s || {}; }
+  catch { bgRunning=false; return { supported:false, running:false }; }
+}
+async function bgStart(){
+  const P=bgVoice(); if(!P) return false;
+  try { await P.start(); bgRunning=true; toast('Listening in the background — say "Cadence, …"'); return true; }
+  catch(e){ bgRunning=false; toast(String((e&&e.message)||e||"Couldn't start background listening")); return false; }
+}
+async function bgStop(){
+  const P=bgVoice(); if(!P) return false;
+  try { await P.stop(); } catch {}
+  bgRunning=false; toast("Background listening off"); return true;
+}
+/* Commands heard while the app was closed that couldn't be applied at the time. */
+async function drainPendingCommands(){
+  const P=bgVoice(); if(!P || !P.pending) return 0;
+  let list=[];
+  try { const r = await P.pending(); list = (r && r.commands) || []; } catch { return 0; }
+  if (!list.length) return 0;
+  let last="";
+  for (const c of list){
+    const cmd = stripWake(String(c)).rest.trim();     // the wake word may still be attached
+    if (!cmd) continue;
+    try { last = runCommand(cmd); } catch {}
+  }
+  rerender();
+  toast(list.length===1 ? last : `Applied ${list.length} commands heard while you were away.`);
+  return list.length;
+}
+/* The service hands commands straight to the live page whenever it is on screen. */
+try {
+  const P=bgVoice();
+  if (P && P.addListener){
+    P.addListener("command", ev=>{
+      const c = ev && ev.command; if (!c) return;
+      toast(`“${c}”`); speakResult(runCommand(String(c)));
+    });
+  }
+} catch {}
+
 /* ============================= PWA registration ============================= */
-if ("serviceWorker" in navigator){
+if ("serviceWorker" in navigator && !IS_HEADLESS){
   window.addEventListener("load", ()=>{ navigator.serviceWorker.register("sw.js").catch(()=>{}); });
 }
 // Install prompt handling
@@ -3323,15 +3395,20 @@ if (state.garden.active){
 setView("dashboard");
 updateClock();
 handleUrlCommands();
-setInterval(heartbeat, 1000);
-// Resume always-listening if it was enabled (needs a user gesture on some browsers)
-if (state.settings.listen){
-  const kick=()=>{ if(state.settings.listen && !alwaysOn) startAlwaysListening(true); document.removeEventListener("pointerdown",kick); };
-  startAlwaysListening(true); document.addEventListener("pointerdown", kick, {once:true});
-}
-// First-time welcome (skips for anyone who already has data)
-if (IS_FIRST_RUN && !state.settings.onboarded){
-  document.getElementById("onboardModal").addEventListener("click", e=>{ if(e.target.id==="onboardModal") finishOnboarding(); });
-  showOnboarding();
+if (!IS_HEADLESS){
+  setInterval(heartbeat, 1000);
+  // Resume always-listening if it was enabled (needs a user gesture on some browsers)
+  if (state.settings.listen){
+    const kick=()=>{ if(state.settings.listen && !alwaysOn) startAlwaysListening(true); document.removeEventListener("pointerdown",kick); };
+    startAlwaysListening(true); document.addEventListener("pointerdown", kick, {once:true});
+  }
+  // Pick up anything the background listener heard while the app was closed
+  bgStatus().then(()=>{ if (currentView==="settings") rerender(); });
+  drainPendingCommands();
+  // First-time welcome (skips for anyone who already has data)
+  if (IS_FIRST_RUN && !state.settings.onboarded){
+    document.getElementById("onboardModal").addEventListener("click", e=>{ if(e.target.id==="onboardModal") finishOnboarding(); });
+    showOnboarding();
+  }
 }
 </script>
