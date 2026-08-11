@@ -1838,7 +1838,7 @@ renderers.settings = () => {
       <button class="btn ${s.listen?'primary':''}" id="listenToggle">${s.listen?'Always listening: On':'Always listening: Off'}</button>
       <label class="flex" style="gap:7px;font-size:13px"><input type="checkbox" id="voiceSpeakChk" ${voiceSpeak?'checked':''}> Speak results back</label>
     </div>
-    <div class="faint" style="font-size:11.5px;margin-top:10px">${voiceSupported()?'Voice input is available in this browser.':'Voice input needs Chrome (Android/desktop). Typed commands work everywhere.'}</div>
+    <div class="faint" style="font-size:11.5px;margin-top:10px">${nativeSR()?'Voice runs on your phone&rsquo;s own recogniser. Always-listening works while Cadence is open &mdash; Android blocks microphone access for closed apps.':voiceSupported()?'Voice input is available in this browser. Always-listening works while this tab is open.':'Voice input needs Chrome (Android/desktop). Typed commands work everywhere.'}</div>
   </div>
 
   <div class="section-title">Install &amp; Google Assistant</div>
@@ -3026,7 +3026,54 @@ function stripWake(text){
   }
   return { hit:false, rest:t };
 }
-function voiceSupported(){ return ("webkitSpeechRecognition" in window) || ("SpeechRecognition" in window); }
+/* Native Android recogniser (Capacitor plugin) — the web SpeechRecognition API
+   is not implemented in Android WebView, so the APK needs this. */
+function nativeSR(){
+  try { const P=window.Capacitor && window.Capacitor.Plugins; return (P && P.SpeechRecognition) || null; } catch { return null; }
+}
+function voiceSupported(){ return !!nativeSR() || ("webkitSpeechRecognition" in window) || ("SpeechRecognition" in window); }
+/* ---- native listening loop ----
+   The Android recogniser hands back one utterance per start() call, so
+   "always listening" is a loop: listen → handle → re-arm, until stopped. */
+let nativeListening=false, nativeStop=false;
+async function nativePermit(){
+  const SR=nativeSR(); if(!SR) return false;
+  let st="";
+  try {
+    if (SR.checkPermissions){ const c=await SR.checkPermissions(); st=String((c&&(c.speechRecognition||c.permission||c.state))||""); }
+    if (st!=="granted" && SR.requestPermissions){ const p=await SR.requestPermissions(); st=String((p&&(p.speechRecognition||p.permission||p.state))||""); }
+  } catch { return true; }                       // older plugin builds: just try
+  if (st==="denied"){ toast("Microphone permission denied — allow it in Android settings."); return false; }
+  return true;
+}
+async function nativeStart(continuous){
+  const SR=nativeSR(); if(!SR) return false;
+  if (nativeListening) return true;
+  if (!(await nativePermit())) return false;
+  nativeStop=false; nativeListening=true; micUI(alwaysOn, true);
+  if (!continuous) toast("Listening…");
+  (async ()=>{
+    while (!nativeStop){
+      let heard=null;
+      try {
+        const res = await SR.start({ language: speechLocale(), maxResults: 2, partialResults: false, popup: false });
+        const arr = (res && (res.matches || res.result)) || [];
+        heard = arr[0] || null;
+      } catch { /* no speech / recogniser busy — fall through and re-arm */ }
+      if (nativeStop) break;
+      if (heard) handleHeard(heard, !!continuous);
+      if (!continuous || !alwaysOn) break;
+      await new Promise(r=>setTimeout(r, 350));   // short gap so the recogniser can reset
+    }
+    nativeListening=false; micUI(alwaysOn && !nativeStop, false);
+  })();
+  return true;
+}
+async function nativeStopListening(){
+  const SR=nativeSR(); nativeStop=true;
+  if (SR){ try { await SR.stop(); } catch {} }
+  nativeListening=false; micUI(alwaysOn,false);
+}
 function micUI(on, listening){
   const b=document.getElementById("micBtn"); if(!b) return;
   b.classList.toggle("listening", !!listening);
@@ -3049,6 +3096,7 @@ function handleHeard(said, requireWake){
   speakResult(runCommand(cmd));
 }
 function startVoice(){   // one-shot: tap the mic, speak a command
+  if (nativeSR()){ nativeStart(false); return; }                 // Android app: native recogniser
   if (!voiceSupported()){ toast("Voice input isn't supported in this browser. Try Chrome on Android."); return; }
   stopVoice(true);
   try { recog = buildRecognizer(false); } catch { toast("Couldn't start the microphone."); return; }
@@ -3065,6 +3113,11 @@ function scheduleRestart(){
 }
 function startAlwaysListening(silent){
   if (!voiceSupported()){ toast("Always-listening needs Chrome (Android/desktop)."); return false; }
+  if (nativeSR()){                                               // Android app: native loop
+    alwaysOn = true; state.settings.listen = true; save();
+    micUI(true,true); if(!silent) toast('Always listening — say "Cadence, …"');
+    nativeStart(true); return true;
+  }
   alwaysOn = true; state.settings.listen = true; save();
   stopVoice(true);
   try { recog = buildRecognizer(true); } catch { alwaysOn=false; return false; }
@@ -3089,7 +3142,11 @@ function stopAlwaysListening(){
   alwaysOn=false; state.settings.listen=false; save();
   clearTimeout(restartTimer); stopVoice(true); micUI(false,false); toast("Always-listening off");
 }
-function stopVoice(quiet){ try{ if(recog){ recog.onend=null; recog.onerror=null; recog.stop(); } }catch{} recogRunning=false; if(!quiet) micUI(alwaysOn,false); }
+function stopVoice(quiet){
+  if (nativeSR()) nativeStopListening();
+  try{ if(recog){ recog.onend=null; recog.onerror=null; recog.stop(); } }catch{}
+  recogRunning=false; if(!quiet) micUI(alwaysOn,false);
+}
 { const mb=document.getElementById("micBtn");
   if (mb){
     mb.onclick = ()=> alwaysOn ? stopAlwaysListening() : startVoice();
@@ -3097,7 +3154,11 @@ function stopVoice(quiet){ try{ if(recog){ recog.onend=null; recog.onerror=null;
   }
 }
 // keep recognition language in sync when the app language changes
-function refreshVoiceLang(){ if (alwaysOn){ stopVoice(true); startAlwaysListening(true); } }
+function refreshVoiceLang(){
+  if (!alwaysOn) return;
+  if (nativeSR()){ nativeStopListening().then(()=>setTimeout(()=>{ if(alwaysOn) nativeStart(true); }, 450)); return; }
+  stopVoice(true); startAlwaysListening(true);
+}
 
 /* ============================= URL command bridge (for Google Assistant / shortcuts) ============================= */
 // Examples:  ?add=Reading|30|min|daily   ?log=Reading|30   ?start=Reading   ?stop=Reading   ?do=log 30 minutes to reading   ?go=analytics

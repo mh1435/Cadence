@@ -102,9 +102,26 @@ jobs:
 
           # Minimal Capacitor project
           npm init -y >/dev/null 2>&1
-          npm install --no-audit --no-fund @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6
+          npm install --no-audit --no-fund @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6 \
+                                            @capacitor-community/speech-recognition@6
           npx --yes cap init Cadence app.cadence.focus --web-dir www
           npx --yes cap add android
+
+          # Microphone permission for native speech recognition
+          MAN=android/app/src/main/AndroidManifest.xml
+          python3 - "$MAN" <<'PYEOF'
+import sys,re
+p=sys.argv[1]; s=open(p).read()
+perms='''    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <queries><intent><action android:name="android.speech.RecognitionService" /></intent></queries>
+'''
+if "RECORD_AUDIO" not in s:
+    s=s.replace("</manifest>", perms+"</manifest>")
+open(p,"w").write(s)
+print("manifest permissions added")
+PYEOF
+          grep -c RECORD_AUDIO "$MAN"
+
           npx --yes cap sync android
 
           # Brand the Android launcher icon from icon.svg (legacy + adaptive foreground)
