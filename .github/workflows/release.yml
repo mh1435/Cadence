@@ -44,15 +44,34 @@ jobs:
           cp index.html "dist/cadence.html"
           zip -j "dist/cadence-pwa.zip" index.html manifest.webmanifest sw.js icon.svg
 
+      # GitHub stamps a release with the date it was FIRST published and never
+      # refreshes it when assets are replaced. Reusing one rolling tag therefore
+      # made the page advertise a weeks-old date while serving a fresh APK, and
+      # left the tag pointing at whatever commit created it. Deleting the
+      # release and its tag first means every build republishes at today's date
+      # against the current commit, and the download URL still never changes.
+      - name: Clear the previous rolling release
+        if: steps.tag.outputs.tag == 'latest'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest --cleanup-tag --yes --repo "${{ github.repository }}" || true
+
+      - name: Build stamp
+        id: stamp
+        run: echo "built=$(date -u '+%Y-%m-%d %H:%M UTC')" >> "$GITHUB_OUTPUT"
+
       - name: Publish release (web assets)
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.tag }}
+          target_commitish: ${{ github.sha }}
           name: Cadence (${{ steps.tag.outputs.tag }})
           body: |
             **Cadence** — a free, offline study time & habit organizer with a Focus Garden, voice control, real-time reminders, and light/dark themes. No AI, no backend, no accounts, no tracking — your data stays on your device.
 
-            This release is rebuilt automatically from the latest `main`.
+            **Built ${{ steps.stamp.outputs.built }} from `${{ github.sha }}` (build ${{ github.run_number }}).**
+            Every push to `main` republishes this release, so the date above is the real build date.
 
             ### Download
             - **`cadence.apk`** — install on Android. Download it, then open it (allow "install from unknown sources" when prompted). The whole app is bundled inside, so it runs fully offline.
