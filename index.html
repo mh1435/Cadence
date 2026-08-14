@@ -380,6 +380,15 @@
   .pot-area.glow::after { content:""; position:absolute; left:50%; top:44%; width:158px; height:158px; transform:translate(-50%,-50%); border-radius:50%; border:2px dashed color-mix(in srgb, var(--good) 55%, transparent); animation: spin 9s linear infinite; z-index:0; pointer-events:none; }
   @keyframes spin { to { transform: translate(-50%,-50%) rotate(360deg); } }
   .pot-area.glow svg { position: relative; z-index: 1; }
+  .hours { display: grid; grid-template-columns: repeat(24, 1fr); gap: 2px; align-items: end; }
+  .hours .hr { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .hours .hr-bar { width: 100%; border-radius: 3px 3px 1px 1px; }
+  .hours .hr span { font-size: 9px; color: var(--txt-dim); height: 11px; }
+  .pomo-box { display: flex; flex-direction: column; align-items: center; gap: 9px; width: 100%; max-width: 300px; margin-top: 4px; }
+  .pomo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; }
+  .pomo-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; color: var(--txt-dim); font-weight: 600; }
+  .pomo-grid input { padding: 7px 8px; font-size: 13px; text-align: center; }
+  .break-rest { color: var(--good); opacity: .92; }
   .amb-picker { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
   .amb-picker button { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 11px 4px; border-radius: 12px; border: 1px solid var(--line-2); background: var(--bg); color: var(--txt-dim); font-size: 11.5px; font-weight: 600; }
   .amb-picker button.on { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--bg)); }
@@ -912,10 +921,11 @@ const DEFAULT_STATE = {
   habits: [],
   materials: [],
   blocks: [],           // {id, day:'mon', start:'09:00', end:'10:30', subject, color}
-  settings: { accent: "#6ea8fe", weekStartMon: true, dayStart: 6, dayEnd: 23, notify: false, theme: "dark", motion: "on", onboarded: false, lang: "en", listen: false },
+  settings: { accent: "#6ea8fe", weekStartMon: true, dayStart: 6, dayEnd: 23, notify: false, theme: "dark", motion: "on", onboarded: false, lang: "en", listen: false,
+              dayRollover: 0 },   // hour a new day begins, for streaks and stats
   study: { subjects: [], goals: [] },
   garden: { plants: [], sun: 0, unlocked: ["oak","cactus"], strict: false, active: null,
-            ambient: "none", pomo: { on:false, focus:25, short:5, long:20, cycle:4 }, pomoCount: 0, onBreak: null },
+            ambient: "none", pomo: { on:false, focus:25, short:5, long:20, cycle:4, auto:false }, pomoCount: 0, onBreak: null },
   created: todayISO()
 };
 
@@ -930,6 +940,22 @@ function load() {
     const s = JSON.parse(raw);
     return Object.assign(structuredClone(DEFAULT_STATE), s);
   } catch { return structuredClone(DEFAULT_STATE); }
+}
+/* load() merges saved state one level deep, so every key added to settings or
+   garden after a user's first save was silently missing for them. Fill any
+   absent key from the defaults instead of assuming it is there. */
+function fillDefaults(){
+  try {
+    for (const sec of ["settings","garden","study"]){
+      if (!state[sec] || typeof state[sec] !== "object"){ state[sec] = structuredClone(DEFAULT_STATE[sec]); continue; }
+      for (const [k,v] of Object.entries(DEFAULT_STATE[sec])){
+        if (state[sec][k] === undefined) state[sec][k] = structuredClone(v);
+      }
+    }
+    const dp = DEFAULT_STATE.garden.pomo;
+    if (!state.garden.pomo || typeof state.garden.pomo !== "object") state.garden.pomo = structuredClone(dp);
+    else for (const [k,v] of Object.entries(dp)) if (state.garden.pomo[k] === undefined) state.garden.pomo[k] = v;
+  } catch {}
 }
 function migrateGarden(){
   try {
@@ -948,8 +974,15 @@ function save() {
 }
 
 /* ============================= Date utils ============================= */
+/* Hour at which a new day begins. Studying at 3am should belong to the night
+   you started, not split one session across two days and break a streak. */
+function dayRollover(){
+  try { const h = state.settings.dayRollover | 0; return Math.max(0, Math.min(11, h)); } catch { return 0; }
+}
 function todayISO(d = new Date()) {
-  return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+  const roll = dayRollover();
+  const x = roll ? new Date(d.getTime() - roll*3600*1000) : d;
+  return x.getFullYear() + "-" + String(x.getMonth()+1).padStart(2,"0") + "-" + String(x.getDate()).padStart(2,"0");
 }
 function parseISO(s){ const [y,m,d]=s.split("-").map(Number); return new Date(y, m-1, d); }
 function addDays(d, n){ const x = new Date(d); x.setDate(x.getDate()+n); return x; }
@@ -1556,6 +1589,24 @@ renderers.analytics = () => {
   });
   html += `</div>`;
 
+  // which hours of the day you actually focus, from the session timestamps
+  {
+    const byHour = new Array(24).fill(0);
+    state.habits.forEach(h=>{
+      if (h.type!=="time") return;
+      (h.sessions||[]).forEach(se=>{ const d=new Date(se.ts); if(!isNaN(d)) byHour[d.getHours()] += se.amt||0; });
+    });
+    const peak = Math.max(...byHour);
+    const best = peak>0 ? byHour.indexOf(peak) : -1;
+    html += `<div class="section-title">Productive hours</div><div class="card">
+      <div class="hours">${byHour.map((v,i)=>{
+        const a = peak>0 ? v/peak : 0;
+        return `<div class="hr" title="${String(i).padStart(2,'0')}:00 — ${fmtDur(v)}"><div class="hr-bar" style="height:${(6+a*46).toFixed(1)}px;background:${v?`color-mix(in srgb, var(--accent) ${(25+a*75).toFixed(0)}%, var(--bg-3))`:'var(--bg-3)'}"></div><span>${i%6===0?String(i).padStart(2,'0'):''}</span></div>`;
+      }).join("")}</div>
+      <div class="faint" style="font-size:12px;margin-top:8px">${best>=0?`You focus most around <b>${String(best).padStart(2,'0')}:00</b> — ${fmtDur(peak)} logged in that hour.`:"Log a few timed sessions and your peak hours will show up here."}</div>
+    </div>`;
+  }
+
   // consistency heatmap (last ~10 weeks)
   html += `<div class="section-title">Activity heatmap (70 days)</div><div class="card"><div class="heat">`;
   for (let i=69;i>=0;i--){
@@ -1825,6 +1876,11 @@ renderers.settings = () => {
         <select class="input" id="setEnd">${[...Array(24)].map((_,i)=>`<option value="${i}" ${s.dayEnd===i?'selected':''}>${String(i).padStart(2,'0')}:00</option>`).join("")}</select>
       </div>
     </div>
+    <div class="divider" style="margin:16px 0"></div>
+    <div class="field"><label>A new day starts at</label>
+      <select class="input" id="setRollover" style="max-width:160px">${[...Array(12)].map((_,i)=>`<option value="${i}" ${(s.dayRollover|0)===i?'selected':''}>${String(i).padStart(2,'0')}:00</option>`).join("")}</select>
+      <div class="muted" style="font-size:12px;margin-top:6px">Studying past midnight? Set this to 04:00 or 05:00 and a 3am session still counts toward the night you started, instead of splitting your streak across two days.</div>
+    </div>
   </div>
 
   <div class="section-title">Reminders &amp; notifications</div>
@@ -1915,6 +1971,9 @@ renderers.settings = () => {
   { const seg=document.getElementById("setTheme"); seg.querySelectorAll("button").forEach(b=> b.onclick=()=>{ seg.querySelectorAll("button").forEach(x=>x.classList.remove("on")); b.classList.add("on"); s.theme=b.dataset.th; save(); applyTheme(); }); }
   document.getElementById("motionToggle").onclick=()=>{ s.motion = s.motion==="off"?"on":"off"; save(); applyTheme(); rerender(); };
   document.getElementById("setStart").onchange = e=>{ s.dayStart=parseInt(e.target.value); save(); };
+  { const ro=document.getElementById("setRollover");
+    if (ro) ro.onchange = e=>{ s.dayRollover=parseInt(e.target.value,10)||0; save(); rerender();
+      toast(s.dayRollover?`A new day now starts at ${String(s.dayRollover).padStart(2,'0')}:00`:"A new day starts at midnight"); }; }
   document.getElementById("setEnd").onchange = e=>{ s.dayEnd=parseInt(e.target.value); save(); };
   document.getElementById("exportBtn").onclick = exportData;
   document.getElementById("importBtn").onclick = ()=> document.getElementById("importFile").click();
@@ -2406,6 +2465,7 @@ function completeFocus(){
   notify("Bloomed!", `Your ${speciesById(a.species).name} bloomed. +${mins} Sunlight.`);
   toast(`Your ${speciesById(a.species).name} bloomed — +${mins} Sunlight`);
   confettiBurst();
+  if (pomo().on){ beginBreak(a); return; }
   if (currentView==="grow") renderers.grow(); else if (currentView==="dashboard") rerender();
   toastAction("Nice work — take a 5-min break?", "Start break", ()=> startBreak(5));
 }
@@ -2414,6 +2474,69 @@ function startBreak(mins=5){
   if (breakTimer) clearTimeout(breakTimer);
   toast(`Break started — ${mins} min. Rest your eyes.`);
   breakTimer=setTimeout(()=>{ breakTimer=null; notify("Break over", "Ready to grow another?"); toast("Break over — plant another session."); }, mins*60000);
+}
+
+/* ===== Break cycles: focus → short break → … → long break ===== */
+function pomo(){ return state.garden.pomo; }
+function onBreak(){ return state.garden.onBreak; }
+function breakRemainingSec(){
+  const b = onBreak(); if(!b) return 0;
+  return Math.max(0, Math.round(b.mins*60 - (Date.now()-b.startedAt)/1000));
+}
+function breakProgress(){
+  const b = onBreak(); if(!b) return 0;
+  return Math.max(0, Math.min(1, 1 - breakRemainingSec()/(b.mins*60)));
+}
+/* Called after a focus session finishes, when break cycles are on. */
+function beginBreak(prev){
+  const P = pomo();
+  state.garden.pomoCount = (state.garden.pomoCount|0) + 1;
+  const cycle = Math.max(1, P.cycle|0);
+  const isLong = state.garden.pomoCount % cycle === 0;
+  const mins = Math.max(1, (isLong ? P.long : P.short)|0);
+  state.garden.onBreak = { startedAt: Date.now(), mins, kind: isLong ? "long" : "short",
+                           species: prev.species, habitId: prev.habitId, durationMin: prev.durationMin };
+  save(); ensureFocusTick();
+  notify(isLong ? "Long break" : "Break", `${mins} min. ${P.auto ? "The next session starts on its own." : "Start the next one when you are ready."}`);
+  toast(`${isLong?"Long break":"Break"} — ${mins} min`);
+  if (currentView==="grow") renderers.grow();
+}
+function finishBreak(){
+  const b = onBreak(); if(!b) return;
+  const P = pomo();
+  state.garden.onBreak = null; save();
+  if (P.auto && b.species){
+    notify("Back to it", "Next session started.");
+    startFocus(b.durationMin || P.focus || 25, b.species, b.habitId);
+    return;
+  }
+  notify("Break over", "Ready to grow another?");
+  toast("Break over — plant another session.");
+  if (currentView==="grow") renderers.grow();
+}
+function skipBreak(){
+  if (!onBreak()) return;
+  state.garden.onBreak = null; save();
+  toast("Break skipped");
+  if (currentView==="grow") renderers.grow();
+}
+/* A resting pot: same stage furniture, no plant, so breaks feel part of the loop. */
+function breakStage(size){
+  const prog = breakProgress();
+  const R = 46, c = 2*Math.PI*R, off = c*(1-prog);
+  const th = -Math.PI/2 + 2*Math.PI*prog;
+  const kx = 50 + R*Math.cos(th), ky = 50 + R*Math.sin(th);
+  return `<div class="fstage" style="width:${size}px;height:${size}px">
+    <svg class="fstage-ring" viewBox="0 0 100 100" aria-hidden="true">
+      <circle class="fs-track" cx="50" cy="50" r="${R}"/>
+      <circle class="fs-arc" cx="50" cy="50" r="${R}" transform="rotate(-90 50 50)"
+        stroke-dasharray="${c.toFixed(2)}" stroke-dashoffset="${off.toFixed(2)}"/>
+      <circle class="fs-knob" cx="${kx.toFixed(2)}" cy="${ky.toFixed(2)}" r="4.4"/>
+    </svg>
+    <div class="fstage-disc"></div>
+    <div class="fstage-soil"></div>
+    <div class="fstage-plant break-rest">${ic("coffee", Math.round(size*0.22))}</div>
+  </div>`;
 }
 function giveUpFocus(){
   const a=state.garden.active; if(!a) return;
@@ -2436,7 +2559,25 @@ function buySpecies(id){
 }
 function ensureFocusTick(){ if(focusTick) return; focusTick=setInterval(focusHeartbeat,1000); }
 function stopFocusTick(){ if(focusTick){ clearInterval(focusTick); focusTick=null; } }
-function focusHeartbeat(){ const a=state.garden.active; if(!a){ stopFocusTick(); return; } if(focusRemainingSec()<=0){ completeFocus(); return; } if(fsShown()) updateFocusScreen(); else if(currentView==="grow") updateFocusUI(); }
+function focusHeartbeat(){
+  const a=state.garden.active;
+  if(!a){
+    if (onBreak()){                                  // a break counts down too
+      if (breakRemainingSec()<=0){ finishBreak(); return; }
+      if (fsShown()) updateFocusScreen(); else if (currentView==="grow") updateBreakUI();
+      return;
+    }
+    stopFocusTick(); return;
+  }
+  if(focusRemainingSec()<=0){ completeFocus(); return; }
+  if(fsShown()) updateFocusScreen(); else if(currentView==="grow") updateFocusUI();
+}
+function updateBreakUI(){
+  const b=onBreak(); if(!b) return;
+  const sec=breakRemainingSec();
+  const cnt=document.getElementById("focusCount"); if(cnt) cnt.textContent=`${String(Math.floor(sec/60)).padStart(2,'0')}:${String(sec%60).padStart(2,'0')}`;
+  const holder=document.getElementById("plantHolder"); if(holder) holder.innerHTML=breakStage(250);
+}
 function updateFocusUI(){
   const a=state.garden.active; if(!a) return;
   const sp=speciesById(a.species), p=focusProgress(), sec=focusRemainingSec();
@@ -2453,7 +2594,17 @@ function populateFsAmb(){
   c.querySelectorAll("[data-amb2]").forEach(b=> b.onclick=()=>{ setAmbient(b.dataset.amb2); populateFsAmb(); });
 }
 function updateFocusScreen(){
+  const b=onBreak();
+  if (b && !state.garden.active){
+    const sec=breakRemainingSec();
+    const cnt=document.getElementById("fsCount"); if(cnt) cnt.textContent=`${String(Math.floor(sec/60)).padStart(2,'0')}:${String(sec%60).padStart(2,'0')}`;
+    const pl=document.getElementById("fsPlant"); if(pl) pl.innerHTML=breakStage(Math.min(300, Math.round(window.innerWidth*0.78)));
+    const ph=document.getElementById("fsPhase"); if(ph) ph.textContent=(b.kind==="long"?"Long break":"Break");
+    const sub=document.getElementById("fsSub"); if(sub) sub.textContent="Rest — the next session is waiting";
+    return;
+  }
   const a=state.garden.active; if(!a) return;
+  const sub=document.getElementById("fsSub"); if(sub) sub.textContent="Stay focused — your plant is growing";
   const sp=speciesById(a.species), p=focusProgress(), sec=focusRemainingSec();
   const cnt=document.getElementById("fsCount"); if(cnt) cnt.textContent=`${String(Math.floor(sec/60)).padStart(2,'0')}:${String(sec%60).padStart(2,'0')}`;
   const pl=document.getElementById("fsPlant"); if(pl) pl.innerHTML=focusStage(sp,p,Math.min(300, Math.round(window.innerWidth*0.78)));
@@ -2501,6 +2652,16 @@ renderers.grow = () => {
       <div class="phase" id="focusPhase">${phaseText(p)}</div>
       <div class="focus-controls"><button class="btn" id="fsFocus">${ic("fullscreen",15)} Fullscreen</button><button class="btn danger" id="giveUp">Give up</button></div>
       ${g.active.strict?`<div class="faint" style="font-size:11.5px">Strict mode on — leaving Cadence wilts the plant.</div>`:``}`;
+  } else if (g.onBreak){
+    const bsec=breakRemainingSec();
+    html += `<div class="pot-area" id="plantHolder">${breakStage(250)}</div>
+      <div class="count" id="focusCount">${String(Math.floor(bsec/60)).padStart(2,'0')}:${String(bsec%60).padStart(2,'0')}</div>
+      <div class="phase">${g.onBreak.kind==="long"?"Long break":"Break"} · session ${state.garden.pomoCount} of the cycle</div>
+      <div class="focus-controls">
+        <button class="btn primary" id="breakNow">${ic("play",15)} Start next now</button>
+        <button class="btn" id="breakSkip">Skip break</button>
+      </div>
+      <div class="faint" style="font-size:11.5px">${g.pomo.auto?"The next session starts on its own.":"Nothing starts until you say so."}</div>`;
   } else {
     if (!chosenSpecies || !g.unlocked.includes(chosenSpecies)) chosenSpecies=g.unlocked[g.unlocked.length-1]||SPECIES[0].id;
     const sp=speciesById(chosenSpecies);
@@ -2525,7 +2686,17 @@ renderers.grow = () => {
       </div>
       ${timeHabits.length?`<div class="field" style="width:100%;max-width:280px"><label class="faint" style="font-size:12px">Count this toward (optional)</label>
         <select class="input" id="focusHabit"><option value="">General focus</option>${timeHabits.map(h=>`<option value="${h.id}" ${chosenHabit===h.id?'selected':''}>${esc(h.name)}</option>`).join("")}</select></div>`:``}
-      <div class="focus-controls"><button class="btn primary" id="plantBtn" style="font-size:15px;padding:11px 22px">${ic("leaf",16)} Plant &amp; Focus</button></div>`;
+      <div class="focus-controls"><button class="btn primary" id="plantBtn" style="font-size:15px;padding:11px 22px">${ic("leaf",16)} Plant &amp; Focus</button></div>
+      <div class="pomo-box">
+        <button class="btn ${g.pomo.on?'primary':''}" id="pomoToggle">${ic("timer",15)} Break cycles: ${g.pomo.on?'On':'Off'}</button>
+        ${g.pomo.on?`<div class="pomo-grid">
+          <label>Short break<input class="input" id="pomoShort" type="number" min="1" max="60" value="${g.pomo.short}"></label>
+          <label>Long break<input class="input" id="pomoLong" type="number" min="1" max="90" value="${g.pomo.long}"></label>
+          <label>Long every<input class="input" id="pomoCycle" type="number" min="1" max="12" value="${g.pomo.cycle}"></label>
+        </div>
+        <label class="flex" style="gap:7px;font-size:13px"><input type="checkbox" id="pomoAuto" ${g.pomo.auto?'checked':''}> Start the next session automatically</label>
+        <div class="faint" style="font-size:11.5px">After each session you get a short break, and a long one every ${g.pomo.cycle} sessions.</div>`:``}
+      </div>`;
   }
   html += `</div>`;
 
@@ -2594,6 +2765,17 @@ renderers.grow = () => {
   // wire
   const gu=document.getElementById("giveUp"); if(gu) gu.onclick=()=>{ if(confirm("Give up this session? The plant will wilt.")) giveUpFocus(); };
   const fsf=document.getElementById("fsFocus"); if(fsf) fsf.onclick=()=> document.fullscreenElement?exitFullscreen():enterFullscreen();
+  { const bn=document.getElementById("breakNow");
+    if (bn) bn.onclick=()=>{ const b=onBreak(); if(!b) return; state.garden.onBreak=null; save();
+      startFocus(b.durationMin || pomo().focus || 25, b.species, b.habitId); };
+    const bs=document.getElementById("breakSkip"); if (bs) bs.onclick=skipBreak; }
+  { const pt=document.getElementById("pomoToggle");
+    if (pt) pt.onclick=()=>{ pomo().on=!pomo().on; save(); renderers.grow(); toast(pomo().on?"Break cycles on":"Break cycles off"); };
+    const pa=document.getElementById("pomoAuto"); if (pa) pa.onchange=e=>{ pomo().auto=e.target.checked; save(); };
+    [["pomoShort","short"],["pomoLong","long"],["pomoCycle","cycle"]].forEach(([id,key])=>{
+      const el=document.getElementById(id);
+      if (el) el.onchange=e=>{ const v=parseInt(e.target.value,10); if(Number.isFinite(v)&&v>0){ pomo()[key]=v; save(); } else e.target.value=pomo()[key]; };
+    }); }
   const pb=document.getElementById("plantBtn"); if(pb) pb.onclick=()=>{
     const custom=parseInt((document.getElementById("durCustom")||{}).value);
     const dur=custom>0?custom:chosenDur;
@@ -3421,6 +3603,7 @@ try { if (window.matchMedia){ matchMedia("(prefers-color-scheme: light)").addEve
 { const tb=document.getElementById("themeBtn"); if(tb) tb.onclick=cycleTheme; }
 
 /* ============================= Boot ============================= */
+fillDefaults();
 migrateGarden();
 renderStaticIcons();
 applyLang();
