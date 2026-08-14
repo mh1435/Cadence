@@ -1,5 +1,40 @@
 # Plant art pipeline
 
+## Two sources, two pipelines
+
+Seven species now use hand-drawn growth strips supplied at roughly 1536x1024
+per strip — about 14x the pixel area of the original sheet. Those go through
+`extract_black.py` + `apply_new.py`. Everything else still comes from the
+original growth sheet via `clean_art.py`, described further down.
+
+| Species | Strip | Species | Strip |
+| --- | --- | --- | --- |
+| Blush Cap | blue mushrooms | Golden Orchard | white blossom, heart fruit |
+| Ember Fungus | red mushrooms on blue | Moon Willow | blue willow with lanterns |
+| Cherry Blossom | pink blossom | Crystal Bloom | blue/purple crystal tree |
+| Elder Oak | glowing green tree | | |
+
+### Keying black instead of white
+
+These strips are drawn on black, which is the mirror of the original problem:
+a hard threshold leaves a *dark* fringe, because the edge pixels are the art
+faded toward the backdrop. `extract_black.py` builds a coverage ramp, seals
+dark interior outlines with a morphological close (not a flood fill — these
+are ~1.5M pixel images and a per-pixel flood in Python is far too slow), then
+divides the colour back out by its own coverage so edges keep the real hue.
+
+Stages are split on the empty columns between them, and all four frames of a
+species are scaled by **one** factor so the seed stays small next to the tree.
+
+### Strips that cannot be keyed
+
+Two supplied strips have a glowing backdrop rather than a black one. No
+threshold separates art from backdrop: keying softly keeps the glow as opaque
+rectangles, keying hard strips the trunk and leaves off the plant. They are
+not in the app. A re-export on solid black is the fix — there is no image
+processing trick that recovers them.
+
+
 The 112 sprites in `PLANT_ART` (28 species x 4 growth stages) are cut from the
 growth-stage sheet and cleaned by `clean_art.py` before being embedded in
 `index.html` as WebP data URIs.
