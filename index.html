@@ -384,6 +384,10 @@
   .hours .hr { display: flex; flex-direction: column; align-items: center; gap: 3px; }
   .hours .hr-bar { width: 100%; border-radius: 3px 3px 1px 1px; }
   .hours .hr span { font-size: 9px; color: var(--txt-dim); height: 11px; }
+  .warn-note { margin-top: 12px; padding: 11px 13px; border-radius: 12px; font-size: 12px; line-height: 1.55;
+    color: var(--txt); background: color-mix(in srgb, var(--warn) 13%, var(--bg));
+    border: 1px solid color-mix(in srgb, var(--warn) 42%, transparent); }
+  .warn-note b { display: block; margin-bottom: 3px; }
   .pomo-box { display: flex; flex-direction: column; align-items: center; gap: 9px; width: 100%; max-width: 300px; margin-top: 4px; }
   .pomo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; }
   .pomo-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; color: var(--txt-dim); font-weight: 600; }
@@ -1922,6 +1926,15 @@ renderers.settings = () => {
     <div class="flex wrap" style="gap:10px;align-items:center">
       <button class="btn ${bgRunning?'primary':''}" id="bgListenToggle">${bgRunning?'Background listening: On':'Background listening: Off'}</button>
       <span class="faint" style="font-size:12px">${bgRunning?'Say &ldquo;Cadence, &hellip;&rdquo; any time &mdash; even with the app closed or the screen off.':'Off &mdash; Cadence only hears you while the app is open.'}</span>
+    </div>
+    <div class="warn-note">
+      <b>Your phone may silence itself while this is on.</b>
+      Hearing a wake word means holding the microphone open continuously, and many phones
+      (Xiaomi and Samsung especially) treat an app that never lets go of the mic like an ongoing call:
+      the ringer gets suppressed and a muted-bell or Do&nbsp;Not&nbsp;Disturb style icon appears in the status bar.
+      Cadence is not setting Do Not Disturb &mdash; it has no permission to, and never asks for one.
+      This is your phone reacting to the open microphone. Switching background listening off releases the mic
+      and the ringer comes back.
     </div>
     <div class="faint" style="font-size:11.5px;margin-top:10px;line-height:1.55">
       Recognition runs entirely on this phone (Vosk, offline) &mdash; no audio ever leaves the device and no account is needed.
