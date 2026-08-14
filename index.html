@@ -1906,7 +1906,8 @@ renderers.settings = () => {
     <div class="stat"><div class="label">Total time</div><div class="value" style="font-size:22px">${fmtDur(totalMinutesAll())}</div></div>
     <div class="stat"><div class="label">Tracking since</div><div class="value" style="font-size:16px">${state.created}</div></div>
   </div>
-  <div class="faint center" style="margin-top:30px;font-size:12px">Cadence · offline study organizer · v3.4 · always-listening voice in 6 languages · 28 plants · syllabus · goals</div>`;
+  <div class="faint center" style="margin-top:30px;font-size:12px">Cadence · offline study organizer · v3.4 · always-listening voice in 6 languages · 28 plants · syllabus · goals</div>
+  <div class="faint center" style="margin-top:6px;font-size:12px;font-family:var(--mono)">${buildLabel()}</div>`;
   view.innerHTML = html;
 
   renderSwatches(document.getElementById("setAccent"), s.accent, c=>{ s.accent=c; document.documentElement.style.setProperty("--accent",c); save(); });
@@ -2872,6 +2873,10 @@ scrimEl.onclick = closeDrawer;
 
 // First run detection (no saved data yet)
 const IS_FIRST_RUN = !localStorage.getItem(STORE_KEY);
+/* Stamped by the release workflow. A sideloaded APK never updates itself, so
+   this is how you tell which build is actually installed on a device. */
+const BUILD_ID = "__BUILD_ID__";
+function buildLabel(){ return BUILD_ID.indexOf("__BUILD") === 0 ? "unreleased build" : "Build " + BUILD_ID; }
 /* True in the offscreen page the Android background listener uses to apply a
    command with the app closed: same data, none of the UI clockwork. */
 const IS_HEADLESS = (()=>{ try { return new URLSearchParams(location.search).has("headless"); } catch { return false; } })();

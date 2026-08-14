@@ -38,6 +38,13 @@ jobs:
             echo "tag=latest" >> "$GITHUB_OUTPUT"
           fi
 
+      # So a device can report which build it is actually running: a sideloaded
+      # APK never updates itself, and "did it update?" is otherwise guesswork.
+      - name: Stamp build id
+        run: |
+          sed -i "s#__BUILD_ID__#${{ github.run_number }} · $(date -u '+%Y-%m-%d %H:%M UTC')#" index.html
+          grep -o 'const BUILD_ID = "[^"]*"' index.html
+
       - name: Package downloadable app
         run: |
           mkdir -p dist
@@ -117,6 +124,11 @@ jobs:
       - name: Build APK with Capacitor
         run: |
           set -e
+          # Same build stamp the web assets get, so an installed APK can say
+          # which build it is
+          sed -i "s#__BUILD_ID__#${{ github.run_number }} · $(date -u '+%Y-%m-%d %H:%M UTC')#" index.html
+          grep -o 'const BUILD_ID = "[^"]*"' index.html
+
           # Web assets that get bundled inside the app
           mkdir -p www
           cp index.html manifest.webmanifest sw.js icon.svg www/
