@@ -375,7 +375,7 @@
     border: 1px solid var(--line); border-radius: var(--radius); padding: 18px;
     display: flex; flex-direction: column; align-items: center; gap: 12px; min-height: 340px; justify-content: center; position: relative;
   }
-  .stage .pot-area { display: grid; place-items: center; height: 220px; position: relative; }
+  .stage .pot-area { display: grid; place-items: center; position: relative; }
   .pot-area.glow::before { content:""; position:absolute; left:50%; top:44%; width:190px; height:190px; transform:translate(-50%,-50%); border-radius:50%; background: radial-gradient(circle, color-mix(in srgb, var(--good) 42%, transparent) 0%, transparent 62%); filter: blur(5px); z-index:0; pointer-events:none; }
   .pot-area.glow::after { content:""; position:absolute; left:50%; top:44%; width:158px; height:158px; transform:translate(-50%,-50%); border-radius:50%; border:2px dashed color-mix(in srgb, var(--good) 55%, transparent); animation: spin 9s linear infinite; z-index:0; pointer-events:none; }
   @keyframes spin { to { transform: translate(-50%,-50%) rotate(360deg); } }
@@ -400,10 +400,29 @@
   .fs-min { position: absolute; top: 16px; left: 16px; width: 42px; height: 42px; border-radius: 12px; background: rgba(255,255,255,.12); border: 0; color: #eafff5; display: grid; place-items: center; }
   .fs-min:hover { background: rgba(255,255,255,.2); }
   .fs-phase { font-size: 13.5px; letter-spacing: .4px; text-transform: uppercase; opacity: .8; font-weight: 700; }
-  .fs-plant { position: relative; display: grid; place-items: center; width: 250px; height: 250px; }
-  .fs-plant::before { content: ""; position: absolute; width: 220px; height: 220px; border-radius: 50%; background: radial-gradient(circle, rgba(180,255,220,.35), transparent 62%); filter: blur(7px); }
-  .fs-plant::after { content: ""; position: absolute; width: 176px; height: 176px; border-radius: 50%; border: 2px dashed rgba(205,255,232,.5); animation: spin 11s linear infinite; }
+  .fs-plant { position: relative; display: grid; place-items: center; }
   .fs-plant svg { position: relative; z-index: 1; }
+
+  /* Focus stage: the plant stands in a pot at the centre of its progress ring,
+     so every growth stage sits on the same ground line instead of floating. */
+  .fstage { position: relative; margin: 0 auto;
+    --fstage-disc: color-mix(in srgb, var(--good) 13%, var(--bg-2));
+    --fstage-track: color-mix(in srgb, var(--good) 26%, var(--bg-3));
+    --fstage-knob-ring: var(--bg-2); }
+  .focus-screen .fstage { --fstage-disc: rgba(255,255,255,.12); --fstage-track: rgba(255,255,255,.22); --fstage-knob-ring: rgba(255,255,255,.85); }
+  .fstage-ring { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; z-index: 3; }
+  .fstage-ring .fs-track { fill: none; stroke: var(--fstage-track); stroke-width: 4.4; }
+  .fstage-ring .fs-arc { fill: none; stroke: var(--good); stroke-width: 4.4; stroke-linecap: round; transition: stroke-dashoffset .6s linear; }
+  .fstage-ring .fs-knob { fill: var(--good); stroke: var(--fstage-knob-ring); stroke-width: 1.5; }
+  .fstage-disc { position: absolute; inset: 6.5%; border-radius: 50%; background: var(--fstage-disc); }
+  .fstage-soil { position: absolute; left: 15%; right: 15%; bottom: 13%; height: 27%; z-index: 1;
+    border-radius: 50% 50% 46% 46% / 18% 18% 82% 82%;
+    background: linear-gradient(180deg, #b06c3c 0%, #8a5127 46%, #6a3b1b 100%); }
+  .fstage-soil::before { content: ""; position: absolute; left: -1%; right: -1%; top: -8%; height: 28%;
+    border-radius: 50%; background: linear-gradient(180deg, #c78850, #a56736); }
+  .fstage-plant { position: absolute; left: 50%; bottom: 33%; transform: translateX(-50%); z-index: 2;
+    display: flex; align-items: flex-end; justify-content: center; pointer-events: none; }
+  .fstage-plant .plant-art-wrap { height: auto; }
   .fs-count { font-family: var(--mono); font-size: 58px; font-weight: 800; letter-spacing: -2px; line-height: 1; }
   .fs-sub { opacity: .82; font-size: 14px; }
   .fs-amb { max-width: 430px; width: 100%; grid-template-columns: repeat(6, 1fr); }
@@ -2101,6 +2120,25 @@ function artFor(p, speciesId){
   return art.bloom||art.mid||art.seed||"";
 }
 // growing plant visual: user's imported image > bundled plant art > SVG fallback
+/* The focus stage: progress ring, pot, and the plant standing on the soil.
+   One helper so the card and the full-screen view cannot drift apart. */
+function focusStage(sp, p, size){
+  const prog = Math.max(0, Math.min(1, p));
+  const R = 46, c = 2*Math.PI*R, off = c*(1-prog);
+  const th = -Math.PI/2 + 2*Math.PI*prog;
+  const kx = 50 + R*Math.cos(th), ky = 50 + R*Math.sin(th);
+  return `<div class="fstage" style="width:${size}px;height:${size}px">
+    <svg class="fstage-ring" viewBox="0 0 100 100" aria-hidden="true">
+      <circle class="fs-track" cx="50" cy="50" r="${R}"/>
+      <circle class="fs-arc" cx="50" cy="50" r="${R}" transform="rotate(-90 50 50)"
+        stroke-dasharray="${c.toFixed(2)}" stroke-dashoffset="${off.toFixed(2)}"/>
+      <circle class="fs-knob" cx="${kx.toFixed(2)}" cy="${ky.toFixed(2)}" r="4.4"/>
+    </svg>
+    <div class="fstage-disc"></div>
+    <div class="fstage-soil"></div>
+    <div class="fstage-plant">${plantVisual(sp, p, Math.round(size*0.5))}</div>
+  </div>`;
+}
 function plantVisual(sp, p, size){
   const src=artFor(p, sp&&sp.id);
   if (!src && sp && PLANT_ART[sp.id]){
@@ -2402,7 +2440,7 @@ function updateFocusUI(){
   const a=state.garden.active; if(!a) return;
   const sp=speciesById(a.species), p=focusProgress(), sec=focusRemainingSec();
   const cnt=document.getElementById("focusCount"); if(cnt) cnt.textContent=`${String(Math.floor(sec/60)).padStart(2,'0')}:${String(sec%60).padStart(2,'0')}`;
-  const holder=document.getElementById("plantHolder"); if(holder) holder.innerHTML=plantVisual(sp,p,190);
+  const holder=document.getElementById("plantHolder"); if(holder) holder.innerHTML=focusStage(sp,p,250);
   const phase=document.getElementById("focusPhase"); if(phase) phase.textContent=phaseText(p);
   const rw=document.getElementById("focusRing"); if(rw) rw.innerHTML=ring(p, sp.bloom, 42);
 }
@@ -2417,7 +2455,7 @@ function updateFocusScreen(){
   const a=state.garden.active; if(!a) return;
   const sp=speciesById(a.species), p=focusProgress(), sec=focusRemainingSec();
   const cnt=document.getElementById("fsCount"); if(cnt) cnt.textContent=`${String(Math.floor(sec/60)).padStart(2,'0')}:${String(sec%60).padStart(2,'0')}`;
-  const pl=document.getElementById("fsPlant"); if(pl) pl.innerHTML=plantVisual(sp,p,200);
+  const pl=document.getElementById("fsPlant"); if(pl) pl.innerHTML=focusStage(sp,p,Math.min(300, Math.round(window.innerWidth*0.78)));
   const ph=document.getElementById("fsPhase"); if(ph) ph.textContent=phaseText(p);
 }
 function showFocusScreen(){
@@ -2457,8 +2495,7 @@ renderers.grow = () => {
   html += `<div class="stage">`;
   if (g.active){
     const sp=speciesById(g.active.species), p=focusProgress(), sec=focusRemainingSec();
-    html += `<div class="ring-wrap" id="focusRing">${ring(p, sp.bloom, 42)}</div>
-      <div class="pot-area glow" id="plantHolder">${plantVisual(sp,p,190)}</div>
+    html += `<div class="pot-area" id="plantHolder">${focusStage(sp,p,250)}</div>
       <div class="count" id="focusCount">${String(Math.floor(sec/60)).padStart(2,'0')}:${String(sec%60).padStart(2,'0')}</div>
       <div class="phase" id="focusPhase">${phaseText(p)}</div>
       <div class="focus-controls"><button class="btn" id="fsFocus">${ic("fullscreen",15)} Fullscreen</button><button class="btn danger" id="giveUp">Give up</button></div>
