@@ -174,18 +174,14 @@ public class VoiceService extends Service implements RecognitionListener {
     }
 
     private void dispatch(final String command) {
-        if (VoicePlugin.appOpen()) {                          // the live page handles it
-            VoicePlugin.deliver(command);
-            return;
-        }
-        HeadlessRunner.run(this, command, new HeadlessRunner.Done() {
-            @Override public void onDone(String message, boolean ok) {
-                if (ok && message != null && !message.isEmpty()) {
+        CommandDispatch.run(this, command, new CommandDispatch.Callback() {
+            @Override public void onDone(int outcome, String message) {
+                if (outcome == CommandDispatch.MESSAGE) {
                     notifyResult("Cadence", message);
-                } else {
-                    PendingStore.add(VoiceService.this, command);
+                } else if (outcome == CommandDispatch.QUEUED) {
                     notifyResult("Cadence heard you", "“" + command + "” — applied next time you open the app.");
                 }
+                // LIVE: the live page handles it, same as before — no notification.
             }
         });
     }

@@ -161,8 +161,16 @@ jobs:
           if ! grep -q "app.cadence.focus.VoiceService" "$MAN"; then
             sed -i 's#</application>#        <service android:name="app.cadence.focus.VoiceService" android:exported="false" android:foregroundServiceType="microphone" />\n        <receiver android:name="app.cadence.focus.BootReceiver" android:exported="true" android:enabled="true">\n            <intent-filter><action android:name="android.intent.action.BOOT_COMPLETED" /></intent-filter>\n        </receiver>\n    </application>#' "$MAN"
           fi
+
+          # External command handoff (e.g. from VOID): a normal-level custom
+          # permission gates who may trigger RunCommandReceiver — no runtime
+          # prompt, just keeps random apps from firing it unasked.
+          if ! grep -q "RUN_COMMAND" "$MAN"; then
+            sed -i 's#</manifest>#    <permission android:name="app.cadence.focus.permission.RUN_COMMAND" android:protectionLevel="normal" />\n</manifest>#' "$MAN"
+            sed -i 's#</application>#        <receiver android:name="app.cadence.focus.RunCommandReceiver" android:exported="true" android:permission="app.cadence.focus.permission.RUN_COMMAND">\n            <intent-filter><action android:name="app.cadence.focus.RUN_COMMAND" /></intent-filter>\n        </receiver>\n    </application>#' "$MAN"
+          fi
           python3 -c "import xml.dom.minidom,sys; xml.dom.minidom.parse('$MAN'); print('manifest is valid XML')"
-          grep -c "RECORD_AUDIO\|VoiceService\|BootReceiver" "$MAN"
+          grep -c "RECORD_AUDIO\|VoiceService\|BootReceiver\|RunCommandReceiver\|RUN_COMMAND" "$MAN"
 
           npx --yes cap sync android
 

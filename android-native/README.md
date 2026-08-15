@@ -11,6 +11,8 @@ directory is the only place these sources live.
 | `VoicePlugin.java` | Bridge the web app calls: `start`, `stop`, `status`, `pending`, `info`, plus a `command` event. |
 | `VoiceService.java` | Microphone foreground service running the offline Vosk recogniser and matching the wake word. |
 | `HeadlessRunner.java` | Replays a command in an offscreen WebView on the same origin (`https://localhost`) so it shares the app's localStorage. |
+| `CommandDispatch.java` | Shared "live page vs. headless vs. queued" routing, used by both `VoiceService` and `RunCommandReceiver` so there's only ever one place that decides how a command gets applied. |
+| `RunCommandReceiver.java` | Exported broadcast receiver so another app (e.g. VOID) can run a command the same way the wake word does, gated by the `RUN_COMMAND` permission. |
 | `ModelAssets.java` | Unpacks the bundled model from assets to the files directory the first time it is needed. |
 | `PendingStore.java` | Queue for commands that could not be applied immediately; drained by the web app on next launch. |
 | `Prefs.java` | Remembers that the user wants background listening, so a reboot can prompt. |
@@ -23,6 +25,8 @@ The workflow also, in `.github/workflows/release.yml`:
 - adds `RECORD_AUDIO`, `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_MICROPHONE`,
   `POST_NOTIFICATIONS` and `RECEIVE_BOOT_COMPLETED`, and declares the service
   with `foregroundServiceType="microphone"`;
+- declares the `app.cadence.focus.permission.RUN_COMMAND` custom permission
+  and registers `RunCommandReceiver`, exported and gated by it;
 - adds the `vosk-android`, `jna` and `androidx.webkit` dependencies, keeps JNA's
   native libraries extracted (`useLegacyPackaging true`) and leaves the model
   files uncompressed.
