@@ -3164,7 +3164,7 @@ function normalizeCommand(text){
 function runCommand(raw){
   if (!raw) return "Say a command like “add habit reading 30 minutes daily”.";
   raw = normalizeCommand(raw);
-  let t = raw.toLowerCase().trim().replace(/[.!]+$/,"");
+  let t = raw.toLowerCase().trim().replace(/[.!?]+$/,"");
   // NAVIGATION
   let m = t.match(/^(?:go to|open|show|navigate to)\s+(dashboard|home|habits?|schedule|analytics|materials?|planner|achievements?|settings)/);
   if (m){ const map={home:"dashboard",habit:"habits",habits:"habits",material:"materials",materials:"materials",achievement:"achievements",achievements:"achievements"}; const v=map[m[1]]||m[1]; setView(v); closeCmd(); return "Opened "+v+"."; }
@@ -3190,6 +3190,86 @@ function runCommand(raw){
     if (activeTimers[h.id]) return `Timer already running for ${h.name}.`;
     startTimer(h.id); return `Started timing ${h.name}.`;
   }
+
+  // SCHEDULE BLOCK — "add a study block for biology monday 2pm to 4pm" /
+  // "schedule biology monday from 9am to 10:30am" / "block off tuesday 6am-7am for gym"
+  // Must be checked before LOG/CREATE HABIT below: "add a block/subject/goal ..."
+  // would otherwise get swallowed by them (e.g. wordToNum('a') === 1 makes LOG
+  // misfire on "add a study goal ...").
+  m = t.match(/^(?:schedule|plan|(?:add|create|new)\s+(?:a\s+)?(?:new\s+)?(?:study\s+)?block(?:\s+for)?|block off)\s+(.+)$/);
+  if (m){
+    let body = m[1];
+    const DAY_NAMES = { monday:"mon", tuesday:"tue", wednesday:"wed", thursday:"thu", friday:"fri", saturday:"sat", sunday:"sun" };
+    const dm = body.match(/\b(mon(?:day)?|tue(?:s(?:day)?)?|wed(?:s(?:day)?)?|thu(?:r(?:s(?:day)?)?)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?)\b/);
+    if (!dm) return "Which day — e.g. “add a study block for biology monday 2pm to 4pm”?";
+    const day = DAY_NAMES[dm[1]] || dm[1].slice(0,3);
+    body = (body.slice(0, dm.index) + body.slice(dm.index + dm[0].length)).trim();
+
+    const tm = body.match(/(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\s*(?:-|to|until|till)\s*(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)/i);
+    if (!tm) return "What time — e.g. “...monday 2pm to 4pm”?";
+    const start = parseTimeToken(tm[1]), end = parseTimeToken(tm[2]);
+    if (!start || !end) return "I couldn't read that time.";
+    if (toMin(end) <= toMin(start)) return "End must be after start.";
+    body = (body.slice(0, tm.index) + body.slice(tm.index + tm[0].length)).trim();
+
+    let subject = body.replace(/^\s*(?:from|for|on|at)\s+/,"").replace(/\s+(?:from|for|on|at)\s*$/,"").trim().replace(/\s{2,}/g," ");
+    if (!subject) return "What's the block for?";
+    subject = subject.split(" ").map(w=>w?w[0].toUpperCase()+w.slice(1):w).join(" ");
+
+    const block = { id: uid(), day, start, end, subject, color: COLORS[state.blocks.length % COLORS.length] };
+    state.blocks.push(block); save(); if (["dashboard","schedule"].includes(currentView)) rerender();
+    return `Scheduled “${subject}” on ${DAYS[DAY_KEYS.indexOf(day)]} ${start}–${end}.`;
+  }
+
+  // STUDY SUBJECT — "add a study subject called biology" / "create a subject biology" / "new subject chemistry"
+  m = t.match(/^(?:add|create|new|make)\s+(?:a\s+)?(?:new\s+)?(?:study\s+)?subjects?\s*(?:called\s+|named\s+)?(.+)$/);
+  if (m){
+    let name = m[1].trim().replace(/^\s*(?:for|to)\s+/,"").trim();
+    if (!name) return "What should the subject be called?";
+    name = name.split(" ").map(w=>w?w[0].toUpperCase()+w.slice(1):w).join(" ");
+    if (state.study.subjects.find(s=>s.name.toLowerCase()===name.toLowerCase())) return `“${name}” is already a subject.`;
+    state.study.subjects.push({ id: uid(), name, color: COLORS[state.study.subjects.length % COLORS.length], topics: [], cards: [] });
+    save(); if (currentView==="study") rerender();
+    return `Added “${name}” as a study subject.`;
+  }
+
+  // STUDY GOAL — "add a study goal finish 12 papers by 2026-09-01" / "set a goal to read 10 chapters"
+  m = t.match(/^(?:add|create|new|set)\s+(?:a\s+)?(?:new\s+)?(?:study\s+)?goal\s*(?:to\s+|of\s+)?(.+)$/);
+  if (m){
+    let body = m[1], due = "";
+    const dueM = body.match(/\bby\s+(\d{4}-\d{2}-\d{2})\b/i) || body.match(/\bdue\s+(\d{4}-\d{2}-\d{2})\b/i);
+    if (dueM){ due = dueM[1]; body = (body.slice(0, dueM.index) + body.slice(dueM.index + dueM[0].length)).trim(); }
+
+    const nm = body.match(/(\d+(?:\.\d+)?|one|two|three|four|five|six|seven|eight|nine|ten|fifteen|twenty|thirty|forty|fifty|sixty|ninety|hundred)\s*([a-z]+)?/);
+    if (!nm) return "How many — e.g. “add a study goal finish 12 papers by 2026-09-01”?";
+    const target = wordToNum(nm[1]);
+    let unit = (nm[2]||"").toLowerCase();
+    if (/^(to|for|of|a|an|the|and|called|named|by)$/.test(unit)) unit = "";
+    body = (body.slice(0, nm.index) + body.slice(nm.index + nm[0].length)).replace(/\s{2,}/g," ").trim();
+
+    let name = body.replace(/^\s*(?:to|for|of)\s+/,"").trim().replace(/\s{2,}/g," ");
+    if (!name) name = unit ? `Finish ${target} ${unit}` : `Finish ${target}`;
+    name = name.split(" ").map(w=>w?w[0].toUpperCase()+w.slice(1):w).join(" ");
+
+    state.study.goals.push({ id: uid(), name, target, current: 0, unit, due, created: todayISO() });
+    save(); if (currentView==="study") rerender();
+    return `Goal set — ${name}: ${target}${unit?" "+unit:""}${due?` by ${due}`:""}.`;
+  }
+
+  // SUMMARIZE TODAY — read-only query, no state mutation, no save().
+  // VOID always sends the exact canonical phrase "what do I have today" over
+  // the bridge, so that's the one phrase this MUST recognize; the fuller
+  // pattern list also covers Cadence's own direct voice/text users.
+  const TODAY_QUERY_PATTERNS = [
+    /^what(?:'s| is| do i have| have i got)?\s+(?:do i have(?: to do)?|is|are|on|going on|happening)?\s*(?:on\s+)?(?:my\s+)?(?:plate|schedule|agenda|day)?\s*(?:for\s+)?today$/,
+    /^what am i doing today$/,
+    /^what'?s happening today$/,
+    /^do i have anything(?: else)? today$/,
+    /^summari[sz]e (?:my )?today$/,
+    /^(?:give me )?(?:my |a |today'?s )?(?:summary|rundown|overview)(?: for| of)? today$/,
+    /^today'?s\s+(?:summary|rundown|overview|agenda|schedule)$/,
+  ];
+  if (TODAY_QUERY_PATTERNS.some(re => re.test(t))) return summarizeToday();
 
   // LOG  — "log 30 minutes to reading" / "log 45 min reading" / "add 20 pages to biology" / "read 15 pages"
   m = t.match(/^(log|add|record|did|read|studied?|do)\s+(\d+(?:\.\d+)?|\w+)\s*(minutes?|mins?|hours?|hrs?|pages?|reps?|units?)?\s*(?:of|on|to|for|toward|towards)?\s*(.+)?$/);
@@ -3247,6 +3327,38 @@ function runCommand(raw){
     return `Created “${name}” — ${type==="time"?fmtDur(habit.target):habit.target+" "+unit} ${period}.`;
   }
   return `Sorry, I didn't understand “${raw}”. Try: “add habit reading 30 minutes daily”, “log 25 minutes to coding”, or “start reading”.`;
+}
+
+/* Read-only "what do I have today" summary — habits, today's schedule,
+   reminders, and study goals due soon. No state mutation, no save(). */
+function summarizeToday(){
+  const now = new Date();
+  const today = todayISO(now);
+  const todayKey = DAY_KEYS[dowMon(now)];
+  const parts = [];
+
+  if (state.habits.length){
+    const doneCount = state.habits.filter(h=>metOn(h, today)).length;
+    const pending = state.habits.filter(h=>!metOn(h, today));
+    parts.push(`Habits: ${doneCount}/${state.habits.length} done today` +
+      (pending.length ? ` — still to do: ${pending.map(h=>h.name).join(", ")}.` : "."));
+  }
+
+  const todays = state.blocks.filter(b=>b.day===todayKey).sort((a,b)=>a.start.localeCompare(b.start));
+  if (todays.length) parts.push(`Schedule: ${todays.map(b=>`${b.subject} ${b.start}-${b.end}`).join(", ")}.`);
+
+  const reminders = state.habits.filter(h=>h.reminder);
+  if (reminders.length) parts.push(`Reminders: ${reminders.map(h=>`${h.name} at ${h.reminder}`).join(", ")}.`);
+
+  const soon = state.study.goals.filter(g=>{
+    if (!g.due || goalPct(g)>=1) return false;
+    const d = Math.ceil((parseISO(g.due)-now)/86400000);
+    return d<=3;
+  });
+  if (soon.length) parts.push(`Goals due soon: ${soon.map(g=>`${g.name} (${g.current||0}/${g.target}${g.unit?" "+g.unit:""})`).join(", ")}.`);
+
+  if (!parts.length) return "Nothing on for today — no habits, schedule blocks, reminders, or goals due.";
+  return parts.join("\n");
 }
 /* Speech locale per app language (free, built into the browser) */
 const SPEECH_LOCALE = { en:"en-US", es:"es-ES", fr:"fr-FR", de:"de-DE", pt:"pt-PT", ar:"ar-SA" };
