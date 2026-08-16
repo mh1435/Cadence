@@ -1,0 +1,259 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'manifest.webmanifest'
+      - 'sw.js'
+      - 'icon.png'
+      - '.github/workflows/release.yml'
+      - 'android-native/**'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Version tag for a pinned release (e.g. v1.4.0)'
+        required: true
+        default: 'v1.4.0'
+
+permissions:
+  contents: write
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Determine tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=latest" >> "$GITHUB_OUTPUT"
+          fi
+
+      # So a device can report which build it is actually running: a sideloaded
+      # APK never updates itself, and "did it update?" is otherwise guesswork.
+      - name: Stamp build id
+        run: |
+          sed -i "s#__BUILD_ID__#${{ github.run_number }} · $(date -u '+%Y-%m-%d %H:%M UTC')#" index.html
+          grep -o 'const BUILD_ID = "[^"]*"' index.html
+
+      - name: Package downloadable app
+        run: |
+          mkdir -p dist
+          cp index.html "dist/cadence.html"
+          zip -j "dist/cadence-pwa.zip" index.html manifest.webmanifest sw.js icon.png
+
+      # GitHub stamps a release with the date it was FIRST published and never
+      # refreshes it when assets are replaced. Reusing one rolling tag therefore
+      # made the page advertise a weeks-old date while serving a fresh APK, and
+      # left the tag pointing at whatever commit created it. Deleting the
+      # release and its tag first means every build republishes at today's date
+      # against the current commit, and the download URL still never changes.
+      - name: Clear the previous rolling release
+        if: steps.tag.outputs.tag == 'latest'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest --cleanup-tag --yes --repo "${{ github.repository }}" || true
+
+      - name: Build stamp
+        id: stamp
+        run: echo "built=$(date -u '+%Y-%m-%d %H:%M UTC')" >> "$GITHUB_OUTPUT"
+
+      - name: Publish release (web assets)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: Cadence (${{ steps.tag.outputs.tag }})
+          body: |
+            **Cadence** — a free, offline study time & habit organizer with a Focus Garden, voice control, real-time reminders, and light/dark themes. No AI, no backend, no accounts, no tracking — your data stays on your device.
+
+            **Built ${{ steps.stamp.outputs.built }} from `${{ github.sha }}` (build ${{ github.run_number }}).**
+            Every push to `main` republishes this release, so the date above is the real build date.
+
+            ### Download
+            - **`cadence.apk`** — install on Android. Download it, then open it (allow "install from unknown sources" when prompted). The whole app is bundled inside, so it runs fully offline.
+            - **`cadence.html`** — the entire app in one file for any browser (phone or computer). Works offline; on a phone you can also "Add to Home screen".
+            - **`cadence-pwa.zip`** — all web files if you'd rather self-host it as an installable PWA.
+
+            ### Highlights
+            - Time-based habit tracking with live timer, streaks, and analytics
+            - **Focus Garden** — plant a session and grow it by focusing; collect species with Sunlight
+            - **Background wake word (Android)** — say "Cadence, …" with the app closed or the screen off. Recognition runs offline on the phone; a permanent notification is shown while it listens, as Android requires
+            - Voice & natural-language commands; real-time reminders; weekly schedule planner
+            - Light / dark / auto themes, reduced-motion mode, and a friendly first-run setup
+          files: |
+            dist/cadence.html
+            dist/cadence-pwa.zip
+
+  apk:
+    needs: web
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android platform & build-tools
+        run: |
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" >/dev/null
+
+      - name: Build APK with Capacitor
+        run: |
+          set -e
+          # Same build stamp the web assets get, so an installed APK can say
+          # which build it is
+          sed -i "s#__BUILD_ID__#${{ github.run_number }} · $(date -u '+%Y-%m-%d %H:%M UTC')#" index.html
+          grep -o 'const BUILD_ID = "[^"]*"' index.html
+
+          # Web assets that get bundled inside the app
+          mkdir -p www
+          cp index.html manifest.webmanifest sw.js icon.png www/
+
+          # Minimal Capacitor project
+          npm init -y >/dev/null 2>&1
+          npm install --no-audit --no-fund @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6 \
+                                            @capacitor-community/speech-recognition@6
+          npx --yes cap init Cadence app.cadence.focus --web-dir www
+          npx --yes cap add android
+
+          # Our native sources: wake-word foreground service + Capacitor bridge
+          mkdir -p android/app/src/main/java/app/cadence/focus
+          cp android-native/java/app/cadence/focus/*.java android/app/src/main/java/app/cadence/focus/
+          ls android/app/src/main/java/app/cadence/focus/
+
+          # Offline wake-word model (Vosk, Apache-2.0) bundled into the APK
+          curl -fsSL -o /tmp/vosk-model.zip https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip
+          unzip -q /tmp/vosk-model.zip -d /tmp/vosk-model
+          mkdir -p android/app/src/main/assets/vosk-model
+          cp -r /tmp/vosk-model/vosk-model-small-en-us-0.15/. android/app/src/main/assets/vosk-model/
+          du -sh android/app/src/main/assets/vosk-model
+          test -f android/app/src/main/assets/vosk-model/am/final.mdl
+
+          # Permissions, the microphone foreground service and the boot reminder
+          MAN=android/app/src/main/AndroidManifest.xml
+          if ! grep -q RECORD_AUDIO "$MAN"; then
+            sed -i 's#</manifest>#    <uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />\n    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />\n    <queries><intent><action android:name="android.speech.RecognitionService" /></intent></queries>\n</manifest>#' "$MAN"
+          fi
+          if ! grep -q "app.cadence.focus.VoiceService" "$MAN"; then
+            sed -i 's#</application>#        <service android:name="app.cadence.focus.VoiceService" android:exported="false" android:foregroundServiceType="microphone" />\n        <receiver android:name="app.cadence.focus.BootReceiver" android:exported="true" android:enabled="true">\n            <intent-filter><action android:name="android.intent.action.BOOT_COMPLETED" /></intent-filter>\n        </receiver>\n    </application>#' "$MAN"
+          fi
+
+          # External command handoff (e.g. from VOID): a normal-level custom
+          # permission gates who may trigger RunCommandReceiver — no runtime
+          # prompt, just keeps random apps from firing it unasked.
+          if ! grep -q "RUN_COMMAND" "$MAN"; then
+            sed -i 's#</manifest>#    <permission android:name="app.cadence.focus.permission.RUN_COMMAND" android:protectionLevel="normal" />\n</manifest>#' "$MAN"
+            sed -i 's#</application>#        <receiver android:name="app.cadence.focus.RunCommandReceiver" android:exported="true" android:permission="app.cadence.focus.permission.RUN_COMMAND">\n            <intent-filter><action android:name="app.cadence.focus.RUN_COMMAND" /></intent-filter>\n        </receiver>\n    </application>#' "$MAN"
+          fi
+          python3 -c "import xml.dom.minidom,sys; xml.dom.minidom.parse('$MAN'); print('manifest is valid XML')"
+          grep -c "RECORD_AUDIO\|VoiceService\|BootReceiver\|RunCommandReceiver\|RUN_COMMAND" "$MAN"
+
+          npx --yes cap sync android
+
+          # Brand the Android launcher icon from icon.png. The adaptive
+          # foreground is padded because Android crops it to its own mask, and a
+          # full-bleed foreground would lose the mushroom's cap and mound.
+          # Kept to one-line commands: a heredoc body would sit at column zero
+          # and end this YAML block scalar.
+          sudo apt-get update -qq && sudo apt-get install -y -qq imagemagick
+          RES=android/app/src/main/res
+          for pair in "mdpi 48 108" "hdpi 72 162" "xhdpi 96 216" "xxhdpi 144 324" "xxxhdpi 192 432"; do
+            set -- $pair
+            convert icon.png -resize "$2x$2" "$RES/mipmap-$1/ic_launcher.png"
+            cp "$RES/mipmap-$1/ic_launcher.png" "$RES/mipmap-$1/ic_launcher_round.png"
+            INNER=$(( $3 * 62 / 100 ))
+            convert icon.png -resize "${INNER}x${INNER}" -background none -gravity center -extent "$3x$3" "$RES/mipmap-$1/ic_launcher_foreground.png"
+          done
+          ls -la "$RES/mipmap-xxhdpi"
+
+          # Ensure Gradle finds the SDK
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
+
+          # Stable release signing: same key every build, so new APKs install
+          # OVER the previous one instead of "package conflicts with existing package".
+          cp cadence-release.keystore android/app/cadence-release.keystore
+          VERSION_CODE=$(( 1000 + ${{ github.run_number }} ))
+          cat >> android/app/build.gradle <<GRADLE
+
+          android {
+              defaultConfig {
+                  versionCode ${VERSION_CODE}
+                  versionName "1.0.${VERSION_CODE}"
+              }
+              signingConfigs {
+                  release {
+                      storeFile file('cadence-release.keystore')
+                      storePassword 'cadence-sideload'
+                      keyAlias 'cadence'
+                      keyPassword 'cadence-sideload'
+                  }
+              }
+              buildTypes {
+                  release {
+                      signingConfig signingConfigs.release
+                      minifyEnabled false
+                  }
+              }
+              // JNA (used by Vosk) needs its native libraries extracted on install
+              packagingOptions {
+                  jniLibs { useLegacyPackaging true }
+              }
+              // keep the acoustic model readable as plain files inside the APK
+              aaptOptions {
+                  noCompress 'mdl', 'fst', 'int', 'dubm', 'ie', 'mat', 'stats', 'conf'
+              }
+          }
+
+          dependencies {
+              implementation 'com.alphacephei:vosk-android:0.3.47@aar'
+              implementation 'net.java.dev.jna:jna:5.13.0@aar'
+              implementation 'androidx.webkit:webkit:1.11.0'
+          }
+          GRADLE
+
+          cd android
+          chmod +x ./gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace
+          cd ..
+          cp android/app/build/outputs/apk/release/app-release.apk cadence.apk
+          ls -la cadence.apk
+          # Confirm it is properly signed
+          "$ANDROID_SDK_ROOT"/build-tools/34.0.0/apksigner verify --print-certs cadence.apk | head -4
+
+      - name: Determine tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=latest" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload APK to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ steps.tag.outputs.tag }}" cadence.apk --clobber --repo "${{ github.repository }}"

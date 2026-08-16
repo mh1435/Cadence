@@ -1,0 +1,84 @@
+{
+  "name": "Cadence — Study Time & Habits",
+  "short_name": "Cadence",
+  "description": "Offline study time & habit organizer with voice control and real-time reminders.",
+  "start_url": "./?utm_source=pwa",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#bfe9dd",
+  "theme_color": "#bfe9dd",
+  "categories": [
+    "productivity",
+    "education",
+    "lifestyle"
+  ],
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Start focus session",
+      "short_name": "Focus",
+      "url": "./?go=grow",
+      "description": "Plant a tree and focus",
+      "icons": [
+        {
+          "src": "icon.png",
+          "sizes": "1024x1024",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "New habit",
+      "short_name": "Add habit",
+      "url": "./?new=1",
+      "description": "Create a new habit",
+      "icons": [
+        {
+          "src": "icon.png",
+          "sizes": "1024x1024",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Study",
+      "short_name": "Study",
+      "url": "./?go=study",
+      "description": "Syllabus, flashcards and goals",
+      "icons": [
+        {
+          "src": "icon.png",
+          "sizes": "1024x1024",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Statistics",
+      "short_name": "Stats",
+      "url": "./?go=analytics",
+      "description": "See your insights",
+      "icons": [
+        {
+          "src": "icon.png",
+          "sizes": "1024x1024",
+          "type": "image/png"
+        }
+      ]
+    }
+  ]
+}
