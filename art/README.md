@@ -1,5 +1,21 @@
 # Plant art pipeline
 
+## Check the alpha channel before writing any keying code
+
+The full 28-species sheet arrived as a 6144x4096 **RGBA** PNG with a perfectly
+good alpha channel: 62.5% of it fully transparent. Transparent pixels still
+carry RGB, and in this file that leftover data is a colourful gradient. Opening
+it with `.convert("RGB")` throws the alpha away and shows that gradient as if it
+were a background, which is exactly what happened: a whole background-estimation
+pipeline was built to key out something that was never there, and the results
+were worse than the alpha already in the file.
+
+`extract_alpha.py` is the correct path: read the alpha, segment on it, and only
+replace the RGB *outside* the silhouette so a downscale cannot sample that
+leftover gradient and fringe every edge.
+
+If a future sheet does need keying, check `Image.open(f).mode` first.
+
 ## Two sources, two pipelines
 
 Seven species now use hand-drawn growth strips supplied at roughly 1536x1024

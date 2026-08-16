@@ -1,7 +1,7 @@
 /* Cadence service worker — offline shell caching.
    Network-first for navigations (so updates land quickly), cache fallback when offline. */
-const CACHE = "cadence-v4";
-const ASSETS = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg"];
+const CACHE = "cadence-v5";
+const ASSETS = ["./", "./index.html", "./manifest.webmanifest", "./icon.png"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));

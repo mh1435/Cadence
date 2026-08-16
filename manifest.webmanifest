@@ -6,17 +6,79 @@
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "background_color": "#0d0f14",
-  "theme_color": "#0d0f14",
-  "categories": ["productivity", "education", "lifestyle"],
+  "background_color": "#bfe9dd",
+  "theme_color": "#bfe9dd",
+  "categories": [
+    "productivity",
+    "education",
+    "lifestyle"
+  ],
   "icons": [
-    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
-    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+    {
+      "src": "icon.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ],
   "shortcuts": [
-    { "name": "Start focus session", "short_name": "Focus", "url": "./?go=grow", "description": "Plant a tree and focus", "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }] },
-    { "name": "New habit", "short_name": "Add habit", "url": "./?new=1", "description": "Create a new habit", "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }] },
-    { "name": "Study", "short_name": "Study", "url": "./?go=study", "description": "Syllabus, flashcards and goals", "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }] },
-    { "name": "Statistics", "short_name": "Stats", "url": "./?go=analytics", "description": "See your insights", "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }] }
+    {
+      "name": "Start focus session",
+      "short_name": "Focus",
+      "url": "./?go=grow",
+      "description": "Plant a tree and focus",
+      "icons": [
+        {
+          "src": "icon.png",
+          "sizes": "1024x1024",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "New habit",
+      "short_name": "Add habit",
+      "url": "./?new=1",
+      "description": "Create a new habit",
+      "icons": [
+        {
+          "src": "icon.png",
+          "sizes": "1024x1024",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Study",
+      "short_name": "Study",
+      "url": "./?go=study",
+      "description": "Syllabus, flashcards and goals",
+      "icons": [
+        {
+          "src": "icon.png",
+          "sizes": "1024x1024",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Statistics",
+      "short_name": "Stats",
+      "url": "./?go=analytics",
+      "description": "See your insights",
+      "icons": [
+        {
+          "src": "icon.png",
+          "sizes": "1024x1024",
+          "type": "image/png"
+        }
+      ]
+    }
   ]
 }
